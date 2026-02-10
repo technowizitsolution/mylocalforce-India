@@ -1,13 +1,16 @@
-runtime: nodejs18
+runtime: nodejs20
+
+automatic_scaling:
+  max_instances: 20
 
 handlers:
   - url: /static
-    static_dir: build/static
+    static_dir: dist/assets
 
-  - url: /(.*\.(json|ico|js|css|png|jpg|svg|txt))$
-    static_files: build/\1
-    upload: build/(.*)
+  - url: /(.*\.(json|ico|js|css|png|jpg|jpeg|svg|webp|gif|txt))$
+    static_files: dist/\1
+    upload: dist/(.*)
 
   - url: /.*
-    static_files: build/index.html
-    upload: build/index.html
+    static_files: dist/index.html
+    upload: dist/index.html
