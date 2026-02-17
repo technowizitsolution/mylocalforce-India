@@ -32,7 +32,7 @@ const Footer = () => {
             <div className="mx-auto max-w-7xl">
                 {/* Logo Section */}
                 <div className="mb-6 sm:mb-8 md:mb-12 flex items-center gap-2 sm:gap-3">
-                    <img src="/MLF.jpg" alt="Logo" className="h-8 w-8 sm:h-10 sm:w-10 rounded" />
+                    <img src="/images/MLF.jpg" alt="Logo" className="h-8 w-8 sm:h-10 sm:w-10 rounded" />
                     <span className="font-extrabold text-black text-sm sm:text-base md:text-lg">MY LOCAL FORCE</span>
                 </div>
 
