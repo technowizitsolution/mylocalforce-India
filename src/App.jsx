@@ -6,7 +6,7 @@ import Home from './customer/pages/Home';
 import Services from './customer/pages/Services';
 import Bookings from './customer/pages/Bookings';
 import Profile from './customer/pages/Profile';
-
+import LoginScreen from './screens/LoginScreen';
 /**
  * App component - Main routing configuration
  * Handles all route definitions and protects routes based on user roles
@@ -16,6 +16,13 @@ const App = () => {
     <Routes>
       {/* Public Routes */}
       <Route path="/" element={<Welcome />} />
+
+      <Route path="/login" element={<LoginScreen />} />
+
+      {/* Auth Routes - To be implemented */}
+      <Route path="/signup-selection" element={<div>Signup Selection - Coming Soon</div>} />
+      <Route path="/forgot-password" element={<div>Forgot Password - Coming Soon</div>} />
+      <Route path="/main-tabs" element={<Navigate to="/customer" replace />} />
 
       {/* Customer Routes - Protected by role */}
       <Route

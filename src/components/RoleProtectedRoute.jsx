@@ -3,24 +3,30 @@ import { useAuth } from '../context/AuthContext';
 import { Loading } from './StateComponents';
 
 const RoleProtectedRoute = ({ children, requiredRole }) => {
-  const isAuthenticated = true;
-  const user = { role: 'customer' };
-  const loading = false;
+  const { isAuthenticated, user, userRoles, isLoading } = useAuth();
 
-  if (loading) {
+  if (isLoading) {
     return <Loading fullScreen />;
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
-  if (requiredRole && user?.role !== requiredRole) {
+  if (requiredRole && !userRoles?.roles?.[requiredRole]) {
     const roleMap = {
       customer: '/customer',
-      provider: '/provider',
+      client: '/provider',
+      admin: '/admin',
     };
-    return <Navigate to={roleMap[user?.role] || '/'} replace />;
+    
+    // Determine where to redirect based on user's actual roles
+    const userActualRole = Object.keys(userRoles?.roles || {}).find(
+      role => userRoles?.roles?.[role]
+    );
+    const redirectPath = roleMap[userActualRole] || '/';
+    
+    return <Navigate to={redirectPath} replace />;
   }
 
   return children;

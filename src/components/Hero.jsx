@@ -1,4 +1,7 @@
+import { useNavigate } from "react-router-dom"
 export default function Hero() {
+  
+  const navigate = useNavigate();
   const isClient = typeof navigator !== 'undefined'
   const userAgent = isClient ? navigator.userAgent : ''
   const isIOS =
@@ -61,7 +64,7 @@ export default function Hero() {
             </button>
 
             <button
-              onClick={() => {}}
+              onClick={() => navigate('/login')}
               className="border border-white px-5 sm:px-6 py-2.5 rounded-full text-sm sm:text-base font-semibold text-white hover:bg-[#2969E7] hover:text-white transition cursor-pointer"
             >
               Login
