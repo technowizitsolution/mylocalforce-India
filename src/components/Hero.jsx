@@ -33,12 +33,12 @@ export default function Hero() {
     <section className="relative h-screen w-full overflow-hidden">
       {/* Background Image */}
       <img
-        src="/Nail1.jpg"
+        src="/images/Nail1.jpg"
         alt="Salon"
         className="absolute inset-0 h-full w-full object-cover md:hidden"
       />
       <img
-        src="/Nail2.jpg"
+        src="/images/Nail2.jpg"
         alt="Salon"
         className="absolute inset-0 h-full w-full object-cover hidden md:block"
       />
@@ -49,7 +49,7 @@ export default function Hero() {
         {/* Navbar */}
         <nav className="flex flex-col sm:flex-row items-center justify-between px-4 sm:px-6 md:px-8 lg:px-12 py-4 sm:py-6 gap-4 sm:gap-0">
           <div className="flex items-center gap-2 sm:gap-3">
-            <img src="/MLF.jpg" alt="Logo" className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded" />
+            <img src="/images/MLF.jpg" alt="Logo" className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded" />
             <p className="text-white text-lg sm:text-xl md:text-2xl font-bold">
               MY LOCAL FORCE
             </p>
@@ -95,7 +95,7 @@ export default function Hero() {
                   className="inline-block transition-transform duration-300 hover:scale-105"
                 >
                   <img
-                    src="/appStore.webp"
+                    src="/images/appStore.webp"
                     alt="Download on App Store"
                     className="h-7 sm:h-8 md:h-10 w-auto object-contain"
                   />
@@ -106,7 +106,7 @@ export default function Hero() {
                   className="inline-block transition-transform duration-300 hover:scale-105"
                 >
                   <img
-                    src="/googlePlay.webp"
+                    src="/images/googlePlay.webp"
                     alt="Get it on Google Play"
                     className="h-7 sm:h-8 md:h-10 w-auto object-contain"
                   />

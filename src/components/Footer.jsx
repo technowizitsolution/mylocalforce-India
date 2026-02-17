@@ -109,7 +109,7 @@ const Footer = () => {
                                 className="inline-block transition-transform duration-300 hover:scale-105"
                             >
                                 <img
-                                    src="/appStore.webp"
+                                    src="/images/appStore.webp"
                                     alt="Download on App Store"
                                     className="h-7 sm:h-8 md:h-10 w-auto object-contain"
                                 />
@@ -120,7 +120,7 @@ const Footer = () => {
                                 className="inline-block transition-transform duration-300 hover:scale-105"
                             >
                                 <img
-                                    src="/googlePlay.webp"
+                                    src="/images/googlePlay.webp"
                                     alt="Get it on Google Play"
                                     className="h-7 sm:h-8 md:h-10 w-auto object-contain"
                                 />
