@@ -6,25 +6,25 @@ const Content = () => {
       id: '01',
       title: 'Hair Wash & Blow Dry',
       description: 'Professional hair washing and styling',
-      image: '/WomenHairWash.png'
+      image: '/images/WomenHairWash.png'
     },
     {
       id: '02',
       title: 'Waxing & Hair Removal',
       description: 'Smooth and long-lasting results',
-      image: '/Waxing.webp'
+      image: '/images/Waxing.webp'
     },
     {
       id: '03',
       title: 'Nail Care',
       description: 'Manicure and pedicure services',
-      image: '/Facial.webp'
+      image: '/images/Facial.webp'
     },
     {
       id: '04',
       title: 'Stress Relief Massage',
       description: 'Relaxation and wellness therapy',
-      image: '/stressReliefMen.webp'
+      image: '/images/stressReliefMen.webp'
     }
   ]
 

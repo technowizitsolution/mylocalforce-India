@@ -1,4 +1,6 @@
 // Premium Color Scheme and Theme Configuration
+// Tailwind CSS compatible theme for React web application
+
 export const Colors = {
   // Primary Colors - Modern Purple & Blue Gradient
   primary: '#6C63FF',
@@ -11,7 +13,7 @@ export const Colors = {
   // Gradient Colors
   gradientStart: '#6C63FF',
   gradientEnd: '#4ECDC4',
-  
+
   // Success & Status Colors
   success: '#00D68F',
   successLight: '#26E3A6',
@@ -27,27 +29,27 @@ export const Colors = {
   backgroundLight: '#FFFFFF',
   backgroundDark: '#F1F5F9',
   backgroundGray: '#F7F7F7',
-  
+
   // Text Colors
   text: '#1E293B',
   textLight: '#64748B',
   textMuted: '#94A3B8',
   textInverse: '#FFFFFF',
-  
+
   // Surface Colors
   surface: '#FFFFFF',
   surfaceLight: '#F8FAFC',
   surfaceDark: '#E2E8F0',
-  
+
   // Border Colors
   border: '#E2E8F0',
   borderLight: '#F1F5F9',
   borderDark: '#CBD5E1',
-  
+
   // Shadow Colors
   shadow: 'rgba(30, 41, 59, 0.1)',
   shadowDark: 'rgba(30, 41, 59, 0.2)',
-  
+
   // Category Colors
   categories: {
     cleaning: '#00D68F',
@@ -57,115 +59,90 @@ export const Colors = {
     repair: '#6C63FF',
     beauty: '#FF8BB5',
   },
-  
+
   // Status Colors for Bookings
   booking: {
     upcoming: '#00A8FF',
     inProgress: '#FFB800',
     completed: '#00D68F',
     cancelled: '#FF4757',
-  }
+  },
 };
 
+// Spacing mapped to Tailwind-compatible rem values
 export const Spacing = {
-  xs: 4,
-  sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
-  xxl: 48,
+  xs: '0.25rem',   // 4px  → p-1
+  sm: '0.5rem',    // 8px  → p-2
+  md: '1rem',      // 16px → p-4
+  lg: '1.5rem',    // 24px → p-6
+  xl: '2rem',      // 32px → p-8
+  xxl: '3rem',     // 48px → p-12
 };
 
+// Border radius mapped to Tailwind-compatible rem values
 export const BorderRadius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 24,
-  full: 50,
+  sm: '0.5rem',    // 8px  → rounded-lg
+  md: '0.75rem',   // 12px → rounded-xl
+  lg: '1rem',      // 16px → rounded-2xl
+  xl: '1.5rem',    // 24px → rounded-3xl
+  full: '9999px',  // fully rounded → rounded-full
 };
 
 export const Typography = {
   sizes: {
-    xs: 12,
-    sm: 14,
-    md: 16,
-    lg: 18,
-    xl: 20,
-    xxl: 24,
-    xxxl: 32,
+    xs: '0.75rem',   // 12px → text-xs
+    sm: '0.875rem',  // 14px → text-sm
+    md: '1rem',      // 16px → text-base
+    lg: '1.125rem',  // 18px → text-lg
+    xl: '1.25rem',   // 20px → text-xl
+    xxl: '1.5rem',   // 24px → text-2xl
+    xxxl: '2rem',    // 32px → text-4xl (closest)
   },
   weights: {
-    regular: '400',
-    medium: '500',
-    semibold: '600',
-    bold: '700',
+    regular: '400',  // font-normal
+    medium: '500',   // font-medium
+    semibold: '600', // font-semibold
+    bold: '700',     // font-bold
   },
   lineHeights: {
-    tight: 1.2,
-    normal: 1.4,
-    relaxed: 1.6,
-  }
+    tight: '1.2',    // leading-tight
+    normal: '1.4',   // leading-normal (approx)
+    relaxed: '1.6',  // leading-relaxed
+  },
 };
 
+// Box shadows as CSS strings (web-compatible)
 export const Shadows = {
-  small: {
-    shadowColor: Colors.shadow,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  medium: {
-    shadowColor: Colors.shadow,
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 1,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  large: {
-    shadowColor: Colors.shadowDark,
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 1,
-    shadowRadius: 20,
-    elevation: 12,
-  }
+  small: '0 2px 8px rgba(30, 41, 59, 0.1)',     // shadow-md equivalent
+  medium: '0 4px 12px rgba(30, 41, 59, 0.1)',    // shadow-lg equivalent
+  large: '0 8px 20px rgba(30, 41, 59, 0.2)',     // shadow-xl equivalent
 };
 
-// Common Styles
-export const CommonStyles = {
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    ...Shadows.small,
-  },
-  button: {
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    fontSize: Typography.sizes.md,
-    backgroundColor: Colors.surface,
-    color: Colors.text,
-  },
+// Tailwind class mappings for common patterns
+// Use these directly in className props
+export const TW = {
+  container: 'flex-1 bg-slate-50 min-h-screen',
+  card: 'bg-white rounded-xl shadow-md',
+  button: 'py-4 px-6 rounded-2xl flex items-center justify-center',
+  input: 'border border-slate-200 rounded-xl py-4 px-4 text-base bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent',
+  gradient: 'bg-gradient-to-r from-[#6C63FF] to-[#4ECDC4]',
+
+  // Text utilities
+  textPrimary: 'text-slate-800',
+  textSecondary: 'text-slate-500',
+  textMuted: 'text-slate-400',
+
+  // Status badge classes
+  statusUpcoming: 'bg-blue-100 text-blue-600',
+  statusInProgress: 'bg-amber-100 text-amber-600',
+  statusCompleted: 'bg-emerald-100 text-emerald-600',
+  statusCancelled: 'bg-red-100 text-red-600',
+
+  // Category badge classes
+  categoryCleaning: 'bg-emerald-100 text-emerald-600',
+  categoryPlumbing: 'bg-blue-100 text-blue-600',
+  categoryElectrician: 'bg-amber-100 text-amber-600',
+  categorySalon: 'bg-pink-100 text-pink-600',
+  categoryRepair: 'bg-indigo-100 text-indigo-600',
+  categoryBeauty: 'bg-rose-100 text-rose-600',
 };

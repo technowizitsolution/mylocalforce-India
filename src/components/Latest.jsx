@@ -7,7 +7,7 @@ const services = [
         title: "Salon for Men at Home",
         description:
             "Professional haircut, beard styling, and grooming services delivered to your doorstep by experts.",
-        image: "/menSaloon.jpg",
+        image: "/images/menSaloon.jpg",
         featured: true,
     },
     {
@@ -16,7 +16,7 @@ const services = [
         title: "Hair Wash & Styling",
         description:
             "Relaxing hair wash, conditioning, and professional styling for every occasion.",
-        image: "/WomenHairWash.png",
+        image: "/images/WomenHairWash.png",
     },
     {
         id: 3,
@@ -24,7 +24,7 @@ const services = [
         title: "Facial & Cleanup",
         description:
             "Deep cleansing facial and glow treatment using premium skin-care products.",
-        image: "/womenFacial.jpg",
+        image: "/images/womenFacial.jpg",
     },
     {
         id: 4,
@@ -32,7 +32,7 @@ const services = [
         title: "Stress Relief Head, Neck & Shoulder Massage",
         description:
             "Relaxing massage therapy designed to relieve stress, reduce muscle tension, and refresh your mind and body by trained professionals.",
-        image: "/stressReliefMen.webp",
+        image: "/images/stressReliefMen.webp",
     },
 
 ];
@@ -44,8 +44,8 @@ const ServiceCard = ({ service, large }) => {
                 }`}
         >
             {/* Image */}
-            <div className={`relative overflow-hidden ${large
-                    ? "h-48 sm:h-64 md:h-80 lg:h-[450px]"
+                <div className={`relative overflow-hidden ${large
+                    ? "h-48 sm:h-64 md:h-80 lg:h-112.5"
                     : "h-48 sm:h-40 md:h-48"
                 }`}>
                 <img
@@ -55,10 +55,10 @@ const ServiceCard = ({ service, large }) => {
                 />
 
                 {/* Gradient Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/20 to-transparent" />
 
                 {/* Category Badge */}
-                <span className="absolute top-3 left-3 sm:top-4 sm:left-4 px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-bold bg-white/90 text-[#2969E7] rounded-full backdrop-blur">
+                <span className="absolute top-3 left-3 sm:top-4 sm:left-4 px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-bold bg-white/90 text-primary-700 rounded-full backdrop-blur">
                     {service.category}
                 </span>
             </div>
@@ -72,7 +72,7 @@ const ServiceCard = ({ service, large }) => {
                     {service.description}
                 </p>
 
-                <button className="text-[#2969E7] font-semibold text-xs sm:text-sm group-hover:underline">
+                <button className="text-primary-700 font-semibold text-xs sm:text-sm group-hover:underline">
                     Book Now →
                 </button>
             </div>
@@ -102,7 +102,7 @@ const Latest = () => {
                         {others.map((service) => (
                             <div key={service.id} className="lg:flex lg:gap-6">
                                 {/* On lg screens, show horizontal card */}
-                                <div className="hidden lg:block w-52 xl:w-64 flex-shrink-0 overflow-hidden rounded-2xl">
+                                <div className="hidden lg:block w-52 xl:w-64 shrink-0 overflow-hidden rounded-2xl">
                                     <img
                                         src={service.image}
                                         alt={service.title}
@@ -115,7 +115,7 @@ const Latest = () => {
                                 </div>
                                 {/* Desktop content */}
                                 <div className="hidden lg:flex flex-1 flex-col justify-center bg-white rounded-2xl p-6 shadow-md hover:shadow-lg transition-shadow">
-                                    <span className="inline-block mb-2 px-3 py-1 rounded-full bg-blue-100 text-[#2969E7] text-xs font-bold w-fit">
+                                    <span className="inline-block mb-2 px-3 py-1 rounded-full bg-primary-50 text-primary-700 text-xs font-bold w-fit">
                                         {service.category}
                                     </span>
                                     <h3 className="text-lg xl:text-xl font-bold mb-2 text-black">
@@ -124,7 +124,7 @@ const Latest = () => {
                                     <p className="text-gray-600 text-sm mb-4 line-clamp-2">
                                         {service.description}
                                     </p>
-                                    <button className="text-[#2969E7] font-semibold text-sm hover:underline w-fit">
+                                    <button className="text-primary-700 font-semibold text-sm hover:underline w-fit">
                                         Book Now →
                                     </button>
                                 </div>
