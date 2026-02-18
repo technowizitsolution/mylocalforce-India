@@ -6,6 +6,9 @@ import Home from './customer/pages/Home';
 import Services from './customer/pages/Services';
 import Bookings from './customer/pages/Bookings';
 import Profile from './customer/pages/Profile';
+import ServiceDetailsScreen from './customer/pages/ServiceDetailsScreen';
+import AddressScreen from './customer/pages/AddressScreen';
+import ProviderSelectorScreen from './customer/pages/ProviderSelectorScreen';
 import LoginScreen from './screens/LoginScreen';
 /**
  * App component - Main routing configuration
@@ -38,6 +41,15 @@ const App = () => {
 
         {/* Services Listing */}
         <Route path="services" element={<Services />} />
+
+        {/* Service Details */}
+        <Route path="service-detail" element={<ServiceDetailsScreen />} />
+
+        {/* Address Selection */}
+        <Route path="address" element={<AddressScreen />} />
+
+        {/* Provider Selection */}
+        <Route path="provider-selector" element={<ProviderSelectorScreen />} />
 
         {/* User Bookings */}
         <Route path="bookings" element={<Bookings />} />

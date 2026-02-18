@@ -46,7 +46,8 @@ const NotificationBell = ({
   return (
     <button
       onClick={onPress}
-      className={`relative w-11 h-11 sm:w-10 sm:h-10 flex items-center justify-center rounded-md bg-${bgColor} hover:bg-indigo-100/40 active:bg-indigo-100/60 transition-colors cursor-pointer`}
+      className="relative w-11 h-11 sm:w-10 sm:h-10 flex items-center justify-center rounded-md hover:bg-indigo-100/40 active:bg-indigo-100/60 transition-colors cursor-pointer border border-blue-100"
+      style={{ backgroundColor: bgColor || 'transparent' }}
       aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
     >
       <FiBell style={{ width: size, height: size, color }} />
