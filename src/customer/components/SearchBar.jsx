@@ -18,7 +18,7 @@ const SearchBar = ({
 
   return (
     <div
-      className={`flex items-center bg-white mx-4 sm:mx-6 lg:mx-8 mb-4 px-3 sm:px-4 rounded-2xl border border-slate-100 shadow-lg ${containerClassName}`}
+      className={`flex items-center bg-white mx-4 sm:mx-6 lg:mx-8 mb-4 px-3 sm:px-4 rounded-2xl border border-slate-100 shadow-lg ${containerClassName} lg:hidden`}
     >
       <FiSearch className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 mr-2 shrink-0" />
       <input

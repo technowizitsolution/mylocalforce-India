@@ -562,7 +562,7 @@ const LoginScreen = () => {
 
         {/* Guest Access */}
         <button
-          onClick={() => navigate('/main-tabs')}
+          onClick={() => navigate('/')}
           className="mt-4 w-full text-sm text-gray-600 hover:text-gray-900 underline py-2"
         >
           Continue as Guest

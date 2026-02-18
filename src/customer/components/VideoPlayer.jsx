@@ -38,7 +38,7 @@ const VideoPlayer = ({
 
   return (
     <div
-      className={`mx-4 sm:mx-6 lg:mx-8 mb-6 sm:mb-8 relative rounded-2xl overflow-hidden shadow-lg group ${className}`}
+      className={`mx-4 sm:mx-6 lg:mx-8 mb-6 sm:mb-8 relative rounded-2xl overflow-hidden shadow-lg group ${className} lg:hidden`}
     >
       <video
         ref={videoRef}

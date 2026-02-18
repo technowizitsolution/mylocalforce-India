@@ -10,7 +10,7 @@ const SubCategoryCard = ({ subCategory, onPress }) => {
   return (
     <button
       onClick={() => onPress && onPress(subCategory)}
-      className="w-36 sm:w-40 md:w-44 shrink-0 bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+      className="w-36 sm:w-40 md:w-44 lg:w-58 shrink-0 bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
     >
       <p className="text-xs sm:text-sm font-medium text-slate-800 py-2 px-3 sm:px-4 truncate">
         {subCategory.name}
@@ -49,7 +49,7 @@ const HorizontalCategoryScroll = ({
     <div className={`mb-6 sm:mb-8 ${className}`}>
       {showTitle && (
         <div className="flex items-center justify-between mx-4 sm:mx-6 lg:mx-8 mb-3 sm:mb-4">
-          <h2 className="text-lg sm:text-xl font-bold text-slate-800">{title}</h2>
+          <h2 className="text-lg sm:text-xl lg:text-4xl font-bold text-slate-800">{title}</h2>
           <div className="hidden sm:flex gap-2">
             <button
               onClick={() => scroll('left')}

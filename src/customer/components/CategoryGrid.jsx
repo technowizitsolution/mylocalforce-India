@@ -25,8 +25,22 @@ const CategoryGrid = ({
 
   return (
     <div className="mb-6 sm:mb-8">
+
+      {/* Header Section */}
+        <div className="mb-10 mt-10 sm:mb-14 md:mb-20 text-center lg:block hidden">
+          <p className="text-[#2969E7] font-bold text-xs sm:text-sm mb-2 sm:mb-4 tracking-widest uppercase">
+            — OUR SERVICES
+          </p>
+          <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-black mb-3 sm:mb-4 leading-tight">
+            Premium Beauty & Wellness
+          </h2>
+          <p className="text-gray-600 text-sm sm:text-base md:text-lg max-w-2xl mx-auto px-4">
+            Experience our expertly curated services designed to enhance your beauty and wellness with professional care and attention to detail.
+          </p>
+        </div>
+
       {showTitle && (
-        <h2 className="text-lg sm:text-xl font-bold text-slate-800 mx-4 sm:mx-6 lg:mx-8 mb-3 sm:mb-4">
+        <h2 className="text-lg sm:text-xl font-bold text-slate-800 mx-4 sm:mx-6 lg:mx-8 mb-3 sm:mb-4 sm:hidden lg:hidden">
           {title}
         </h2>
       )}
