@@ -661,8 +661,9 @@ const BookingScreen = () => {
         const checkoutSession = await createCheckoutSession(stripeSessionData);
         console.log('Checkout session created:', checkoutSession.sessionId);
 
+        // Redirect to Stripe Checkout — Stripe will redirect back to our
+        // payment-success page after completion (success or cancel).
         window.location.href = checkoutSession.url;
-        alert('You will be redirected to Stripe to complete your payment.');
       }
 
       if (isLead) {
@@ -839,47 +840,45 @@ const BookingScreen = () => {
     maxDate.setMonth(maxDate.getMonth() + 2);
 
     return (
-      <div className="mb-6">
-        <h3 className="text-base font-bold text-slate-800 mb-4">Select Date</h3>
+      <div className="mb-4 sm:mb-6">
+        <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">Select Date</h3>
 
         {/* Month navigation */}
-        <div className="flex items-center justify-between mb-4 px-2">
+        <div className="flex items-center justify-between mb-3 sm:mb-4 px-1 sm:px-2">
           <button
             onClick={goToPreviousMonth}
             disabled={currentMonth <= today}
-            className="p-2 disabled:opacity-30"
+            className="p-1.5 sm:p-2 disabled:opacity-30"
           >
             <FiChevronLeft
-              size={24}
-              className={currentMonth <= today ? 'text-slate-400' : 'text-indigo-500'}
+              className={`w-5 h-5 sm:w-6 sm:h-6 ${currentMonth <= today ? 'text-slate-400' : 'text-indigo-500'}`}
             />
           </button>
-          <span className="text-lg font-bold text-slate-800">{monthName}</span>
+          <span className="text-base sm:text-lg font-bold text-slate-800">{monthName}</span>
           <button
             onClick={goToNextMonth}
             disabled={currentMonth >= maxDate}
-            className="p-2 disabled:opacity-30"
+            className="p-1.5 sm:p-2 disabled:opacity-30"
           >
             <FiChevronRight
-              size={24}
-              className={currentMonth >= maxDate ? 'text-slate-400' : 'text-indigo-500'}
+              className={`w-5 h-5 sm:w-6 sm:h-6 ${currentMonth >= maxDate ? 'text-slate-400' : 'text-indigo-500'}`}
             />
           </button>
         </div>
 
         {/* Weekday headers */}
-        <div className="grid grid-cols-7 mb-2">
+        <div className="grid grid-cols-7 mb-1.5 sm:mb-2">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-            <div key={day} className="text-center text-xs font-semibold text-slate-400">
+            <div key={day} className="text-center text-[10px] sm:text-xs font-semibold text-slate-400">
               {day}
             </div>
           ))}
         </div>
 
         {/* Calendar grid */}
-        <div className="bg-white rounded-xl p-1">
+        <div className="bg-white rounded-xl p-0.5 sm:p-1">
           {weeks.map((week, weekIndex) => (
-            <div key={weekIndex} className="grid grid-cols-7 gap-0.5">
+            <div key={weekIndex} className="grid grid-cols-7 gap-0.5 sm:gap-1">
               {week.map((date, dayIndex) => {
                 if (!date) {
                   return <div key={dayIndex} className="aspect-square" />;
@@ -903,7 +902,7 @@ const BookingScreen = () => {
                     }}
                     disabled={isDisabled}
                     className={`
-                      aspect-square flex items-center justify-center rounded-lg text-sm font-medium transition-colors
+                      aspect-square flex items-center justify-center rounded-md sm:rounded-lg text-xs sm:text-sm font-medium transition-colors
                       ${isSelected ? 'bg-indigo-500 text-white font-bold' : ''}
                       ${isDisabled ? 'opacity-30 cursor-not-allowed' : 'hover:bg-indigo-50 cursor-pointer'}
                       ${isToday && !isSelected ? 'border-2 border-indigo-500 text-indigo-500 font-bold' : ''}
@@ -926,8 +925,9 @@ const BookingScreen = () => {
     if (!providersList || providersList.length <= 1) return null;
 
     return (
-      <div className="mb-6">
-        <h3 className="text-base font-bold text-slate-800 mb-4">Choose Provider</h3>
+      <div className="mb-4 sm:mb-6">
+        <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">Choose Provider</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {providersList.map((p, idx) => {
           const pid = p.id || p.providerId || p.ownerId || p.uid || idx;
           const displayName =
@@ -971,37 +971,37 @@ const BookingScreen = () => {
               key={pid}
               onClick={() => setSelectedProvider(p)}
               className={`
-                w-full text-left bg-white rounded-xl border p-4 mb-2 transition-colors
+                w-full text-left bg-white rounded-xl border p-3 sm:p-4 transition-colors
                 ${isSelected ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'}
               `}
             >
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full overflow-hidden shrink-0">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden shrink-0">
                   {avatar ? (
                     <img
                       src={avatar}
                       alt={displayName}
-                      className="w-12 h-12 rounded-full object-cover bg-slate-100"
+                      className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover bg-slate-100"
                     />
                   ) : (
-                    <div className="w-12 h-12 rounded-full bg-slate-200" />
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-200" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-800 truncate">
+                  <p className="text-xs sm:text-sm font-semibold text-slate-800 truncate">
                     {displayName}
                   </p>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 sm:mt-1 flex-wrap">
                     {subtitle && (
-                      <span className="text-xs text-slate-400">{subtitle}</span>
+                      <span className="text-[10px] sm:text-xs text-slate-400 truncate max-w-30 sm:max-w-none">{subtitle}</span>
                     )}
                     {rating != null && (
-                      <span className="text-xs text-slate-400">
+                      <span className="text-[10px] sm:text-xs text-slate-400">
                         ★ {Number(rating).toFixed(1)}
                       </span>
                     )}
                     {distText && (
-                      <span className="text-xs text-slate-400">{distText}</span>
+                      <span className="text-[10px] sm:text-xs text-slate-400">{distText}</span>
                     )}
                   </div>
                 </div>
@@ -1009,6 +1009,7 @@ const BookingScreen = () => {
             </button>
           );
         })}
+        </div>
       </div>
     );
   };
@@ -1018,20 +1019,20 @@ const BookingScreen = () => {
     <div className="flex flex-col min-h-screen bg-slate-50">
       {/* Confirmation Modal */}
       {confirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl p-6 mx-4 max-w-sm w-full shadow-xl">
-            <h3 className="text-lg font-bold text-slate-800 mb-2">{confirmModal.title}</h3>
-            <p className="text-sm text-slate-600 mb-6">{confirmModal.message}</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl p-5 sm:p-6 mx-auto max-w-sm w-full shadow-xl">
+            <h3 className="text-base sm:text-lg font-bold text-slate-800 mb-2">{confirmModal.title}</h3>
+            <p className="text-sm text-slate-600 mb-5 sm:mb-6">{confirmModal.message}</p>
             <div className="flex gap-3 justify-end">
               <button
                 onClick={confirmModal.onCancel}
-                className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmModal.onConfirm}
-                className="px-4 py-2 rounded-lg bg-indigo-500 text-sm font-medium text-white hover:bg-indigo-600"
+                className="px-4 py-2 rounded-lg bg-indigo-500 text-sm font-medium text-white hover:bg-indigo-600 transition-colors"
               >
                 Proceed
               </button>
@@ -1041,99 +1042,102 @@ const BookingScreen = () => {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200 sticky top-0 z-10">
+      <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-3 sm:py-4 bg-white border-b border-slate-200 sticky top-0 z-10">
         <button
           onClick={() => navigate(-1)}
-          className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors"
+          className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors"
         >
-          <FiArrowLeft size={24} className="text-slate-800" />
+          <FiArrowLeft className="w-5 h-5 sm:w-6 sm:h-6 text-slate-800" />
         </button>
-        <h1 className="text-lg font-bold text-slate-800">Book Service</h1>
-        <div className="w-10" />
+        <h1 className="text-base sm:text-lg font-bold text-slate-800">Book Service</h1>
+        <div className="w-9 sm:w-10" />
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto px-4 lg:px-6">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-3xl">
         {/* Service Summary Card */}
-        <div className="bg-white rounded-2xl p-6 my-6 shadow-md">
-          <div className="flex items-center gap-2 mb-4">
-            <FiCalendar size={20} className="text-indigo-500" />
-            <h2 className="text-base font-bold text-slate-800">Service Details</h2>
+        <div className="bg-white rounded-2xl p-4 sm:p-6 my-4 sm:my-6 shadow-md">
+          <div className="flex items-center gap-2 mb-3 sm:mb-4">
+            <FiCalendar className="w-5 h-5 text-indigo-500" />
+            <h2 className="text-sm sm:text-base font-bold text-slate-800">Service Details</h2>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2.5 sm:space-y-3">
             {serviceData?.imageUrl && (
               <img
                 src={serviceData.imageUrl}
                 alt="Service"
-                className="w-full h-40 object-cover rounded-xl mb-4"
+                className="w-full h-32 sm:h-40 md:h-48 object-cover rounded-xl mb-3 sm:mb-4"
               />
             )}
 
-            {(serviceData?.name || serviceData?.title) && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-400">Service:</span>
-                <span className="text-sm font-semibold text-slate-800">
-                  {serviceData.name || serviceData.title}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+              {(serviceData?.name || serviceData?.title) && (
+                <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
+                  <span className="text-xs sm:text-sm text-slate-400">Service:</span>
+                  <span className="text-xs sm:text-sm font-semibold text-slate-800 text-right sm:text-left">
+                    {serviceData.name || serviceData.title}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
+                <span className="text-xs sm:text-sm text-slate-400">Category:</span>
+                <span className="text-xs sm:text-sm font-semibold text-slate-800 text-right sm:text-left">
+                  {serviceData?.category || category}
                 </span>
               </div>
-            )}
 
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-slate-400">Category:</span>
-              <span className="text-sm font-semibold text-slate-800">
-                {serviceData?.category || category}
-              </span>
+              {(serviceData?.subcategory || subcategory) && (
+                <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
+                  <span className="text-xs sm:text-sm text-slate-400">Subcategory:</span>
+                  <span className="text-xs sm:text-sm font-semibold text-slate-800 text-right sm:text-left">
+                    {serviceData?.subcategory || subcategory}
+                  </span>
+                </div>
+              )}
+
+              {providersList && providersList.length > 0 && (
+                <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
+                  <span className="text-xs sm:text-sm text-slate-400">Provider:</span>
+                  <span className="text-xs sm:text-sm font-semibold text-slate-800 text-right sm:text-left">
+                    {selectedProvider
+                      ? selectedProvider.name ||
+                        selectedProvider.ownerName ||
+                        selectedProvider.fullName
+                      : serviceData?.ownerName || 'Service Provider'}
+                  </span>
+                </div>
+              )}
+
+              {(serviceData?.price != null || packageData?.price) && (
+                <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
+                  <span className="text-xs sm:text-sm text-slate-400">Price:</span>
+                  <span className="text-sm sm:text-base font-bold text-indigo-500">
+                    {serviceData?.price != null
+                      ? serviceData.price
+                      : packageData?.price || '50'}
+                  </span>
+                </div>
+              )}
+
+              {(serviceData?.duration || packageData?.duration) && (
+                <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
+                  <span className="text-xs sm:text-sm text-slate-400">Duration:</span>
+                  <span className="text-xs sm:text-sm font-semibold text-slate-800 text-right sm:text-left">
+                    {serviceData?.duration || packageData?.duration}
+                  </span>
+                </div>
+              )}
             </div>
 
-            {(serviceData?.subcategory || subcategory) && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-400">Subcategory:</span>
-                <span className="text-sm font-semibold text-slate-800">
-                  {serviceData?.subcategory || subcategory}
-                </span>
-              </div>
-            )}
-
             {serviceData?.description && (
-              <div className="mt-2">
-                <span className="text-sm text-slate-400">Description:</span>
-                <p className="text-sm text-slate-800 leading-5 mt-1">
+              <div className="mt-2 pt-2 border-t border-slate-100">
+                <span className="text-xs sm:text-sm text-slate-400">Description:</span>
+                <p className="text-xs sm:text-sm text-slate-800 leading-5 mt-1">
                   {serviceData.description}
                 </p>
-              </div>
-            )}
-
-            {providersList && providersList.length > 0 && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-400">Provider:</span>
-                <span className="text-sm font-semibold text-slate-800">
-                  {selectedProvider
-                    ? selectedProvider.name ||
-                      selectedProvider.ownerName ||
-                      selectedProvider.fullName
-                    : serviceData?.ownerName || 'Service Provider'}
-                </span>
-              </div>
-            )}
-
-            {(serviceData?.price != null || packageData?.price) && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-400">Price:</span>
-                <span className="text-base font-bold text-indigo-500">
-                  {serviceData?.price != null
-                    ? serviceData.price
-                    : packageData?.price || '50'}
-                </span>
-              </div>
-            )}
-
-            {(serviceData?.duration || packageData?.duration) && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-400">Duration:</span>
-                <span className="text-sm font-semibold text-slate-800">
-                  {serviceData?.duration || packageData?.duration}
-                </span>
               </div>
             )}
           </div>
@@ -1146,60 +1150,61 @@ const BookingScreen = () => {
         {renderCalendar()}
 
         {/* Time Selection */}
-        <div className="mb-6">
-          <h3 className="text-base font-bold text-slate-800 mb-4">Select Time</h3>
+        <div className="mb-4 sm:mb-6">
+          <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">Select Time</h3>
 
           <button
             onClick={() => setShowTimePicker(!showTimePicker)}
-            className="w-full flex items-center gap-3 bg-white rounded-xl border border-slate-200 p-4 hover:border-slate-300 transition-colors"
+            className="w-full flex items-center gap-2.5 sm:gap-3 bg-white rounded-xl border border-slate-200 p-3 sm:p-4 hover:border-slate-300 transition-colors"
           >
-            <FiClock size={20} className="text-indigo-500" />
-            <span className={`flex-1 text-left text-base ${selectedTime ? 'text-slate-800' : 'text-slate-400'}`}>
+            <FiClock className="w-5 h-5 text-indigo-500" />
+            <span className={`flex-1 text-left text-sm sm:text-base ${selectedTime ? 'text-slate-800' : 'text-slate-400'}`}>
               {selectedTime || 'Choose a time'}
             </span>
             <FiChevronDown
-              size={20}
-              className={`text-slate-400 transition-transform ${showTimePicker ? 'rotate-180' : ''}`}
+              className={`w-5 h-5 text-slate-400 transition-transform ${showTimePicker ? 'rotate-180' : ''}`}
             />
           </button>
 
           {showTimePicker && (
-            <div className="mt-2 bg-white rounded-xl border border-slate-200 shadow-lg max-h-60 overflow-y-auto">
-              {TIME_SLOTS.map((time) => {
-                const isActive = selectedTime === time;
-                return (
-                  <button
-                    key={time}
-                    onClick={() => handleTimeSelect(time)}
-                    className={`
-                      w-full text-left px-4 py-2.5 text-sm transition-colors
-                      ${isActive ? 'bg-indigo-500 text-white font-semibold' : 'text-slate-700 hover:bg-indigo-50'}
-                    `}
-                  >
-                    {time}
-                  </button>
-                );
-              })}
+            <div className="mt-2 bg-white rounded-xl border border-slate-200 shadow-lg max-h-52 sm:max-h-60 overflow-y-auto">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6">
+                {TIME_SLOTS.map((time) => {
+                  const isActive = selectedTime === time;
+                  return (
+                    <button
+                      key={time}
+                      onClick={() => handleTimeSelect(time)}
+                      className={`
+                        text-center px-2 sm:px-3 py-2 sm:py-2.5 text-xs sm:text-sm transition-colors border-b border-r border-slate-100
+                        ${isActive ? 'bg-indigo-500 text-white font-semibold' : 'text-slate-700 hover:bg-indigo-50'}
+                      `}
+                    >
+                      {time}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
 
         {/* Address Section */}
-        <div className="mb-6">
-          <h3 className="text-base font-bold text-slate-800 mb-4">Service Address</h3>
+        <div className="mb-4 sm:mb-6">
+          <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">Service Address</h3>
           {defaultAddress ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <FiHome size={20} className="text-indigo-500" />
-                <span className="text-sm font-semibold text-indigo-500">
+            <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4">
+              <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
+                <FiHome className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-500" />
+                <span className="text-xs sm:text-sm font-semibold text-indigo-500">
                   Selected Address
                 </span>
               </div>
-              <p className="text-sm text-slate-800 leading-5">{defaultAddress}</p>
+              <p className="text-xs sm:text-sm text-slate-800 leading-5 wrap-break-word">{defaultAddress}</p>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <p className="text-sm text-slate-800">
+            <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4">
+              <p className="text-xs sm:text-sm text-slate-800">
                 No address selected. Please choose an address from the Address screen
                 before booking.
               </p>
@@ -1208,35 +1213,37 @@ const BookingScreen = () => {
         </div>
 
         {/* Contact Information */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6">
-          <h3 className="text-base font-bold text-slate-800 mb-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 mb-4 sm:mb-6">
+          <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">
             Contact Information
           </h3>
-          <div className="flex items-center mb-1">
-            <span className="text-sm text-slate-400 pr-2">Phone:</span>
-            <span className="text-sm font-semibold text-slate-800">
-              {phoneNumber || 'Not set'}
-            </span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-2">
+            <div className="flex items-center">
+              <span className="text-xs sm:text-sm text-slate-400 pr-2">Phone:</span>
+              <span className="text-xs sm:text-sm font-semibold text-slate-800 break-all">
+                {phoneNumber || 'Not set'}
+              </span>
+            </div>
+            <div className="flex items-center">
+              <span className="text-xs sm:text-sm text-slate-400 pr-2">Email:</span>
+              <span className="text-xs sm:text-sm font-semibold text-slate-800 truncate">
+                {customerEmail || 'Not set'}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center mb-1">
-            <span className="text-sm text-slate-400 pr-2">Email:</span>
-            <span className="text-sm font-semibold text-slate-800">
-              {customerEmail || 'Not set'}
-            </span>
-          </div>
-          <p className="mt-3 text-xs text-slate-400 italic">
+          <p className="mt-2.5 sm:mt-3 text-[10px] sm:text-xs text-slate-400 italic">
             * All notifications and service-related information will be sent to your
             registered email and phone number.
           </p>
         </div>
 
         {/* Special Instructions */}
-        <div className="mb-6">
-          <h3 className="text-base font-bold text-slate-800 mb-4">
+        <div className="mb-4 sm:mb-6">
+          <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">
             Special Instructions
           </h3>
           <textarea
-            className="w-full bg-white rounded-xl border border-slate-200 p-4 text-sm text-slate-800 placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full bg-white rounded-xl border border-slate-200 p-3 sm:p-4 text-xs sm:text-sm text-slate-800 placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             placeholder="Any special requirements or instructions"
             value={specialInstructions}
             onChange={(e) => setSpecialInstructions(e.target.value)}
@@ -1245,19 +1252,19 @@ const BookingScreen = () => {
         </div>
 
         {/* Test Payment Card */}
-        <div className="bg-amber-50 rounded-2xl border border-amber-300 p-4 mb-6">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <FiInfo size={16} className="text-amber-600" />
-            <span className="text-sm font-bold text-amber-800">
+        <div className="bg-amber-50 rounded-2xl border border-amber-300 p-3 sm:p-4 mb-4 sm:mb-6">
+          <div className="flex items-center justify-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
+            <FiInfo className="w-4 h-4 text-amber-600" />
+            <span className="text-xs sm:text-sm font-bold text-amber-800">
               Test Mode - No Real Charges
             </span>
           </div>
 
           {/* Credit Card UI */}
-          <div className="bg-[#1e3a5f] rounded-xl p-4 mb-4 shadow-lg">
-            <div className="flex justify-between items-center mb-6">
-              <div className="w-10 h-7 bg-yellow-600 rounded" />
-              <span className="text-xl font-bold text-white italic tracking-widest">
+          <div className="bg-[#1e3a5f] rounded-xl p-3 sm:p-4 mb-3 sm:mb-4 shadow-lg max-w-md mx-auto">
+            <div className="flex justify-between items-center mb-4 sm:mb-6">
+              <div className="w-8 h-5 sm:w-10 sm:h-7 bg-yellow-600 rounded" />
+              <span className="text-lg sm:text-xl font-bold text-white italic tracking-widest">
                 VISA
               </span>
             </div>
@@ -1267,45 +1274,45 @@ const BookingScreen = () => {
                 navigator.clipboard.writeText('4242424242424242');
                 alert('Card number copied to clipboard!');
               }}
-              className="w-full flex items-center justify-between bg-white/10 rounded-md py-2 px-3 mb-6 hover:bg-white/20 transition-colors"
+              className="w-full flex items-center justify-between bg-white/10 rounded-md py-1.5 sm:py-2 px-2.5 sm:px-3 mb-4 sm:mb-6 hover:bg-white/20 transition-colors"
             >
-              <span className="text-[15px] font-semibold text-white tracking-wider font-mono">
+              <span className="text-xs sm:text-[15px] font-semibold text-white tracking-wider font-mono">
                 4242 4242 4242 4242
               </span>
-              <div className="bg-white/20 rounded p-1.5">
-                <FiCopy size={14} className="text-white" />
+              <div className="bg-white/20 rounded p-1 sm:p-1.5">
+                <FiCopy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white" />
               </div>
             </button>
 
             <div className="flex justify-between">
               <div className="flex-1">
-                <p className="text-[8px] text-slate-400 tracking-widest mb-0.5">
+                <p className="text-[7px] sm:text-[8px] text-slate-400 tracking-widest mb-0.5">
                   EXPIRY
                 </p>
-                <p className="text-xs text-white font-semibold tracking-wider">
+                <p className="text-[10px] sm:text-xs text-white font-semibold tracking-wider">
                   12/28
                 </p>
               </div>
               <div className="flex-1">
-                <p className="text-[8px] text-slate-400 tracking-widest mb-0.5">
+                <p className="text-[7px] sm:text-[8px] text-slate-400 tracking-widest mb-0.5">
                   CVC
                 </p>
-                <p className="text-xs text-white font-semibold tracking-wider">
+                <p className="text-[10px] sm:text-xs text-white font-semibold tracking-wider">
                   123
                 </p>
               </div>
               <div className="flex-1">
-                <p className="text-[8px] text-slate-400 tracking-widest mb-0.5">
+                <p className="text-[7px] sm:text-[8px] text-slate-400 tracking-widest mb-0.5">
                   NAME
                 </p>
-                <p className="text-xs text-white font-semibold tracking-wider">
+                <p className="text-[10px] sm:text-xs text-white font-semibold tracking-wider">
                   TEST USER
                 </p>
               </div>
             </div>
           </div>
 
-          <p className="text-xs font-semibold text-amber-800 text-center bg-amber-100 py-2 px-4 rounded-lg">
+          <p className="text-[10px] sm:text-xs font-semibold text-amber-800 text-center bg-amber-100 py-1.5 sm:py-2 px-3 sm:px-4 rounded-lg">
             ⚠️ Use the card details above for testing. No real money will be charged.
           </p>
         </div>
@@ -1315,7 +1322,7 @@ const BookingScreen = () => {
           onClick={handleSubmitBooking}
           disabled={isLoading}
           className={`
-            w-full flex items-center justify-center py-4 rounded-2xl mt-6 font-bold text-base text-white shadow-md transition-colors
+            w-full sm:w-auto sm:min-w-70 sm:mx-auto flex items-center justify-center py-3 sm:py-4 rounded-2xl mt-4 sm:mt-6 font-bold text-sm sm:text-base text-white shadow-md transition-colors
             ${isLoading ? 'bg-slate-400 cursor-not-allowed' : 'bg-indigo-500 hover:bg-indigo-600 cursor-pointer'}
           `}
         >
@@ -1323,7 +1330,8 @@ const BookingScreen = () => {
         </button>
 
         {/* Bottom spacer */}
-        <div className="h-8" />
+        <div className="h-6 sm:h-8" />
+        </div>
       </div>
     </div>
   );

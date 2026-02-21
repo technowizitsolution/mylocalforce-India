@@ -11,6 +11,7 @@ import AddressScreen from './customer/pages/AddressScreen';
 import ProviderSelectorScreen from './customer/pages/ProviderSelectorScreen';
 import LoginScreen from './screens/LoginScreen';
 import BookingScreen from './customer/pages/BookingScreen';
+import PaymentSuccess from './customer/pages/PaymentSuccess';
 /**
  * App component - Main routing configuration
  * Handles all route definitions and protects routes based on user roles
@@ -57,6 +58,9 @@ const App = () => {
 
         {/* Booking Screen */}
         <Route path="booking" element={<BookingScreen />} />
+
+        {/* Payment Result (redirect back from Stripe) */}
+        <Route path="payment-success" element={<PaymentSuccess />} />
 
         {/* User Profile */}
         <Route path="profile" element={<Profile />} />

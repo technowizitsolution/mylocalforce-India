@@ -150,12 +150,13 @@ const AddressScreen = () => {
   }, [query]);
 
   const goToNextStep = addr => {
-    navigate(resolveNextRoute(nextScreen), {
-      state: {
-        ...params,
-        selectedAddress: addr,
-      },
-    });
+    // Deep-clone the state to strip non-serializable values (functions, class
+    // instances, Firestore refs, etc.) that would cause a DataCloneError when
+    // the browser tries to push the entry onto the History stack.
+    const rawState = { ...params, selectedAddress: addr };
+    const safeState = JSON.parse(JSON.stringify(rawState));
+
+    navigate(resolveNextRoute(nextScreen), { state: safeState });
   };
 
   const handleSelectSuggestion = async suggestion => {
@@ -165,10 +166,14 @@ const AddressScreen = () => {
       setQuery(suggestion.description);
       setSuggestions([]);
 
+      console.log("I am here")
+
       const geocoded = await geocodeAddress(suggestion.description);
+      console.log("Geocoded result:", geocoded);
       if (geocoded) {
         setSelectedAddress(geocoded);
         goToNextStep(geocoded);
+        console.log("Navigating to next step with geocoded address");
       } else {
         // Even if geocoding fails, pass the text address forward
         const fallbackAddr = {
