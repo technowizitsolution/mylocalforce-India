@@ -42,7 +42,7 @@ const BannerCarousel = ({
         className="flex gap-3 sm:gap-4 overflow-x-auto px-4 sm:px-6 lg:px-8 scroll-smooth snap-x snap-mandatory scrollbar-hide"
       >
         {banners.map((banner, index) => {
-          const src = banner.source || banner.uri || banner;
+          const src = banner.source || banner.uri || banner.image;
           return (
             <button
               key={index}

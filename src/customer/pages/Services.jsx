@@ -192,7 +192,7 @@ const Services = () => {
           {/* Navigation Content */}
           <nav className="relative z-10 flex flex-col sm:flex-row items-center justify-between lg:px-30 py-1 sm:py-2 gap-4 ">
             {/* Logo Section */}
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div onClick={()=>navigate('/customer')} className="flex items-center gap-2 sm:gap-3 cursor-pointer">
               <img src="/images/MLF.jpg" alt="Logo" className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded-lg border border-blue-100" />
               <p className="text-[#5A52E3] text-lg sm:text-xl md:text-2xl font-bold">
                 MY LOCAL FORCE
@@ -223,7 +223,7 @@ const Services = () => {
               )}
 
               <button
-                onClick={() => { }}
+                onClick={() => navigate("/customer/profile")}
                 className="w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-md bg-white hover:bg-gray-100 active:bg-gray-200 transition-colors cursor-pointer border border-blue-100"
               >
                 <FiUser className="w-5 h-5 text-[#5A52E3]" />

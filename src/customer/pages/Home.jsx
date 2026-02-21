@@ -94,8 +94,8 @@ const HomeScreen = () => {
 
   // Banner images
   const banners = [
-    '/images/beardBanner.jpeg',
-    '/images/facialBanner.jpeg',
+    {image:'/images/beardBanner.jpeg', name:"men's"},
+    {image:'/images/facialBanner.jpeg', name:'women'}
   ];
 
   // Navigation handlers
@@ -133,6 +133,7 @@ const HomeScreen = () => {
           providers: serviceData.providers || [],
           imageUrl: serviceData.imageUrl,
         },
+        searchQuery: serviceData.name,
       },
     });
   };
@@ -140,7 +141,7 @@ const HomeScreen = () => {
   const handleSubCategoryPress = (subcategory) => {
     navigate('/customer/services', {
       state: {
-        selectedCategory: subcategory.category || subcategory.name,
+        searchQuery: subcategory.searchName,
       },
     });
   };
@@ -155,7 +156,7 @@ const HomeScreen = () => {
 
   const handleBannerPress = (banner, index) => {
     navigate('/customer/services', {
-      state: { showFilters: true, bannerIndex: index },
+      state: { showFilters: true, bannerIndex: index ,searchQuery: banner.name},
     });
   };
 
@@ -215,7 +216,7 @@ const HomeScreen = () => {
         <div className="relative z-10 h-full flex flex-col">
           {/* Navbar */}
           <nav className="flex flex-col sm:flex-row items-center justify-between px-4 sm:px-6 md:px-8 lg:px-12 py-4 sm:py-6 gap-4 sm:gap-0">
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3" >
               <img src="/images/MLF.jpg" alt="Logo" className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded" />
               <p className="text-white text-lg sm:text-xl md:text-2xl font-bold">
                 MY LOCAL FORCE
@@ -236,7 +237,7 @@ const HomeScreen = () => {
                 />)}
 
               <button
-                onClick={() => { }}
+                onClick={() => navigate("/customer/profile")}
                 className="relative w-11 h-11 sm:w-10 sm:h-10 flex items-center justify-center rounded-md bg-white hover:bg-indigo-100/40 active:bg-indigo-100/60 transition-colors cursor-pointer"
               >
                 <FiUser className="w-4 h-4 sm:w-5 sm:h-5 text-[#5A52E3]" />

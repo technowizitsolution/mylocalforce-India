@@ -1,143 +1,360 @@
-import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiCheckCircle, FiMapPin, FiBell } from 'react-icons/fi';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  FiCalendar,
+  FiClock,
+  FiCheckCircle,
+  FiXCircle,
+  FiInfo,
+  FiScissors,
+  FiHome,
+  FiWind,
+  FiZap,
+  FiLock,
+  FiDroplet,
+  FiUser,
+  FiSettings,
+  FiStar,
+  FiChevronRight,
+  FiRefreshCw,
+  FiSearch,
+} from 'react-icons/fi';
+import { useAuth } from '../../context/AuthContext';
+import { fetchUserBookings, subscribeToUserBookings } from '../../services/firebase';
+import BookingDetailModal from '../components/BookingDetailModal';
+import NotificationBell from '../components/NotificationBell';
+
+/* ── Icon look-ups ── */
+const STATUS_MAP = {
+  upcoming:  { icon: FiClock,       color: 'text-amber-500',  bg: 'bg-amber-500/10' },
+  completed: { icon: FiCheckCircle, color: 'text-green-500',  bg: 'bg-green-500/10' },
+  cancelled: { icon: FiXCircle,     color: 'text-red-500',    bg: 'bg-red-500/10' },
+  default:   { icon: FiInfo,        color: 'text-gray-400',   bg: 'bg-gray-400/10' },
+};
+
+const SERVICE_ICONS = {
+  'woman salon':                        FiScissors,
+  'beauty therapy':                     FiHome,
+  'massage':                            FiWind,
+  'electrician plumber and carpenters': FiZap,
+  'beard trim':                         FiLock,
+  'native water':                       FiDroplet,
+  'massage for man':                    FiUser,
+};
+
+const getStatusMeta = (status) => STATUS_MAP[status] || STATUS_MAP.default;
+const getServiceIcon = (category) =>
+  SERVICE_ICONS[category?.toLowerCase()] || FiSettings;
+
+/* ══════════════════════════════════════════════════════════ */
 
 const Bookings = () => {
-  const location = useLocation();
   const navigate = useNavigate();
-  const {
-    serviceData,
-    selectedProvider,
-    selectedAddress,
-    category,
-    packageData,
-    fromProviderSelector,
-    isLead,
-  } = location.state || {};
+  const { isLoggedIn, user } = useAuth();
 
-  /* ---------- Lead-capture view ---------- */
-  if (isLead) {
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState(null);
+  const [bookingDetailVisible, setBookingDetailVisible] = useState(false);
+  const [searchText, setSearchText] = useState('');
+
+  /* ── Fallback one-time fetch (defined before the effect) ── */
+  const loadBookingsOnce = useCallback(async () => {
+    if (!user || !isLoggedIn) {
+      setBookings([]);
+      setLoading(false);
+      return;
+    }
+    try {
+      const userBookings = await fetchUserBookings(user.uid);
+      setBookings(userBookings);
+    } catch (err) {
+      console.error('Error loading bookings:', err);
+      setBookings([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [user, isLoggedIn]);
+
+  /* ── Real-time subscription ── */
+  useEffect(() => {
+    let unsubscribe = null;
+
+    const setup = async () => {
+      if (!user || !isLoggedIn) {
+        setBookings([]);
+        setLoading(false);
+        return;
+      }
+      try {
+        unsubscribe = subscribeToUserBookings(user.uid, (updated) => {
+          setBookings(updated);
+          setLoading(false);
+          setRefreshing(false);
+        });
+      } catch (err) {
+        console.error('Error setting up real-time updates:', err);
+        await loadBookingsOnce();
+      }
+    };
+
+    setup();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [user, isLoggedIn, loadBookingsOnce]);
+
+  /* ── Refresh handler ── */
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadBookingsOnce();
+  }, [loadBookingsOnce]);
+
+  const handleLogin = () => navigate('/login', { replace: true });
+
+  /* ── Not-logged-in state ── */
+  if (!isLoggedIn) {
     return (
-      <div className="h-screen bg-slate-50 flex flex-col">
-        <div className="flex items-center justify-between px-4 py-4 border-b border-slate-200 bg-white">
-          <button
-            onClick={() => navigate(-1)}
-            className="w-11 h-11 flex items-center justify-center rounded-full bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-colors"
-          >
-            <FiArrowLeft size={22} className="text-slate-700" />
-          </button>
-          <h1 className="text-lg font-bold text-indigo-600 flex-1 text-center">Notification Set</h1>
-          <div className="w-11" />
-        </div>
-
-        <div className="flex-1 flex flex-col items-center justify-center px-6 gap-4 text-center">
-          <FiBell size={48} className="text-indigo-400" />
-          <h2 className="text-xl font-bold text-slate-800">We'll notify you!</h2>
-          <p className="text-sm text-slate-500 max-w-xs">
-            No providers are available in your area right now.
-            We'll send you a notification as soon as one becomes available
-            {serviceData?.title ? ` for "${serviceData.title}"` : ''}.
+      <div className="min-h-screen bg-linear-to-br from-gray-50 to-violet-50 flex items-center justify-center px-4 sm:px-6">
+        <div className="w-full max-w-md lg:max-w-lg bg-white rounded-2xl lg:rounded-3xl shadow-lg lg:shadow-xl p-8 sm:p-10 lg:p-14 flex flex-col items-center text-center">
+          <div className="w-20 h-20 lg:w-24 lg:h-24 rounded-full bg-violet-100 flex items-center justify-center mb-6">
+            <FiCalendar className="w-10 h-10 lg:w-12 lg:h-12 text-violet-600" />
+          </div>
+          <h2 className="text-xl lg:text-2xl font-bold text-gray-800 mb-2">
+            Track Your Bookings
+          </h2>
+          <p className="text-gray-500 text-sm lg:text-base mb-8 max-w-xs lg:max-w-sm">
+            Login to view and manage your service bookings
           </p>
+
           <button
-            onClick={() => navigate('/customer')}
-            className="mt-6 px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-colors"
+            onClick={handleLogin}
+            className="w-full sm:w-auto bg-violet-600 text-white font-bold px-10 py-3.5 rounded-xl shadow-md hover:bg-violet-700 hover:shadow-lg active:scale-[0.98] transition-all duration-200 mb-10 cursor-pointer"
           >
-            Back to Home
+            Login to Continue
           </button>
+
+          <div className="w-full border-t border-gray-100 pt-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+              {[
+                { Icon: FiClock,    text: 'Track booking status' },
+                { Icon: FiCalendar, text: 'Reschedule appointments' },
+                { Icon: FiStar,     text: 'Rate & review services' },
+              ].map(({ Icon, text }) => (
+                <div key={text} className="flex sm:flex-col items-center sm:text-center gap-3 sm:gap-2">
+                  <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+                    <Icon className="w-5 h-5 lg:w-6 lg:h-6 text-violet-600" />
+                  </div>
+                  <span className="text-gray-500 text-sm">{text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
-  /* ---------- Booking confirmation view ---------- */
-  const providerName =
-    selectedProvider?.profile?.name ||
-    selectedProvider?.profile?.displayName ||
-    selectedProvider?.profile?.fullName ||
-    'Provider';
-
-  const addressText =
-    selectedAddress?.formattedAddress ||
-    selectedAddress?.address ||
-    (typeof selectedAddress === 'string' ? selectedAddress : null) ||
-    'Not specified';
-
+  /* ── Logged-in view ── */
   return (
-    <div className="h-screen bg-slate-50 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-4 border-b border-slate-200 bg-white">
-        <button
-          onClick={() => navigate(-1)}
-          className="w-11 h-11 flex items-center justify-center rounded-full bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-colors"
-        >
-          <FiArrowLeft size={22} className="text-slate-700" />
-        </button>
-        <h1 className="text-lg font-bold text-indigo-600 flex-1 text-center">Booking Summary</h1>
-        <div className="w-11" />
-      </div>
+    <div className="min-h-screen bg-linear-to-br from-gray-50 to-slate-100">
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-        {/* Confirmation badge */}
-        {fromProviderSelector && (
-          <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
-            <FiCheckCircle size={24} className="text-emerald-600 shrink-0" />
-            <p className="text-sm text-emerald-700 font-medium">Provider selected successfully</p>
-          </div>
-        )}
+      {/* Desktop nav - shown on md+ */}
+      <header className="hidden lg:block sticky top-0 z-20 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto">
+          <nav className="flex items-center justify-between px-6 lg:px-8 py-3 gap-6">
+            {/* Logo */}
+            <div onClick={() => navigate('/customer')} className="flex items-center gap-3 cursor-pointer shrink-0">
+              <img src="/images/MLF.jpg" alt="Logo" className="w-12 h-12 object-cover rounded-lg border border-gray-200" />
+              <p className="text-violet-600 text-xl font-bold">MY LOCAL FORCE</p>
+            </div>
 
-        {/* Service Info */}
-        {serviceData && (
-          <div className="p-4 border border-slate-200 rounded-xl bg-white">
-            <h3 className="text-base font-bold text-slate-800 mb-1">
-              {serviceData.title || serviceData.name || 'Service'}
-            </h3>
-            {category && (
-              <p className="text-xs text-slate-500 mb-2">Category: {typeof category === 'string' ? category : category.name || category.title || ''}</p>
-            )}
-            {packageData && (
-              <p className="text-sm text-slate-600">
-                Package: {packageData.name || packageData.title || 'Standard'}{' '}
-                {packageData.price != null && <span className="font-semibold text-indigo-600">₹{packageData.price}</span>}
+            {/* Right section */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 w-64">
+                <FiSearch className="text-gray-400 w-5 h-5 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Search bookings..."
+                  className="flex-1 bg-transparent outline-none text-sm text-gray-800 placeholder-gray-400"
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                />
+              </div>
+              {isLoggedIn && (
+                <NotificationBell
+                  onPress={() => {}}
+                  size={20}
+                  color="#5A52E3"
+                  role="customer"
+                  bgColor="white"
+                />
+              )}
+              <button
+                onClick={() => navigate('/customer/profile')}
+                className="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors border border-gray-200 cursor-pointer"
+              >
+                <FiUser className="w-5 h-5 text-violet-600" />
+              </button>
+            </div>
+          </nav>
+        </div>
+      </header>
+
+      {/* Mobile nav - shown below md */}
+      <header className="md:hidden sticky top-0 z-20 bg-white/95 backdrop-blur-sm shadow-sm">
+        <div className="px-4 sm:px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold text-gray-800">My Bookings</h1>
+              <p className="text-sm text-gray-400 mt-0.5">
+                {bookings.length} booking{bookings.length !== 1 && 's'} found
+                {refreshing && ' • Refreshing…'}
               </p>
-            )}
+            </div>
+            <button
+              onClick={onRefresh}
+              disabled={refreshing}
+              className="p-2.5 rounded-xl bg-violet-50 hover:bg-violet-100 transition-colors disabled:opacity-50 cursor-pointer"
+              title="Refresh bookings"
+            >
+              <FiRefreshCw
+                className={`w-5 h-5 text-violet-600 ${refreshing ? 'animate-spin' : ''}`}
+              />
+            </button>
           </div>
-        )}
+        </div>
+      </header>
 
-        {/* Provider */}
-        {selectedProvider && (
-          <div className="p-4 border border-slate-200 rounded-xl bg-white">
-            <p className="text-xs text-slate-500 mb-1 font-semibold">Provider</p>
-            <p className="text-base font-bold text-slate-800">{providerName}</p>
-            {selectedProvider.distanceKm != null && (
-              <p className="text-xs text-slate-500 mt-1">{selectedProvider.distanceKm.toFixed(1)} km away</p>
-            )}
-          </div>
-        )}
-
-        {/* Address */}
-        <div className="p-4 border border-slate-200 rounded-xl bg-white flex items-start gap-3">
-          <FiMapPin size={18} className="text-indigo-600 mt-0.5 shrink-0" />
-          <div>
-            <p className="text-xs text-slate-500 mb-1 font-semibold">Service Address</p>
-            <p className="text-sm text-slate-800">{addressText}</p>
+      {/* Desktop title bar - shown on md+ */}
+      <div className="hidden md:block ">
+        <div className="max-w-6xl mx-auto px-6 lg:px-8 py-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">My Bookings</h1>
+              <p className="text-sm text-gray-400 mt-0.5">
+                {bookings.length} booking{bookings.length !== 1 && 's'} found
+                {refreshing && ' • Refreshing…'}
+              </p>
+            </div>
+            <button
+              onClick={onRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-50 hover:bg-violet-100 transition-colors disabled:opacity-50 cursor-pointer text-sm font-medium text-violet-600"
+              title="Refresh bookings"
+            >
+              <FiRefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="px-6 py-4 border-t border-slate-200 bg-white">
-        <button
-          onClick={() => {
-            // TODO: implement actual booking creation via Firebase
-            alert('Booking confirmed! (Integration pending)');
-            navigate('/customer');
-          }}
-          className="w-full py-3 px-6 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-colors"
-        >
-          Confirm Booking
-        </button>
-      </div>
+      {/* Body */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-32">
+          <FiRefreshCw className="w-10 h-10 text-violet-600 animate-spin" />
+          <p className="text-gray-400 mt-4 text-sm lg:text-base">Loading your bookings…</p>
+        </div>
+      ) : bookings.length === 0 ? (
+        /* ── Empty state ── */
+        <div className="flex flex-col items-center justify-center py-32 px-6 text-center">
+          <div className="w-24 h-24 lg:w-28 lg:h-28 rounded-full bg-gray-100 flex items-center justify-center">
+            <FiCalendar className="w-12 h-12 lg:w-14 lg:h-14 text-gray-300" />
+          </div>
+          <h3 className="text-lg lg:text-xl font-bold text-gray-800 mt-6 mb-2">
+            No bookings yet
+          </h3>
+          <p className="text-gray-400 leading-relaxed mb-8 max-w-xs lg:max-w-sm text-sm lg:text-base">
+            Your service bookings will appear here once you make your first booking.
+          </p>
+          <button
+            onClick={() => navigate('/customer/services')}
+            className="bg-violet-600 text-white font-bold px-8 py-3.5 rounded-xl shadow-md hover:bg-violet-700 hover:shadow-lg active:scale-[0.98] transition-all duration-200 cursor-pointer"
+          >
+            Browse Services
+          </button>
+        </div>
+      ) : (
+        /* ── Booking list ── */
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5 lg:py-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-5">
+              {bookings.map((item) => {
+                const { icon: StatusIcon, color, bg } = getStatusMeta(item.status);
+                const ServiceIcon = getServiceIcon(item.category);
+
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setSelectedBookingId(item.id);
+                      setBookingDetailVisible(true);
+                    }}
+                    className="w-full text-left bg-white rounded-2xl p-4 lg:p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 border border-gray-100 transition-all duration-200 cursor-pointer group"
+                  >
+                    {/* Card header */}
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        {item.serviceImage ? (
+                          <img
+                            src={item.serviceImage}
+                            alt=""
+                            className="w-14 h-14 lg:w-16 lg:h-16 rounded-xl object-cover bg-gray-100 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+                            <ServiceIcon className="w-6 h-6 lg:w-7 lg:h-7 text-violet-600" />
+                          </div>
+                        )}
+                        <div className="min-w-0 pt-0.5">
+                          <p className="font-bold text-gray-800 truncate text-sm lg:text-base">
+                            {item.serviceName ||
+                              item.serviceTitle ||
+                              item.subcategory ||
+                              item.category ||
+                              'Service Booking'}
+                          </p>
+                          <p className="text-xs lg:text-sm text-gray-400 truncate mt-0.5">
+                            {item.category || 'MyLocalForce Service'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Status badge */}
+                      <span
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] lg:text-xs font-bold uppercase shrink-0 ${bg} ${color}`}
+                      >
+                        <StatusIcon className="w-3.5 h-3.5" />
+                        {item.status}
+                      </span>
+                    </div>
+
+                    {/* View details bar */}
+                    <div className="flex items-center justify-center gap-1 bg-violet-50 group-hover:bg-violet-100 rounded-xl py-2.5 mt-2 transition-colors">
+                      <span className="text-sm font-semibold text-violet-600">
+                        View Details
+                      </span>
+                      <FiChevronRight className="w-4 h-4 text-violet-600 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+      )}
+
+      {/* Booking Detail Modal */}
+      <BookingDetailModal
+        visible={bookingDetailVisible}
+        bookingId={selectedBookingId}
+        role="customer"
+        onClose={() => {
+          setBookingDetailVisible(false);
+          setSelectedBookingId(null);
+        }}
+      />
     </div>
   );
 };

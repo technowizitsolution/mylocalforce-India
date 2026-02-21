@@ -454,7 +454,7 @@ const ProviderSelectorScreen = () => {
   }, [user?.uid]);
 
   const handleSelect = provider => {
-    navigate('/customer/bookings', {
+    navigate('/customer/booking', {
       state: {
         serviceData,
         category,

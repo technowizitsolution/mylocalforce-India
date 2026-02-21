@@ -10,6 +10,7 @@ import ServiceDetailsScreen from './customer/pages/ServiceDetailsScreen';
 import AddressScreen from './customer/pages/AddressScreen';
 import ProviderSelectorScreen from './customer/pages/ProviderSelectorScreen';
 import LoginScreen from './screens/LoginScreen';
+import BookingScreen from './customer/pages/BookingScreen';
 /**
  * App component - Main routing configuration
  * Handles all route definitions and protects routes based on user roles
@@ -53,6 +54,9 @@ const App = () => {
 
         {/* User Bookings */}
         <Route path="bookings" element={<Bookings />} />
+
+        {/* Booking Screen */}
+        <Route path="booking" element={<BookingScreen />} />
 
         {/* User Profile */}
         <Route path="profile" element={<Profile />} />
