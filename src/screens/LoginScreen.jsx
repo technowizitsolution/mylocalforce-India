@@ -11,13 +11,15 @@ import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 
 const LoginScreen = () => {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
-  if (isAuthenticated) {
-    return navigate('/customer', { replace: true });
-  }
-  
   const location = useLocation();
-  const { login, authenticateWithLinkedAccount } = useAuth();
+  const { isAuthenticated, login, authenticateWithLinkedAccount } = useAuth();
+
+  // Redirect if already authenticated (handled via useEffect to avoid hooks violation)
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/customer', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
   
   const [loginMethod, setLoginMethod] = useState('email'); // 'email' or 'phone'
   const [email, setEmail] = useState('');
@@ -88,9 +90,13 @@ const LoginScreen = () => {
     try {
       const result = await login(email, password);
       if (result.success) {
-        // The AuthContext will handle navigation via onAuthStateChanged
+        // Navigate to redirectTo if provided (e.g. from protected route), else customer home
         setTimeout(() => {
-          navigate('/customer');
+          if (redirectTo) {
+            navigate(redirectTo, { state: location.state?.params || {}, replace: true });
+          } else {
+            navigate('/customer', { replace: true });
+          }
         }, 100);
       } else {
         // Check if it's an approval status error
@@ -562,7 +568,7 @@ const LoginScreen = () => {
 
         {/* Guest Access */}
         <button
-          onClick={() => navigate('/main-tabs')}
+          onClick={() => navigate('/')}
           className="mt-4 w-full text-sm text-gray-600 hover:text-gray-900 underline py-2"
         >
           Continue as Guest

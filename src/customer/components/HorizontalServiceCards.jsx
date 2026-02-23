@@ -12,7 +12,7 @@ const ServiceCard = ({ service, onPress, showDiscount = false }) => {
   return (
     <button
       onClick={() => onPress && onPress(service)}
-      className="w-40 sm:w-44 md:w-48 shrink-0 bg-slate-50 rounded-2xl overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+      className="w-40 sm:w-44 md:w-48 lg:w-58 shrink-0 bg-slate-50 rounded-2xl overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
     >
       {/* Image */}
       <div className="relative">
@@ -84,10 +84,10 @@ const HorizontalServiceCards = ({
   };
 
   return (
-    <div className={`mb-6 sm:mb-8 ${className}`}>
+    <div className={`mb-6 sm:mb-8 lg:mt-20 lg:mb-15 ${className}`}>
       {showTitle && (
         <div className="flex items-center justify-between mx-4 sm:mx-6 lg:mx-8 mb-3 sm:mb-4">
-          <h2 className="text-lg sm:text-xl font-bold text-slate-800">{title}</h2>
+          <h2 className="text-lg sm:text-xl lg:text-4xl font-bold text-slate-800">{title}</h2>
           <div className="hidden sm:flex gap-2">
             <button
               onClick={() => scroll('left')}

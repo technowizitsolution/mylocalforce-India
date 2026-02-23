@@ -105,6 +105,8 @@ export const createCheckoutSession = async ({
         serviceName,
         price,
         description,
+        successUrl: `${window.location.origin}/customer/payment-success?status=success&booking_id=${bookingId}&session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${window.location.origin}/customer/payment-success?status=cancelled&booking_id=${bookingId}`,
       }),
     });
 
