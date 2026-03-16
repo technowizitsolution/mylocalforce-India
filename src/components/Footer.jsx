@@ -136,7 +136,7 @@ const Footer = () => {
                 {/* Copyright */}
                 <div className="text-[10px] sm:text-xs text-gray-600">
 
-                    <p className="leading-relaxed">© 2025 MyLocalForce. All rights reserved. | Designed by Technowiz IT Solutions</p>
+                    <p className="leading-relaxed">© 2025 MyLocalForce. All rights reserved. | Website and app developed by mylocalforce.au</p>
                 </div>
             </div>
         </footer>
