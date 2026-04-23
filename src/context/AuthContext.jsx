@@ -53,9 +53,15 @@ export const AuthProvider = ({ children }) => {
             return;
           }
 
+          const resolvedActiveRole =
+            rolesData.activeRole || profile?.activeRole || null;
+
           setUser(userData);
-          setUserRoles(rolesData);
-          setActiveRole(rolesData.activeRole);
+          setUserRoles({
+            ...rolesData,
+            activeRole: resolvedActiveRole,
+          });
+          setActiveRole(resolvedActiveRole);
           setIsLoggedIn(true);
 
           // Set up real-time listener for user document updates
@@ -67,11 +73,30 @@ export const AuthProvider = ({ children }) => {
                 const updatedData = docSnapshot.data();
                 console.log('👤 User document updated in real-time:', updatedData);
                 
-                // Update user state with new data
+                const nextRoles = updatedData.roles || {};
+                const nextActiveRole =
+                  updatedData.activeRole ||
+                  Object.keys(nextRoles).find((role) => nextRoles[role]) ||
+                  null;
+
+                // Update user and role state with new data.
                 setUser(prevUser => ({
                   ...prevUser,
                   ...updatedData,
                 }));
+
+                setUserRoles((prevRoles) => ({
+                  ...(prevRoles || {}),
+                  roles:
+                    Object.keys(nextRoles).length > 0
+                      ? nextRoles
+                      : prevRoles?.roles || {},
+                  activeRole: nextActiveRole || prevRoles?.activeRole || null,
+                }));
+
+                if (nextActiveRole) {
+                  setActiveRole(nextActiveRole);
+                }
               }
             },
             (error) => {
@@ -220,9 +245,15 @@ export const AuthProvider = ({ children }) => {
           fetchUserRoles(user.uid)
         ]);
 
+        const resolvedActiveRole =
+          rolesData.activeRole || profile?.activeRole || null;
+
         setUser({ ...user, ...profile });
-        setUserRoles(rolesData);
-        setActiveRole(rolesData.activeRole);
+        setUserRoles({
+          ...rolesData,
+          activeRole: resolvedActiveRole,
+        });
+        setActiveRole(resolvedActiveRole);
       } catch (error) {
         console.error('Error refreshing user data:', error);
       }
@@ -242,9 +273,15 @@ export const AuthProvider = ({ children }) => {
         ...userData
       };
 
+      const resolvedActiveRole =
+        rolesData.activeRole || userData.activeRole || null;
+
       setUser(userObj);
-      setUserRoles(rolesData);
-      setActiveRole(rolesData.activeRole);
+      setUserRoles({
+        ...rolesData,
+        activeRole: resolvedActiveRole,
+      });
+      setActiveRole(resolvedActiveRole);
       setIsLoggedIn(true);
 
       return { success: true };

@@ -3,16 +3,29 @@ import Content from "./Content"
 import Mid from "./Mid"
 import Latest from "./Latest"
 import Footer from "./Footer"
-import { useNavigate } from "react-router-dom"
+import { Navigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
+import { Loading } from "./StateComponents"
+import { getSignedInHomePath } from "../utils/providerFlow"
 
 const Welcome = () => {
-  const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, userRoles, activeRole, isLoading } = useAuth();
 
-  // If user is already authenticated
+  if (isLoading) {
+    return <Loading fullScreen />;
+  }
+
   if (isAuthenticated) {
-    return navigate('/customer', { replace: true });
+    return (
+      <Navigate
+        to={getSignedInHomePath({
+          user,
+          roles: userRoles?.roles,
+          activeRole,
+        })}
+        replace
+      />
+    );
   }
 
   return (

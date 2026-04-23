@@ -2,24 +2,76 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { loginWithPhoneProfile } from '../services/firebase/accountMerging';
 import { auth as webAuth, functions } from '../services/firebase/firebaseConfig';
 import { signInWithCustomToken } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { firestore } from '../services/firebase/firebaseConfig';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { getSignedInHomePath } from '../utils/providerFlow';
+import {
+  FiAlertCircle,
+  FiArrowRight,
+  FiCheckCircle,
+  FiHome,
+  FiLock,
+  FiLogIn,
+  FiMail,
+  FiShield,
+  FiSmartphone,
+  FiUserPlus,
+} from 'react-icons/fi';
+
+const inputClass =
+  'h-14 w-full rounded-lg border border-gray-300 bg-white px-5 text-gray-900 placeholder-gray-500 shadow-[0_8px_22px_rgba(15,23,42,0.04)] transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100';
+
+const iconInputClass =
+  'h-14 w-full rounded-lg border border-gray-300 bg-white px-5 pl-12 text-gray-900 placeholder-gray-500 shadow-[0_8px_22px_rgba(15,23,42,0.04)] transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100';
 
 const LoginScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, login, authenticateWithLinkedAccount } = useAuth();
+  const {
+    isAuthenticated,
+    login,
+    user,
+    userRoles,
+    activeRole,
+    isLoading: authLoading,
+  } = useAuth();
+  const redirectTo = location.state?.redirectTo;
 
   // Redirect if already authenticated (handled via useEffect to avoid hooks violation)
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/customer', { replace: true });
+    if (authLoading || !isAuthenticated || !user) {
+      return;
     }
-  }, [isAuthenticated, navigate]);
+
+    if (redirectTo) {
+      navigate(redirectTo, {
+        state: location.state?.params || {},
+        replace: true,
+      });
+      return;
+    }
+
+    navigate(
+      getSignedInHomePath({
+        user,
+        roles: userRoles?.roles,
+        activeRole,
+      }),
+      { replace: true },
+    );
+  }, [
+    authLoading,
+    isAuthenticated,
+    user,
+    userRoles,
+    activeRole,
+    redirectTo,
+    navigate,
+    location.state,
+  ]);
   
   const [loginMethod, setLoginMethod] = useState('email'); // 'email' or 'phone'
   const [email, setEmail] = useState('');
@@ -30,9 +82,11 @@ const LoginScreen = () => {
   const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
-  const [phoneConfirmation, setPhoneConfirmation] = useState(null);
   const [phoneCooldown, setPhoneCooldown] = useState(0);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState(
+    location.state?.signupMessage || '',
+  );
 
   const [selectedCountry, setSelectedCountry] = useState('+91'); // Default India
   const countryOptions = [
@@ -40,7 +94,16 @@ const LoginScreen = () => {
     { label: '🇦🇺 Australia (+61)', value: '+61' },
   ];
 
-  const redirectTo = location.state?.redirectTo;
+  useEffect(() => {
+    if (location.state?.prefillEmail) {
+      setEmail(location.state.prefillEmail);
+      setLoginMethod('email');
+    }
+
+    if (location.state?.signupMessage) {
+      setSuccessMessage(location.state.signupMessage);
+    }
+  }, [location.state]);
 
   // Country code selection
 
@@ -54,6 +117,7 @@ const LoginScreen = () => {
 
   const handleEmailLogin = async () => {
     setError('');
+    setSuccessMessage('');
     if (!email || !password) {
       setError('Please enter both email and password');
       return;
@@ -90,14 +154,7 @@ const LoginScreen = () => {
     try {
       const result = await login(email, password);
       if (result.success) {
-        // Navigate to redirectTo if provided (e.g. from protected route), else customer home
-        setTimeout(() => {
-          if (redirectTo) {
-            navigate(redirectTo, { state: location.state?.params || {}, replace: true });
-          } else {
-            navigate('/customer', { replace: true });
-          }
-        }, 100);
+        return;
       } else {
         // Check if it's an approval status error
         if (result.error && result.error.includes('pending')) {
@@ -180,6 +237,7 @@ const LoginScreen = () => {
 
   const handlePhoneLogin = async () => {
     setError('');
+    setSuccessMessage('');
     // Ensure phone is provided
     if (!phoneInput) {
       setError('Please enter your phone number');
@@ -348,231 +406,345 @@ const LoginScreen = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      {/* RecaptchaVerifier container for phone authentication */}
-      <div id="recaptcha-container"></div>
-      
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">My Local Force</h1>
-          <p className="text-base text-gray-600">Sign in to your account</p>
-        </div>
+    <div className="min-h-screen bg-white p-4 sm:p-5">
+      <div id="recaptcha-container" />
 
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-700">{error}</p>
-          </div>
-        )}
+      <div className="grid min-h-[calc(100vh-2rem)] grid-cols-1 gap-8 lg:min-h-[calc(100vh-2.5rem)] lg:grid-cols-[minmax(22rem,45vw)_1fr] lg:gap-12">
+        <aside className="relative min-h-[20rem] overflow-hidden rounded-2xl bg-gray-950 lg:sticky lg:top-5 lg:h-[calc(100vh-2.5rem)]">
+          <img
+            src="/images/SSaloon.jpg"
+            alt="My Local Force services"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-gray-950/42 via-blue-950/16 to-gray-950/52" />
 
-        {/* Login Method Tabs */}
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg mb-8">
-          <button
-            onClick={() => setLoginMethod('email')}
-            className={`flex-1 py-3 px-4 rounded-lg font-semibold transition ${
-              loginMethod === 'email'
-                ? 'bg-blue-600 text-white'
-                : 'bg-transparent text-gray-600 hover:text-gray-800'
-            }`}
-          >
-            Email
-          </button>
-          <button
-            onClick={() => setLoginMethod('phone')}
-            className={`flex-1 py-3 px-4 rounded-lg font-semibold transition ${
-              loginMethod === 'phone'
-                ? 'bg-blue-600 text-white'
-                : 'bg-transparent text-gray-600 hover:text-gray-800'
-            }`}
-          >
-            Phone
-          </button>
-        </div>
-
-        {/* Login Form */}
-        <form
-          onSubmit={e => {
-            e.preventDefault();
-            loginMethod === 'email' ? handleEmailLogin() : handlePhoneLogin();
-          }}
-          className="space-y-5"
-        >
-          {loginMethod === 'email' ? (
-            <>
-              {/* Email Input */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          <div className="relative flex h-full min-h-[20rem] flex-col justify-between p-6 text-white sm:p-8 lg:min-h-full lg:p-10">
+            
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/12 backdrop-blur">
+                <img
+                  src="/images/MLF.jpg"
+                  alt="My Local Force"
+                  className="h-7 w-7 rounded object-cover"
                 />
               </div>
-
-              {/* Password Input */}
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
+                <p className="text-sm font-bold">My Local Force</p>
+              </div>
+            </div>
+
+            <div className="max-w-md py-10 lg:py-0">
+              <p className="text-sm font-bold uppercase tracking-wide text-blue-100">
+                Welcome back
+              </p>
+              <h1 className="mt-3 text-4xl font-bold leading-tight sm:text-5xl">
+                Sign in and get back to local services.
+              </h1>
+              <p className="mt-4 text-base leading-7 text-white/78">
+                Access bookings, manage your profile, or continue your provider
+                workflow from one secure account.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-white/25 bg-white/15 p-4 backdrop-blur">
+                <FiShield className="mb-3 h-5 w-5 text-blue-100" />
+                <p className="text-sm font-bold">Secure access</p>
+                <p className="mt-1 text-xs text-white/65">
+                  Email or phone login
+                </p>
+              </div>
+              <div className="rounded-lg border border-white/25 bg-white/15 p-4 backdrop-blur">
+                <FiHome className="mb-3 h-5 w-5 text-blue-100" />
+                <p className="text-sm font-bold">Browse anytime</p>
+                <p className="mt-1 text-xs text-white/65">Guest access ready</p>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <main className="min-h-screen bg-white">
+          <div className="mx-auto flex min-h-screen w-full max-w-[36rem] flex-col px-1 py-2 sm:px-4 lg:px-8">
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleSignupNavigation}
+                className="inline-flex items-center gap-2 text-base font-medium text-blue-600 transition hover:text-blue-700"
+              >
+                <FiUserPlus className="h-4 w-4" />
+                Create account
+              </button>
+            </div>
+
+            <div className="flex flex-1 items-center py-10 sm:py-12 lg:py-16">
+              <div className="w-full">
+                <div className="mb-9">
+                  <h2 className="text-3xl font-bold leading-tight text-gray-950 sm:text-4xl">
+                    Sign in to your account
+                  </h2>
+                  <p className="mt-3 text-base leading-7 text-gray-700">
+                    Choose email/password or phone OTP to continue.
+                  </p>
+                </div>
+
+                {error && (
+                  <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4">
+                    <div className="flex items-start gap-3">
+                      <FiAlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+                      <p className="text-sm text-red-700">{error}</p>
+                    </div>
+                  </div>
+                )}
+
+                {successMessage && (
+                  <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                    <div className="flex items-start gap-3">
+                      <FiCheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                      <p className="text-sm text-emerald-700">
+                        {successMessage}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="mb-8 grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1">
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-900"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setLoginMethod('email')}
+                    className={`inline-flex h-12 items-center justify-center gap-2 rounded-lg font-semibold transition ${
+                      loginMethod === 'email'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
                   >
-                    {showPassword ? (
-                      <EyeOff size={20} />
+                    <FiMail className="h-4 w-4" />
+                    Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLoginMethod('phone')}
+                    className={`inline-flex h-12 items-center justify-center gap-2 rounded-lg font-semibold transition ${
+                      loginMethod === 'phone'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <FiSmartphone className="h-4 w-4" />
+                    Phone
+                  </button>
+                </div>
+
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    loginMethod === 'email'
+                      ? handleEmailLogin()
+                      : handlePhoneLogin();
+                  }}
+                  className="space-y-5"
+                >
+                  {loginMethod === 'email' ? (
+                    <>
+                      <div>
+                        <label className="mb-2 block text-sm font-semibold text-gray-900">
+                          Email Address
+                        </label>
+                        <div className="relative">
+                          <FiMail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                          <input
+                            type="email"
+                            placeholder="Enter your email"
+                            value={email}
+                            onChange={(event) => setEmail(event.target.value)}
+                            className={iconInputClass}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-semibold text-gray-900">
+                          Password
+                        </label>
+                        <div className="relative">
+                          <FiLock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                          <input
+                            type={showPassword ? 'text' : 'password'}
+                            placeholder="Enter your password"
+                            value={password}
+                            onChange={(event) => setPassword(event.target.value)}
+                            className={`${iconInputClass} pr-12`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 transition hover:text-gray-900"
+                            aria-label={
+                              showPassword ? 'Hide password' : 'Show password'
+                            }
+                          >
+                            {showPassword ? (
+                              <EyeOff size={20} />
+                            ) : (
+                              <Eye size={20} />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={handleForgotPassword}
+                          className="text-sm font-semibold text-blue-600 transition hover:text-blue-700"
+                        >
+                          Forgot Password?
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="mb-2 block text-sm font-semibold text-gray-900">
+                          Phone Number
+                        </label>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[12rem_1fr]">
+                          <select
+                            value={selectedCountry}
+                            onChange={(event) =>
+                              setSelectedCountry(event.target.value)
+                            }
+                            disabled={otpSent}
+                            className={inputClass}
+                          >
+                            {countryOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.value === '+91'
+                                  ? 'India (+91)'
+                                  : 'Australia (+61)'}
+                              </option>
+                            ))}
+                          </select>
+
+                          <div className="relative">
+                            <FiSmartphone className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                            <input
+                              type="tel"
+                              placeholder={
+                                selectedCountry === '+61'
+                                  ? '412345678'
+                                  : '9876543210'
+                              }
+                              value={phoneInput}
+                              onChange={(event) =>
+                                setPhoneInput(
+                                  event.target.value.replace(/[^0-9]/g, ''),
+                                )
+                              }
+                              maxLength="10"
+                              disabled={otpSent}
+                              className={iconInputClass}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {otpSent && (
+                        <div>
+                          <label className="mb-2 block text-sm font-semibold text-gray-900">
+                            Verification Code
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Enter 6-digit code"
+                            value={otp}
+                            onChange={(event) => setOtp(event.target.value)}
+                            maxLength="6"
+                            className={inputClass}
+                          />
+                          <div className="mt-3 text-right">
+                            {phoneCooldown > 0 ? (
+                              <p className="text-xs text-gray-600">
+                                Resend OTP in {phoneCooldown}s
+                              </p>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOtpSent(false);
+                                  setOtp('');
+                                  setPhoneInput('');
+                                  setFormattedPhone('');
+                                }}
+                                className="text-sm font-semibold text-blue-600 transition hover:text-blue-700"
+                              >
+                                Resend OTP
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className={`inline-flex h-14 w-full items-center justify-center gap-2 rounded-lg font-semibold text-white shadow-[0_12px_28px_rgba(37,99,235,0.24)] transition disabled:cursor-not-allowed ${
+                      isLoading
+                        ? 'bg-blue-400'
+                        : 'bg-blue-600 hover:bg-blue-700'
+                    }`}
+                  >
+                    {isLoading ? (
+                      loginMethod === 'email' ? (
+                        'Signing In...'
+                      ) : otpSent ? (
+                        'Verifying...'
+                      ) : (
+                        'Sending OTP...'
+                      )
+                    ) : loginMethod === 'email' ? (
+                      <>
+                        <FiLogIn className="h-4 w-4" />
+                        Sign In
+                      </>
+                    ) : otpSent ? (
+                      <>
+                        <FiArrowRight className="h-4 w-4" />
+                        Verify Code
+                      </>
                     ) : (
-                      <Eye size={20} />
+                      <>
+                        <FiArrowRight className="h-4 w-4" />
+                        Send OTP
+                      </>
                     )}
+                  </button>
+                </form>
+
+                <div className="mt-7 border-t border-gray-100 pt-6 text-center">
+                  <p className="text-sm text-gray-600">
+                    Don&apos;t have an account?{' '}
+                    <button
+                      onClick={handleSignupNavigation}
+                      className="font-semibold text-blue-600 transition hover:text-blue-700"
+                    >
+                      Sign Up
+                    </button>
+                  </p>
+
+                  <button
+                    onClick={() => navigate('/')}
+                    className="mt-4 inline-flex items-center justify-center gap-2 text-sm font-semibold text-gray-600 transition hover:text-gray-950"
+                  >
+                    <FiHome className="h-4 w-4" />
+                    Continue as Guest
                   </button>
                 </div>
               </div>
-
-              {/* Forgot Password Link */}
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleForgotPassword}
-                  className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-                >
-                  Forgot Password?
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Phone Input */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Phone Number
-                </label>
-                <select
-                  value={selectedCountry}
-                  onChange={e => setSelectedCountry(e.target.value)}
-                  disabled={otpSent}
-                  className="w-full px-4 py-3 mb-3 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                >
-                  {countryOptions.map(opt => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <div className="flex gap-0">
-                  <div className="flex items-center px-3 py-3 bg-gray-100 border border-r-0 border-gray-300 rounded-l-lg font-semibold text-gray-900">
-                    {selectedCountry}
-                  </div>
-                  <input
-                    type="tel"
-                    placeholder={selectedCountry === '+61' ? '412345678' : '9876543210'}
-                    value={phoneInput}
-                    onChange={e =>
-                      setPhoneInput(e.target.value.replace(/[^0-9]/g, ''))
-                    }
-                    maxLength="10"
-                    disabled={otpSent}
-                    className="flex-1 px-4 py-3 border border-l-0 border-gray-300 rounded-r-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  />
-                </div>
-              </div>
-
-              {/* OTP Input */}
-              {otpSent && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
-                    Verification Code
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Enter 6-digit code"
-                    value={otp}
-                    onChange={e => setOtp(e.target.value)}
-                    maxLength="6"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <div className="mt-3 text-right">
-                    {phoneCooldown > 0 ? (
-                      <p className="text-xs text-gray-600">
-                        Resend OTP in {phoneCooldown}s
-                      </p>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOtpSent(false);
-                          setOtp('');
-                          setPhoneInput('');
-                          setFormattedPhone('');
-                        }}
-                        className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-                      >
-                        Resend OTP
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Login Button */}
-          <button
-            type="submit"
-            disabled={isLoading}
-            className={`w-full py-3 rounded-lg font-semibold text-white transition ${
-              isLoading
-                ? 'bg-blue-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-          >
-            {isLoading
-              ? loginMethod === 'email'
-                ? 'Signing In...'
-                : otpSent
-                ? 'Verifying...'
-                : 'Sending OTP...'
-              : loginMethod === 'email'
-              ? 'Sign In'
-              : otpSent
-              ? 'Verify Code'
-              : 'Send OTP'}
-          </button>
-        </form>
-
-        {/* Sign Up Link */}
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
-            Don't have an account?{' '}
-            <button
-              onClick={handleSignupNavigation}
-              className="font-semibold text-blue-600 hover:text-blue-700"
-            >
-              Sign Up
-            </button>
-          </p>
-        </div>
-
-        {/* Guest Access */}
-        <button
-          onClick={() => navigate('/')}
-          className="mt-4 w-full text-sm text-gray-600 hover:text-gray-900 underline py-2"
-        >
-          Continue as Guest
-        </button>
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );

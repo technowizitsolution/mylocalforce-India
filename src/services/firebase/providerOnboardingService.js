@@ -3,7 +3,12 @@ import {
   collection, doc, getDoc, setDoc, updateDoc, getDocs,
   query, where, serverTimestamp, deleteField
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import {
+  ref,
+  uploadBytesResumable,
+  getDownloadURL,
+  deleteObject,
+} from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 
 // Toggle to skip attempting to disable services from the client (useful while developing)
@@ -65,8 +70,24 @@ export const uploadProviderDocument = async (userId, file, docType, onProgress) 
     const blob = file instanceof Blob ? file : await (await fetch(file.uri || file)).blob();
     
     console.log('Uploading document...');
-    await uploadBytes(storageRef, blob, {
+    const uploadTask = uploadBytesResumable(storageRef, blob, {
       contentType: file.type || 'application/octet-stream',
+    });
+
+    await new Promise((resolve, reject) => {
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          if (typeof onProgress === 'function' && snapshot.totalBytes > 0) {
+            const percent = Math.round(
+              (snapshot.bytesTransferred / snapshot.totalBytes) * 100,
+            );
+            onProgress(percent);
+          }
+        },
+        reject,
+        resolve,
+      );
     });
 
     // Get download URL

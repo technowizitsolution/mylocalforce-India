@@ -10,6 +10,14 @@ import ServiceDetailsScreen from './customer/pages/ServiceDetailsScreen';
 import AddressScreen from './customer/pages/AddressScreen';
 import ProviderSelectorScreen from './customer/pages/ProviderSelectorScreen';
 import LoginScreen from './screens/LoginScreen';
+import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
+import SignupSelectionScreen from './screens/SignupSelectionScreen';
+import CustomerSignupScreen from './screens/CustomerSignupScreen';
+import ProviderSignupScreen from './screens/ProviderSignupScreen';
+import ProviderEntryScreen from './screens/ProviderEntryScreen';
+import ProviderHomeScreen from './screens/ProviderHomeScreen';
+import ProviderOnboardingScreen from './screens/ProviderOnboardingScreen';
+import ProviderUnderReviewScreen from './screens/ProviderUnderReviewScreen';
 import BookingScreen from './customer/pages/BookingScreen';
 import PaymentSuccess from './customer/pages/PaymentSuccess';
 /**
@@ -24,9 +32,11 @@ const App = () => {
 
       <Route path="/login" element={<LoginScreen />} />
 
-      {/* Auth Routes - To be implemented */}
-      <Route path="/signup-selection" element={<div>Signup Selection - Coming Soon</div>} />
-      <Route path="/forgot-password" element={<div>Forgot Password - Coming Soon</div>} />
+      {/* Auth Routes */}
+      <Route path="/signup-selection" element={<SignupSelectionScreen />} />
+      <Route path="/signup/customer" element={<CustomerSignupScreen />} />
+      <Route path="/signup/provider" element={<ProviderSignupScreen />} />
+      <Route path="/forgot-password" element={<ForgotPasswordScreen />} />
       <Route path="/main-tabs" element={<Navigate to="/customer" replace />} />
 
       {/* Customer Routes - Protected by role */}
@@ -69,11 +79,49 @@ const App = () => {
         <Route path="*" element={<Navigate to="/customer" replace />} />
       </Route>
 
-      {/* Service Provider Routes - To be implemented */}
-      <Route path="/provider" element={<div>Provider Dashboard - Coming Soon</div>} />
+      {/* Service Provider Routes */}
+      <Route
+        path="/provider"
+        element={
+          <RoleProtectedRoute requiredRole="client">
+            <ProviderEntryScreen />
+          </RoleProtectedRoute>
+        }
+      />
+      <Route
+        path="/provider/dashboard"
+        element={
+          <RoleProtectedRoute requiredRole="client">
+            <ProviderEntryScreen />
+          </RoleProtectedRoute>
+        }
+      />
+      <Route
+        path="/provider/home"
+        element={
+          <RoleProtectedRoute requiredRole="client">
+            <ProviderHomeScreen />
+          </RoleProtectedRoute>
+        }
+      />
+      <Route
+        path="/provider/onboarding"
+        element={
+          <RoleProtectedRoute requiredRole="client">
+            <ProviderOnboardingScreen />
+          </RoleProtectedRoute>
+        }
+      />
+      <Route
+        path="/provider/under-review"
+        element={
+          <RoleProtectedRoute requiredRole="client">
+            <ProviderUnderReviewScreen />
+          </RoleProtectedRoute>
+        }
+      />
 
-      {/* Admin Routes - To be implemented */}
-      <Route path="/admin" element={<div>Admin Dashboard - Coming Soon</div>} />
+     
 
       {/* Catch-all for unknown routes */}
       <Route path="*" element={<Navigate to="/" replace />} />

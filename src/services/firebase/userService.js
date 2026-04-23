@@ -13,22 +13,24 @@ import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'fireb
  * If multiple roles exist, destination === 'RoleSelection'
  */
 export async function fetchUserRoles(uid) {
-  if (!uid) return { roles: {}, destination: 'RoleSelection' };
+  if (!uid) return { roles: {}, activeRole: null, destination: 'RoleSelection' };
   const ref = doc(firestore, 'users', uid);
   const snap = await getDoc(ref);
-  if (!snap.exists()) return { roles: {}, destination: 'RoleSelection' };
+  if (!snap.exists()) return { roles: {}, activeRole: null, destination: 'RoleSelection' };
   const data = snap.data();
   const roles = data.roles || {};
 
   const trueRoles = Object.keys(roles).filter((r) => roles[r]);
+  const activeRole = data.activeRole || (trueRoles.length === 1 ? trueRoles[0] : null);
+
   if (trueRoles.length === 1) {
     const r = trueRoles[0];
     const destination = r === 'client' ? 'ClientDashboard' : r === 'customer' ? 'CustomerDashboard' : r === 'admin' ? 'AdminDashboard' : 'RoleSelection';
-    return { roles, destination };
+    return { roles, activeRole, destination };
   }
 
-  if (trueRoles.length === 0) return { roles, destination: 'RoleSelection' };
-  return { roles, destination: 'RoleSelection' };
+  if (trueRoles.length === 0) return { roles, activeRole, destination: 'RoleSelection' };
+  return { roles, activeRole, destination: 'RoleSelection' };
 }
 
 /**
