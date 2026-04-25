@@ -16,6 +16,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { fetchUserRoles } from '../../services/firebase';
 import { fetchUserBookings } from '../../services/firebase/serviceService';
+import { notify, getUserFacingError } from '../../utils/toast';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -71,18 +72,35 @@ const Profile = () => {
       const { roles } = await fetchUserRoles(user.uid);
       const availableRoles = Object.keys(roles || {}).filter((r) => roles[r]);
 
-      if (availableRoles.length > 1) {
-        navigate('/role-selection');
+      if (availableRoles.includes('client') || availableRoles.includes('provider')) {
+        notify.success('Switching to provider mode.', { id: 'profile-switch-role' });
+        navigate('/provider');
       } else {
-        alert('You only have the one role.');
+        notify.warning('Provider mode is not available for this account.', {
+          id: 'profile-switch-role',
+        });
       }
-    } catch {
-      alert('Failed to check available roles');
+    } catch (error) {
+      notify.error(getUserFacingError(error, 'Could not check available roles.'), {
+        id: 'profile-switch-role',
+      });
     }
   };
 
   const handleLogin = () => {
     navigate('/login');
+  };
+
+  const handleLogout = async () => {
+    const result = await logout();
+    if (result?.success) {
+      notify.success('Signed out.', { id: 'profile-logout' });
+      return;
+    }
+
+    notify.error(result?.error || 'Could not sign out. Please try again.', {
+      id: 'profile-logout',
+    });
   };
 
   // ─── Logged-out state ──────────────────────────────────────────────
@@ -251,7 +269,7 @@ const Profile = () => {
         {/* ── Logout Button ──────────────────────────────── */}
         <div className="px-4 lg:px-0 mb-8">
           <button
-            onClick={() => logout()}
+            onClick={handleLogout}
             className="w-full flex items-center justify-center gap-2 py-3.5 bg-white border border-red-300 text-red-500 font-semibold rounded-xl hover:bg-red-50 hover:border-red-400 active:bg-red-100 transition-all lg:rounded-2xl lg:py-4 lg:text-lg"
           >
             <FiLogOut size={20} />

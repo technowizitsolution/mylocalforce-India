@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FiCheckCircle } from 'react-icons/fi';
 import { submitMobileDocuments } from '../../../services/firebase/documentUploadService';
+import { notify, getUserFacingError } from '../../../utils/toast';
 
 /**
  * Final mobile upload submission screen.
@@ -25,11 +26,20 @@ const SubmitScreen = ({ sessionId, registrationStep, onMissing }) => {
       if (result.success === false) {
         onMissing(result.missing || []);
         setError('Some required documents are still missing.');
+        notify.warning('Some required documents are still missing.', {
+          id: 'mobile-upload-submit',
+        });
         return;
       }
       setComplete(true);
+      notify.success('All documents submitted.', { id: 'mobile-upload-submit' });
     } catch (submitError) {
-      setError(submitError.message || 'Submission failed. Please try again.');
+      const message = getUserFacingError(
+        submitError,
+        'Submission failed. Please try again.',
+      );
+      setError(message);
+      notify.error(message, { id: 'mobile-upload-submit' });
     } finally {
       setSubmitting(false);
     }

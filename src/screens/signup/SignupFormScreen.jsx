@@ -10,7 +10,6 @@ import {
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Eye, EyeOff } from 'lucide-react';
 import {
-  FiAlertCircle,
   FiArrowLeft,
   FiCheckCircle,
   FiCircle,
@@ -48,8 +47,16 @@ import {
   verifySignupPhoneOtp,
 } from './signupShared';
 import { getProviderFlowPath } from '../../utils/providerFlow';
+import { notify, getUserFacingError } from '../../utils/toast';
 
 const TERMS_URL = 'https://mylocalforce.app/terms';
+const SIGNUP_TOAST_DURATION = 12000;
+const SIGNUP_SUCCESS_TOAST_DURATION = 15000;
+
+const toastOptions = (id, duration = SIGNUP_TOAST_DURATION) => ({
+  id,
+  duration,
+});
 
 const inputClass =
   'w-full h-14 px-5 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.04)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition';
@@ -120,8 +127,6 @@ const SignupFormScreen = ({ mode }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   React.useEffect(() => {
     if (emailCooldown <= 0) {
@@ -152,9 +157,29 @@ const SignupFormScreen = ({ mode }) => {
     [formData.password],
   );
 
-  const clearMessages = () => {
-    setError('');
-    setSuccess('');
+  const clearMessages = ({
+    includeValidation = false,
+    includeEmailOtp = false,
+    includePhoneOtp = false,
+    includeSubmit = false,
+  } = {}) => {
+    if (includeValidation) {
+      notify.dismiss('signup-form-validation');
+    }
+
+    if (includeEmailOtp) {
+      notify.dismiss('signup-email-otp-send');
+      notify.dismiss('signup-email-otp-verify');
+    }
+
+    if (includePhoneOtp) {
+      notify.dismiss('signup-phone-otp-send');
+      notify.dismiss('signup-phone-otp-verify');
+    }
+
+    if (includeSubmit) {
+      notify.dismiss('signup-submit');
+    }
   };
 
   const updateFormData = (field, value) => {
@@ -172,8 +197,6 @@ const SignupFormScreen = ({ mode }) => {
       });
       setEmailCooldown(0);
     }
-
-    clearMessages();
   };
 
   const handlePhoneChange = (value) => {
@@ -188,8 +211,6 @@ const SignupFormScreen = ({ mode }) => {
       });
       setPhoneCooldown(0);
     }
-
-    clearMessages();
   };
 
   const handleCountryChange = (value) => {
@@ -204,8 +225,6 @@ const SignupFormScreen = ({ mode }) => {
       });
       setPhoneCooldown(0);
     }
-
-    clearMessages();
   };
 
   const handleAddressSelect = (address) => {
@@ -241,15 +260,21 @@ const SignupFormScreen = ({ mode }) => {
   };
 
   const handleSendEmailOtp = async () => {
-    clearMessages();
+    clearMessages({ includeValidation: true });
 
     if (!formData.email.trim()) {
-      setError('Please enter your email address.');
+      notify.error(
+        'Please enter your email address.',
+        toastOptions('signup-email-otp-send'),
+      );
       return;
     }
 
     if (!isValidEmail(formData.email.trim())) {
-      setError('Please enter a valid email address.');
+      notify.error(
+        'Please enter a valid email address.',
+        toastOptions('signup-email-otp-send'),
+      );
       return;
     }
 
@@ -273,21 +298,28 @@ const SignupFormScreen = ({ mode }) => {
         isEmailVerified: false,
       });
       setEmailCooldown(60);
-      setSuccess(
+      notify.success(
         `Verification code sent to ${formData.email.trim().toLowerCase()}.`,
+        toastOptions('signup-email-otp-send'),
       );
     } catch (sendError) {
-      setError(sendError.message || 'Failed to send email OTP.');
+      notify.error(
+        getUserFacingError(sendError, 'Could not send email code.'),
+        toastOptions('signup-email-otp-send'),
+      );
     } finally {
       setIsSendingEmailOtp(false);
     }
   };
 
   const handleVerifyEmailOtp = () => {
-    clearMessages();
+    clearMessages({ includeValidation: true });
 
     if (!emailVerification.emailOtp || emailVerification.emailOtp.length !== 6) {
-      setError('Please enter the 6-digit email OTP.');
+      notify.error(
+        'Please enter the 6-digit email OTP.',
+        toastOptions('signup-email-otp-verify'),
+      );
       return;
     }
 
@@ -295,11 +327,14 @@ const SignupFormScreen = ({ mode }) => {
       ...current,
       isEmailVerified: true,
     }));
-    setSuccess('Email OTP validated. Please finish your registration.');
+    notify.success(
+      'Email verified. Please finish your registration.',
+      toastOptions('signup-email-otp-verify'),
+    );
   };
 
   const handleSendPhoneOtp = async () => {
-    clearMessages();
+    clearMessages({ includeValidation: true });
 
     const phoneValidation = validatePhoneNumber(
       selectedCountry,
@@ -307,7 +342,10 @@ const SignupFormScreen = ({ mode }) => {
     );
 
     if (!phoneValidation.valid) {
-      setError(phoneValidation.message);
+      notify.error(
+        phoneValidation.message,
+        toastOptions('signup-phone-otp-send'),
+      );
       return;
     }
 
@@ -339,24 +377,35 @@ const SignupFormScreen = ({ mode }) => {
         isVerifyingOtp: false,
       });
       setPhoneCooldown(60);
-      setSuccess('Verification code sent to your phone.');
+      notify.success('Verification code sent to your phone.', {
+        ...toastOptions('signup-phone-otp-send'),
+      });
     } catch (sendError) {
-      setError(sendError.message || 'Failed to send phone OTP.');
+      notify.error(
+        getUserFacingError(sendError, 'Could not send phone code.'),
+        toastOptions('signup-phone-otp-send'),
+      );
     } finally {
       setIsSendingPhoneOtp(false);
     }
   };
 
   const handleVerifyPhoneOtp = async () => {
-    clearMessages();
+    clearMessages({ includeValidation: true });
 
     if (!phoneVerification.phoneOtp || phoneVerification.phoneOtp.length !== 6) {
-      setError('Please enter the 6-digit phone OTP.');
+      notify.error(
+        'Please enter the 6-digit phone OTP.',
+        toastOptions('signup-phone-otp-verify'),
+      );
       return;
     }
 
     if (!phoneVerification.isVerifying) {
-      setError('Please request the phone OTP first.');
+      notify.error(
+        'Please request the phone OTP first.',
+        toastOptions('signup-phone-otp-verify'),
+      );
       return;
     }
 
@@ -366,7 +415,10 @@ const SignupFormScreen = ({ mode }) => {
     );
 
     if (!phoneValidation.valid) {
-      setError(phoneValidation.message);
+      notify.error(
+        phoneValidation.message,
+        toastOptions('signup-phone-otp-verify'),
+      );
       return;
     }
 
@@ -401,13 +453,18 @@ const SignupFormScreen = ({ mode }) => {
         isPhoneVerified: true,
         isVerifyingOtp: false,
       }));
-      setSuccess('Phone number verified. Please finish your registration.');
+      notify.success('Phone verified. Please finish your registration.', {
+        ...toastOptions('signup-phone-otp-verify'),
+      });
     } catch (verifyError) {
       setPhoneVerification((current) => ({
         ...current,
         isVerifyingOtp: false,
       }));
-      setError(verifyError.message || 'Invalid or expired OTP.');
+      notify.error(
+        getUserFacingError(verifyError, 'Could not verify phone code.'),
+        toastOptions('signup-phone-otp-verify'),
+      );
     }
   };
 
@@ -492,12 +549,15 @@ const SignupFormScreen = ({ mode }) => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    clearMessages();
+    clearMessages({ includeValidation: true });
 
     const validationMessage = validateForm();
 
     if (validationMessage) {
-      setError(validationMessage);
+      notify.error(validationMessage, {
+        id: 'signup-form-validation',
+        duration: SIGNUP_TOAST_DURATION,
+      });
       return;
     }
 
@@ -653,6 +713,10 @@ const SignupFormScreen = ({ mode }) => {
 
       if (isProvider) {
         const providerPath = getProviderFlowPath({ profile: userData });
+        notify.success(
+          'Account created.',
+          toastOptions('signup-submit', SIGNUP_SUCCESS_TOAST_DURATION),
+        );
         navigate(providerPath, {
           replace: true,
           state: {
@@ -666,11 +730,15 @@ const SignupFormScreen = ({ mode }) => {
         window.setTimeout(resolve, 300);
       });
 
+      notify.success(
+        'Account created.',
+        toastOptions('signup-submit', SIGNUP_SUCCESS_TOAST_DURATION),
+      );
       navigate('/customer', { replace: true });
     } catch (submitError) {
-      setError(
-        submitError.message ||
-          'Failed to create your account. Please try again.',
+      notify.error(
+        getUserFacingError(submitError, 'Could not create your account. Please try again.'),
+        toastOptions('signup-submit')
       );
 
       try {
@@ -770,24 +838,6 @@ const SignupFormScreen = ({ mode }) => {
                   {pageSubtitle}
                 </p>
               </div>
-
-              {error && (
-                <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-                  <div className="flex items-start gap-3">
-                    <FiAlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
-                    <p className="text-sm text-red-700">{error}</p>
-                  </div>
-                </div>
-              )}
-
-              {success && (
-                <div className="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                  <div className="flex items-start gap-3">
-                    <FiCheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                    <p className="text-sm text-emerald-700">{success}</p>
-                  </div>
-                </div>
-              )}
 
               <form className="space-y-9" onSubmit={handleSubmit}>
                 <FormSection icon={FiUser} step="01" title="Basic Information">

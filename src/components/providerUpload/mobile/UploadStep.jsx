@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FiCheckCircle, FiRotateCcw } from 'react-icons/fi';
 import { uploadProviderDocumentSecure } from '../../../services/firebase/secureDocumentStorageService';
+import { notify, getUserFacingError } from '../../../utils/toast';
 import FileCapture from './FileCapture';
 
 /**
@@ -44,7 +45,9 @@ const UploadStep = ({ step, providerId, sessionId, completed, onUploaded }) => {
       onUploaded(document);
       setProgress(100);
     } catch (uploadError) {
-      setError(uploadError.message || 'Upload failed. Please try again.');
+      const message = getUserFacingError(uploadError, 'File upload failed. Please try again.');
+      setError(message);
+      notify.error(message, { id: `mobile-upload-${step.key}` });
     } finally {
       setUploading(false);
     }

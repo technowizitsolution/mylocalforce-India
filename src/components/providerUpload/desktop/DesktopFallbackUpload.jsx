@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FiCheckCircle, FiFileText, FiUpload } from 'react-icons/fi';
 import { submitMobileDocuments } from '../../../services/firebase/documentUploadService';
 import { uploadProviderDocumentSecure } from '../../../services/firebase/secureDocumentStorageService';
+import { notify, getUserFacingError } from '../../../utils/toast';
 
 /**
  * Expands document requirements into upload steps.
@@ -87,10 +88,12 @@ const DesktopFallbackUpload = ({
         },
       });
     } catch (error) {
+      const message = getUserFacingError(error, 'File upload failed. Please try again.');
       setErrors((current) => ({
         ...current,
-        [step.key]: error.message || 'Upload failed. Please try again.',
+        [step.key]: message,
       }));
+      notify.error(message, { id: `desktop-upload-${step.key}` });
     }
   };
 
@@ -100,6 +103,9 @@ const DesktopFallbackUpload = ({
         ...current,
         submit: 'Upload at least one secure document first.',
       }));
+      notify.warning('Upload at least one secure document first.', {
+        id: 'desktop-upload-submit',
+      });
       return;
     }
 
@@ -118,15 +124,27 @@ const DesktopFallbackUpload = ({
             ? `Missing required documents: ${missing}.`
             : 'Required documents are missing.',
         }));
+        notify.warning(
+          missing
+            ? `Missing required documents: ${missing}.`
+            : 'Required documents are missing.',
+          { id: 'desktop-upload-submit' }
+        );
         return;
       }
 
       onSubmitted?.(result);
+      notify.success('All documents submitted.', { id: 'desktop-upload-submit' });
     } catch (error) {
+      const message = getUserFacingError(
+        error,
+        'Secure document submission failed.',
+      );
       setErrors((current) => ({
         ...current,
-        submit: error.message || 'Secure document submission failed.',
+        submit: message,
       }));
+      notify.error(message, { id: 'desktop-upload-submit' });
     } finally {
       setSubmitting(false);
     }

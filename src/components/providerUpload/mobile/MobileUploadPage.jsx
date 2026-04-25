@@ -8,6 +8,7 @@ import {
 import { FiAlertCircle, FiClock, FiShield } from 'react-icons/fi';
 import { auth } from '../../../services/firebase/firebaseConfig';
 import { validateMobileUploadToken } from '../../../services/firebase/documentUploadService';
+import { notify, getUserFacingError } from '../../../utils/toast';
 import GuidedUploadFlow from './GuidedUploadFlow';
 
 /**
@@ -60,6 +61,7 @@ const MobileUploadPage = () => {
 
     const validateToken = async () => {
       if (!token) {
+        notify.error('Upload link is missing.', { id: 'mobile-upload-token' });
         setState({
           loading: false,
           error: 'Upload link is missing.',
@@ -86,11 +88,14 @@ const MobileUploadPage = () => {
         }
       } catch (validationError) {
         if (!cancelled) {
+          const message = getUserFacingError(
+            validationError,
+            'This upload link is invalid or no longer active.',
+          );
+          notify.error(message, { id: 'mobile-upload-token' });
           setState({
             loading: false,
-            error:
-              validationError.message ||
-              'This upload link is invalid or no longer active.',
+            error: message,
             status: validationError.details?.status || validationError.code || 'invalid',
             data: null,
           });

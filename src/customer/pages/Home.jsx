@@ -17,6 +17,7 @@ import {
   salonSubCategoriesWomen,
   salonSubCategoriesMen,
 } from '../../data/services';
+import { notify, getUserFacingError } from '../../utils/toast';
 
 const HomeScreen = () => {
   const navigate = useNavigate();
@@ -169,20 +170,25 @@ const HomeScreen = () => {
   const handleSwitchRole = async () => {
     try {
       if (!isLoggedIn) {
-        alert('Please login to switch roles');
+        notify.info('Sign in to switch roles.', { id: 'home-switch-role' });
+        navigate('/login');
         return;
       }
       const { roles } = await fetchUserRoles(user.uid);
       const availableRoles = Object.keys(roles || {}).filter((r) => roles[r]);
 
-      if (availableRoles.length > 1) {
-        // TODO: navigate to role selection page when implemented
-        console.log('Multiple roles available:', availableRoles);
+      if (availableRoles.includes('client') || availableRoles.includes('provider')) {
+        notify.success('Switching to provider mode.', { id: 'home-switch-role' });
+        navigate('/provider');
       } else {
-        alert('You only have one role.');
+        notify.warning('Provider mode is not available for this account.', {
+          id: 'home-switch-role',
+        });
       }
     } catch (error) {
-      alert('Failed to check available roles');
+      notify.error(getUserFacingError(error, 'Could not check available roles.'), {
+        id: 'home-switch-role',
+      });
     }
   };
 

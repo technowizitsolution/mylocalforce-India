@@ -4,6 +4,7 @@ import { FiArrowLeft, FiLoader, FiMapPin, FiSearch } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { fetchUserProfile } from '../../services/firebase';
 import { fetchAutocompleteSuggestions, geocodeAddress } from '../../utils/googleMaps';
+import { notify } from '../../utils/toast';
 
 const AddressScreen = () => {
   const navigate = useNavigate();
@@ -214,9 +215,9 @@ const AddressScreen = () => {
     }
 
     if (!addressToUse) {
-      window.alert(
-        'Please enter or select an address to continue.',
-      );
+      notify.warning('Enter or select an address to continue.', {
+        id: 'address-selection-required',
+      });
       return;
     }
 

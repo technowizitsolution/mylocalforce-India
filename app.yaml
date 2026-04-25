@@ -1,4 +1,4 @@
-runtime: nodejs20
+runtime: nodejs22
 
 automatic_scaling:
   max_instances: 20

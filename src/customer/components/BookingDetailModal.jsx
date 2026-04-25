@@ -8,6 +8,7 @@ import {
 import { getBookingById, updateBookingStatus } from '../../services/firebase/serviceService';
 import { fetchUserProfile } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { notify, getUserFacingError } from '../../utils/toast';
 
 const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) => {
   const { user } = useAuth();
@@ -23,14 +24,13 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
   const [rating, setRating] = useState(0);
   const [ratingFeedback, setRatingFeedback] = useState('');
   const [submittingRating, setSubmittingRating] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   // ── Helpers ──────────────────────────────────────────────────────────
 
   const confirmAction = (title, message, onConfirm) => {
-    if (window.confirm(`${title}\n\n${message}`)) onConfirm();
+    setConfirmDialog({ title, message, onConfirm });
   };
-
-  const toastAlert = (title, message) => window.alert(`${title}\n\n${message}`);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -110,10 +110,12 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
         const providerId = booking?.providerId || user?.uid;
         await updateBookingStatus(bookingId, 'accepted', providerId);
         await loadBooking();
-        toastAlert('Success', 'Booking accepted successfully!');
+        notify.success('Booking accepted.', { id: 'booking-detail-accept' });
       } catch (error) {
         console.error('Error accepting booking:', error);
-        toastAlert('Error', 'Failed to accept booking. Please try again.');
+        notify.error(getUserFacingError(error, 'Could not accept booking. Please try again.'), {
+          id: 'booking-detail-accept',
+        });
       } finally {
         setActionLoading(false);
       }
@@ -127,10 +129,12 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
         const providerId = booking?.providerId || user?.uid;
         await updateBookingStatus(bookingId, 'rejected', providerId);
         await loadBooking();
-        toastAlert('Success', 'Booking rejected.');
+        notify.success('Booking rejected.', { id: 'booking-detail-reject' });
       } catch (error) {
         console.error('Error rejecting booking:', error);
-        toastAlert('Error', 'Failed to reject booking. Please try again.');
+        notify.error(getUserFacingError(error, 'Could not reject booking. Please try again.'), {
+          id: 'booking-detail-reject',
+        });
       } finally {
         setActionLoading(false);
       }
@@ -144,10 +148,12 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
         const providerId = booking?.providerId || user?.uid;
         await updateBookingStatus(bookingId, 'completed', providerId);
         await loadBooking();
-        toastAlert('Success', 'Booking marked as completed!');
+        notify.success('Booking marked as completed.', { id: 'booking-detail-complete' });
       } catch (error) {
         console.error('Error completing booking:', error);
-        toastAlert('Error', 'Failed to complete booking. Please try again.');
+        notify.error(getUserFacingError(error, 'Could not complete booking. Please try again.'), {
+          id: 'booking-detail-complete',
+        });
       } finally {
         setActionLoading(false);
       }
@@ -161,10 +167,12 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
         const providerId = booking?.providerId || user?.uid;
         await updateBookingStatus(bookingId, 'cancelled', providerId);
         await loadBooking();
-        toastAlert('Success', 'Booking cancelled.');
+        notify.success('Booking cancelled.', { id: 'booking-detail-cancel' });
       } catch (error) {
         console.error('Error cancelling booking:', error);
-        toastAlert('Error', 'Failed to cancel booking. Please try again.');
+        notify.error(getUserFacingError(error, 'Could not cancel booking. Please try again.'), {
+          id: 'booking-detail-cancel',
+        });
       } finally {
         setActionLoading(false);
       }
@@ -190,13 +198,20 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
           const result = await response.json();
           if (response.ok) {
             await loadBooking();
-            toastAlert('Code Sent', 'A 6-digit verification code has been sent to the customer via SMS and email. Please ask them for the code.');
+            notify.success('Verification code sent to the customer.', {
+              id: 'booking-detail-arrived',
+            });
           } else {
-            toastAlert('Error', result.error || 'Failed to send OTP');
+            notify.error(result.error || 'Could not send verification code.', {
+              id: 'booking-detail-arrived',
+            });
           }
         } catch (error) {
           console.error('Error sending OTP:', error);
-          toastAlert('Error', 'Failed to send verification code. Please try again.');
+          notify.error(
+            getUserFacingError(error, 'Could not send verification code. Please try again.'),
+            { id: 'booking-detail-arrived' }
+          );
         } finally {
           setOtpSending(false);
         }
@@ -206,7 +221,9 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
 
   const handleVerifyOtp = async () => {
     if (!otpInput || otpInput.length !== 6) {
-      toastAlert('Invalid Code', 'Please enter the 6-digit code from the customer.');
+      notify.warning('Enter the 6-digit code from the customer.', {
+        id: 'booking-detail-otp-validation',
+      });
       return;
     }
     try {
@@ -224,13 +241,19 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
       if (response.ok) {
         await loadBooking();
         setOtpInput('');
-        toastAlert('Service Started', 'Customer verified! Service tracking has started.');
+        notify.success('Customer verified. Service tracking has started.', {
+          id: 'booking-detail-otp-verify',
+        });
       } else {
-        toastAlert('Verification Failed', result.error || 'Invalid code. Please try again.');
+        notify.error(result.error || 'Invalid code. Please try again.', {
+          id: 'booking-detail-otp-verify',
+        });
       }
     } catch (error) {
       console.error('Error verifying OTP:', error);
-      toastAlert('Error', 'Failed to verify code. Please try again.');
+      notify.error(getUserFacingError(error, 'Could not verify code. Please try again.'), {
+        id: 'booking-detail-otp-verify',
+      });
     } finally {
       setActionLoading(false);
     }
@@ -238,7 +261,9 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
 
   const handleCustomerUnavailable = () => {
     if (!unavailableNote.trim()) {
-      toastAlert('Note Required', 'Please add a note explaining the situation.');
+      notify.warning('Add a note explaining the situation.', {
+        id: 'booking-detail-unavailable-note',
+      });
       return;
     }
     confirmAction(
@@ -261,13 +286,20 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
             await loadBooking();
             setUnavailableNote('');
             setShowUnavailableInput(false);
-            toastAlert('Recorded', 'Customer unavailability has been noted.');
+            notify.success('Customer unavailability has been noted.', {
+              id: 'booking-detail-unavailable',
+            });
           } else {
-            toastAlert('Error', result.error || 'Failed to record unavailability.');
+            notify.error(result.error || 'Could not record unavailability.', {
+              id: 'booking-detail-unavailable',
+            });
           }
         } catch (error) {
           console.error('Error marking customer unavailable:', error);
-          toastAlert('Error', 'Failed to record unavailability. Please try again.');
+          notify.error(
+            getUserFacingError(error, 'Could not record unavailability. Please try again.'),
+            { id: 'booking-detail-unavailable' }
+          );
         } finally {
           setActionLoading(false);
         }
@@ -277,11 +309,15 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
 
   const handleSubmitRating = async () => {
     if (rating === 0) {
-      toastAlert('Rating Required', 'Please select a rating before submitting.');
+      notify.warning('Select a rating before submitting.', {
+        id: 'booking-detail-rating-validation',
+      });
       return;
     }
     if (rating < 5 && !ratingFeedback.trim()) {
-      toastAlert('Feedback Required', 'Please provide feedback for ratings below 5 stars.');
+      notify.warning('Share feedback for ratings below 5 stars.', {
+        id: 'booking-detail-rating-validation',
+      });
       return;
     }
     try {
@@ -308,13 +344,19 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
         setRating(0);
         setRatingFeedback('');
         await loadBooking();
-        toastAlert('Thank You!', 'Your rating has been submitted successfully.');
+        notify.success('Your rating has been submitted.', {
+          id: 'booking-detail-rating',
+        });
       } else {
-        toastAlert('Error', result.error || 'Failed to submit rating.');
+        notify.error(result.error || 'Could not submit rating.', {
+          id: 'booking-detail-rating',
+        });
       }
     } catch (error) {
       console.error('Error submitting rating:', error);
-      toastAlert('Error', 'Failed to submit rating. Please try again.');
+      notify.error(getUserFacingError(error, 'Could not submit rating. Please try again.'), {
+        id: 'booking-detail-rating',
+      });
     } finally {
       setSubmittingRating(false);
     }
@@ -339,8 +381,14 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
 
   const handleCopyAddress = () => {
     const addr = booking?.address || booking?.customerAddress || '';
-    if (!addr) { toastAlert('No address', 'No address available to copy'); return; }
-    navigator.clipboard.writeText(addr).then(() => toastAlert('Copied', 'Address copied to clipboard')).catch(() => toastAlert('Error', 'Could not copy address'));
+    if (!addr) {
+      notify.warning('No address available to copy.', { id: 'booking-detail-copy-address' });
+      return;
+    }
+    navigator.clipboard
+      .writeText(addr)
+      .then(() => notify.info('Address copied to clipboard.', { id: 'booking-detail-copy-address' }))
+      .catch(() => notify.error('Could not copy address.', { id: 'booking-detail-copy-address' }));
   };
 
   const handleNavigate = () => {
@@ -353,7 +401,9 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
     } else if (addr) {
       url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}`;
     } else {
-      toastAlert('No location', 'No address or coordinates available for navigation');
+      notify.warning('No address or coordinates available for navigation.', {
+        id: 'booking-detail-navigation',
+      });
       return;
     }
     window.open(url, '_blank');
@@ -368,6 +418,46 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
 
   return (
     <>
+      {confirmDialog && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="booking-confirm-title"
+          onClick={() => setConfirmDialog(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="booking-confirm-title" className="text-lg font-bold text-slate-800">
+              {confirmDialog.title}
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{confirmDialog.message}</p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(null)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const action = confirmDialog.onConfirm;
+                  setConfirmDialog(null);
+                  action?.();
+                }}
+                className="rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600 transition-colors"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Backdrop */}
       <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center bg-white/60 backdrop-blur-sm" onClick={onClose}>
         {/* Modal Container */}

@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  FiAlertCircle,
   FiArrowLeft,
   FiBell,
   FiBriefcase,
@@ -31,6 +30,7 @@ import {
 } from '../services/firebase';
 import { switchActiveRole } from '../services/firebase/userService';
 import MobileUploadCard from '../components/providerUpload/desktop/MobileUploadCard';
+import { notify, getUserFacingError } from '../utils/toast';
 
 const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024;
@@ -362,8 +362,6 @@ const ProviderOnboardingScreen = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [dataCategories, setDataCategories] = useState([]);
@@ -420,9 +418,14 @@ const ProviderOnboardingScreen = () => {
 
   const newSignup = location.state?.newSignup === true;
 
-  const clearMessages = () => {
-    setError('');
-    setSuccess('');
+  const clearMessages = ({ includeValidation = false, includeFile = false } = {}) => {
+    if (includeValidation) {
+      notify.dismiss('provider-onboarding-validation');
+    }
+
+    if (includeFile) {
+      notify.dismiss('provider-onboarding-file');
+    }
   };
 
   const applyExistingDetails = (providerDetails, categories, profile) => {
@@ -640,13 +643,16 @@ const ProviderOnboardingScreen = () => {
   };
 
   const handleFileSelect = (key, type) => (event) => {
-    clearMessages();
+    clearMessages({ includeFile: true });
 
     const file = event.target.files?.[0] || null;
     const validationMessage = validateFile(file, type);
 
     if (validationMessage) {
-      setError(validationMessage);
+      notify.error(validationMessage, {
+        id: 'provider-onboarding-file',
+        duration: 10000,
+      });
       event.target.value = '';
       return;
     }
@@ -886,11 +892,14 @@ const ProviderOnboardingScreen = () => {
   };
 
   const handleNext = async () => {
-    clearMessages();
+    clearMessages({ includeValidation: true, includeFile: true });
     const validationMessage = validateStep(currentStep);
 
     if (validationMessage) {
-      setError(validationMessage);
+      notify.error(validationMessage, {
+        id: 'provider-onboarding-validation',
+        duration: 10000,
+      });
       return;
     }
 
@@ -1024,7 +1033,9 @@ const ProviderOnboardingScreen = () => {
       await refreshUserData?.();
       await switchActiveRole(user.uid, 'client').catch(() => undefined);
 
-      setSuccess('Your provider onboarding details have been submitted.');
+      notify.success('Provider onboarding submitted.', {
+        id: 'provider-onboarding-submit',
+      });
       navigate('/provider/under-review', {
         replace: true,
         state: {
@@ -1033,10 +1044,11 @@ const ProviderOnboardingScreen = () => {
         },
       });
     } catch (submitError) {
-      setError(
-        submitError.message ||
-          'Failed to submit your onboarding details. Please try again.',
+      const message = getUserFacingError(
+        submitError,
+        'Failed to submit your onboarding details. Please try again.',
       );
+      notify.error(message, { id: 'provider-onboarding-submit' });
     } finally {
       setIsSubmitting(false);
     }
@@ -2054,24 +2066,6 @@ const ProviderOnboardingScreen = () => {
                       Your provider account has been created. Finish onboarding
                       to submit it for admin approval.
                     </p>
-                  </div>
-                </div>
-              )}
-
-              {error && (
-                <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4">
-                  <div className="flex items-start gap-3">
-                    <FiAlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
-                    <p className="text-sm text-red-700">{error}</p>
-                  </div>
-                </div>
-              )}
-
-              {success && (
-                <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                  <div className="flex items-start gap-3">
-                    <FiCheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                    <p className="text-sm text-emerald-700">{success}</p>
                   </div>
                 </div>
               )}

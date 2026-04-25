@@ -8,10 +8,9 @@ import { httpsCallable } from 'firebase/functions';
 import { firestore } from '../services/firebase/firebaseConfig';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { getSignedInHomePath } from '../utils/providerFlow';
+import { notify, getUserFacingError } from '../utils/toast';
 import {
-  FiAlertCircle,
   FiArrowRight,
-  FiCheckCircle,
   FiHome,
   FiLock,
   FiLogIn,
@@ -83,10 +82,6 @@ const LoginScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [phoneCooldown, setPhoneCooldown] = useState(0);
-  const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState(
-    location.state?.signupMessage || '',
-  );
 
   const [selectedCountry, setSelectedCountry] = useState('+91'); // Default India
   const countryOptions = [
@@ -101,7 +96,9 @@ const LoginScreen = () => {
     }
 
     if (location.state?.signupMessage) {
-      setSuccessMessage(location.state.signupMessage);
+      notify.success(location.state.signupMessage, {
+        id: 'login-signup-message',
+      });
     }
   }, [location.state]);
 
@@ -115,21 +112,49 @@ const LoginScreen = () => {
     }
   }, [phoneCooldown]);
 
+  const clearMessages = ({
+    includeValidation = false,
+    includeEmail = false,
+    includePhoneOtpSend = false,
+    includePhoneOtpVerify = false,
+  } = {}) => {
+    if (includeValidation) {
+      notify.dismiss('login-validation');
+    }
+
+    if (includeEmail) {
+      notify.dismiss('login-email');
+    }
+
+    if (includePhoneOtpSend) {
+      notify.dismiss('login-phone-otp-send');
+    }
+
+    if (includePhoneOtpVerify) {
+      notify.dismiss('login-phone-otp-verify');
+    }
+  };
+
   const handleEmailLogin = async () => {
-    setError('');
-    setSuccessMessage('');
+    clearMessages({ includeValidation: true, includeEmail: true });
     if (!email || !password) {
-      setError('Please enter both email and password');
+      notify.error('Please enter both email and password.', {
+        id: 'login-validation',
+      });
       return;
     }
 
     if (!email.includes('@')) {
-      setError('Please enter a valid email address');
+      notify.error('Please enter a valid email address.', {
+        id: 'login-validation',
+      });
       return;
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
+      notify.error('Password must be at least 6 characters long.', {
+        id: 'login-validation',
+      });
       return;
     }
 
@@ -141,7 +166,9 @@ const LoginScreen = () => {
       const usersSnapshot = await getDocs(q);
 
       if (usersSnapshot.empty) {
-        setError('No account found with this email. Please sign up.');
+        notify.warning('No account found with this email. Please sign up.', {
+          id: 'login-email',
+        });
         return;
       }
     } catch (lookupError) {
@@ -154,19 +181,22 @@ const LoginScreen = () => {
     try {
       const result = await login(email, password);
       if (result.success) {
+        notify.success('Signed in.', { id: 'login-email' });
         return;
       } else {
         // Check if it's an approval status error
         if (result.error && result.error.includes('pending')) {
-          setError('Your service provider account is currently under review. Please wait for 24 hours.');
+          notify.warning('Your provider account is still under review.', {
+            id: 'login-email',
+          });
         } else {
           const errorMessage = getErrorMessage(result.error);
-          setError(errorMessage);
+          notify.error(errorMessage, { id: 'login-email' });
         }
       }
     } catch (error) {
       const errorMessage = getErrorMessage(error.message || error.code);
-      setError(errorMessage);
+      notify.error(getUserFacingError(error, errorMessage), { id: 'login-email' });
     } finally {
       setIsLoading(false);
     }
@@ -236,11 +266,14 @@ const LoginScreen = () => {
   };
 
   const handlePhoneLogin = async () => {
-    setError('');
-    setSuccessMessage('');
+    clearMessages({
+      includeValidation: true,
+      includePhoneOtpSend: true,
+      includePhoneOtpVerify: true,
+    });
     // Ensure phone is provided
     if (!phoneInput) {
-      setError('Please enter your phone number');
+      notify.error('Please enter your phone number.', { id: 'login-validation' });
       return;
     }
 
@@ -255,7 +288,7 @@ const LoginScreen = () => {
       setIsLoading(true);
       try {
         if (!phoneE164) {
-          setError('Invalid phone number');
+          notify.error('Invalid phone number.', { id: 'login-validation' });
           return;
         }
         // Check if phone number is registered in Firestore before sending OTP
@@ -280,7 +313,9 @@ const LoginScreen = () => {
           const usersSnapshot = await getDocs(q);
 
           if (usersSnapshot.empty) {
-            setError('No account found with this phone number. Please sign up.');
+            notify.warning('No account found with this phone number. Please sign up.', {
+              id: 'login-phone-otp-send',
+            });
             return;
           }
 
@@ -289,7 +324,9 @@ const LoginScreen = () => {
           console.log('Found user in database with UID:', userUid);
         } catch (lookupError) {
           console.error('Phone lookup error:', lookupError);
-          setError('Unable to verify phone number. Please try again later.');
+          notify.error('Unable to verify phone number. Please try again later.', {
+            id: 'login-phone-otp-send',
+          });
           return;
         }
 
@@ -304,11 +341,13 @@ const LoginScreen = () => {
         setFormattedPhone(phoneE164);
         setOtpSent(true);
         setPhoneCooldown(60);
-        setError(''); // Clear any previous errors
+        notify.success('Verification code sent.', { id: 'login-phone-otp-send' });
       } catch (error) {
         console.error('OTP send error:', error);
         const errorMessage = getErrorMessage(error.message || error.code);
-        setError(errorMessage);
+        notify.error(getUserFacingError(error, errorMessage), {
+          id: 'login-phone-otp-send',
+        });
       } finally {
         setIsLoading(false);
       }
@@ -317,12 +356,16 @@ const LoginScreen = () => {
 
     // OTP already sent -> verify using the stored formattedPhone (already has country code)
     if (!otp) {
-      setError('Please enter the 6-digit verification code');
+      notify.error('Please enter the 6-digit verification code.', {
+        id: 'login-validation',
+      });
       return;
     }
 
     if (otp.length !== 6) {
-      setError('Please enter the complete 6-digit verification code');
+      notify.error('Please enter the complete 6-digit verification code.', {
+        id: 'login-validation',
+      });
       return;
     }
 
@@ -363,14 +406,17 @@ const LoginScreen = () => {
           const usersSnapshotPost = await getDocs(q);
 
           if (usersSnapshotPost.empty) {
-            setError('No account found with this phone number in the database. Please sign up.');
-            setIsLoading(false);
+            notify.error(
+              'No account found with this phone number in the database. Please sign up.',
+              { id: 'login-phone-otp-verify' },
+            );
             return;
           }
         } catch (lookupError) {
           console.error('Post-verify phone lookup error:', lookupError);
-          setError('Unable to verify phone in database. Please try again later.');
-          setIsLoading(false);
+          notify.error('Unable to verify phone in database. Please try again later.', {
+            id: 'login-phone-otp-verify',
+          });
           return;
         }
 
@@ -383,15 +429,20 @@ const LoginScreen = () => {
         setOtpSent(false);
         setPhoneInput('');
         setFormattedPhone('');
-        setError('');
+        notify.success('Signed in.', { id: 'login-phone-otp-verify' });
         return;
       }
 
-      setError('Verification failed. Unable to verify the code. Please request a new code and try again.');
+      notify.error(
+        'Verification failed. Unable to verify the code. Please request a new code and try again.',
+        { id: 'login-phone-otp-verify' },
+      );
     } catch (error) {
       console.error('Phone verification error:', error);
       const errorMessage = getErrorMessage(error.message || error.code);
-      setError(errorMessage);
+      notify.error(getUserFacingError(error, errorMessage), {
+        id: 'login-phone-otp-verify',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -486,26 +537,6 @@ const LoginScreen = () => {
                     Choose email/password or phone OTP to continue.
                   </p>
                 </div>
-
-                {error && (
-                  <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4">
-                    <div className="flex items-start gap-3">
-                      <FiAlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
-                      <p className="text-sm text-red-700">{error}</p>
-                    </div>
-                  </div>
-                )}
-
-                {successMessage && (
-                  <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                    <div className="flex items-start gap-3">
-                      <FiCheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                      <p className="text-sm text-emerald-700">
-                        {successMessage}
-                      </p>
-                    </div>
-                  </div>
-                )}
 
                 <div className="mb-8 grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1">
                   <button

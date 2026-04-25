@@ -1,20 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { FiCheckCircle, FiXCircle, FiLoader } from 'react-icons/fi';
+import { FiAlertTriangle, FiCheckCircle, FiXCircle, FiLoader } from 'react-icons/fi';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { firestore } from '../../services/firebase/firebaseConfig';
-import { useAuth } from '../../context/AuthContext';
+import { notify } from '../../utils/toast';
 
 const PaymentSuccess = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
 
   const sessionId = searchParams.get('session_id');
   const bookingId = searchParams.get('booking_id');
   const status = searchParams.get('status'); // 'success' or 'cancelled'
 
-  const [pageState, setPageState] = useState('loading'); // loading | success | cancelled | error
+  const [pageState, setPageState] = useState('loading'); // loading | success | sync-warning | cancelled | error
   const [bookingData, setBookingData] = useState(null);
 
   useEffect(() => {
@@ -48,13 +47,21 @@ const PaymentSuccess = () => {
               paidAt: new Date().toISOString(),
             });
           }
+        } else {
+          notify.warning('Payment received. Final confirmation may take a moment.', {
+            id: 'payment-sync-warning',
+          });
+          setPageState('sync-warning');
+          return;
         }
 
         setPageState('success');
       } catch (error) {
         console.error('Error processing payment result:', error);
-        // Still show success since Stripe confirmed it — webhook will handle the rest
-        setPageState('success');
+        notify.warning('Payment received. Final confirmation may take a moment.', {
+          id: 'payment-sync-warning',
+        });
+        setPageState('sync-warning');
       }
     };
 
@@ -118,16 +125,29 @@ const PaymentSuccess = () => {
     );
   }
 
-  // Success state
+  const hasSyncWarning = pageState === 'sync-warning';
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 px-4">
       <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
-        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <FiCheckCircle size={48} className="text-emerald-500" />
+        <div
+          className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 ${
+            hasSyncWarning ? 'bg-amber-100' : 'bg-emerald-100'
+          }`}
+        >
+          {hasSyncWarning ? (
+            <FiAlertTriangle size={46} className="text-amber-500" />
+          ) : (
+            <FiCheckCircle size={48} className="text-emerald-500" />
+          )}
         </div>
-        <h1 className="text-2xl font-bold text-slate-800 mb-2">Payment Successful!</h1>
+        <h1 className="text-2xl font-bold text-slate-800 mb-2">
+          {hasSyncWarning ? 'Payment Received' : 'Payment Successful!'}
+        </h1>
         <p className="text-sm text-slate-500 mb-6">
-          Your booking has been confirmed. You will receive a confirmation via email.
+          {hasSyncWarning
+            ? 'Final booking confirmation may take a moment. Please check your bookings shortly.'
+            : 'Your booking has been confirmed. You will receive a confirmation via email.'}
         </p>
 
         {bookingData && (

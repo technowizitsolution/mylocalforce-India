@@ -8,3 +8,77 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Brand-aligned Sonner toasts */
+[data-sonner-toaster] {
+  --border-radius: 0.5rem;
+  transition: transform 140ms ease !important;
+}
+
+[data-sonner-toaster][data-x-position='right'] {
+  left: auto !important;
+  right: max(12px, env(safe-area-inset-right)) !important;
+}
+
+[data-sonner-toaster][data-x-position='right'] [data-sonner-toast] {
+  margin-left: auto;
+}
+
+[data-sonner-toast] {
+  border: 1px solid #bfdbfe;
+  border-radius: 0.5rem;
+  background: #eff6ff;
+  color: #1e3a8a;
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.2);
+  transition: transform 140ms ease-out, opacity 140ms ease-out,
+    height 140ms ease-out, box-shadow 120ms ease-out !important;
+}
+
+[data-sonner-toast] > * {
+  transition: opacity 120ms ease-out !important;
+}
+
+[data-sonner-toast][data-promise='true'] [data-icon] > svg {
+  animation-duration: 140ms !important;
+}
+
+[data-sonner-toast] [data-close-button] {
+  border-color: #bfdbfe;
+  background: #ffffff;
+  color: #1e3a8a;
+}
+
+[data-sonner-toast][data-type='success'] {
+  border-color: #86efac;
+  background: #ecfdf5;
+  color: #166534;
+  box-shadow: 0 12px 28px rgba(22, 163, 74, 0.16);
+}
+
+[data-sonner-toast][data-type='error'] {
+  border-color: #fca5a5;
+  background: #fef2f2;
+  color: #b91c1c;
+  box-shadow: 0 12px 28px rgba(220, 38, 38, 0.16);
+}
+
+[data-sonner-toast][data-type='warning'],
+[data-sonner-toast][data-type='info'],
+[data-sonner-toast][data-type='loading'] {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.16);
+}
+
+@media (max-width: 600px) {
+  [data-sonner-toaster][data-x-position='right'] {
+    left: auto !important;
+    right: max(12px, env(safe-area-inset-right)) !important;
+    width: min(380px, calc(100vw - 24px)) !important;
+  }
+
+  [data-sonner-toaster][data-x-position='right'] [data-sonner-toast] {
+    width: 100% !important;
+  }
+}

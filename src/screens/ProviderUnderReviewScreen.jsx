@@ -114,14 +114,25 @@ const ProviderUnderReviewScreen = () => {
       <div className="grid min-h-[calc(100vh-2rem)] grid-cols-1 gap-8 lg:min-h-[calc(100vh-2.5rem)] lg:grid-cols-[minmax(22rem,45vw)_1fr] lg:gap-12">
         <aside className="relative min-h-[20rem] overflow-hidden rounded-2xl bg-gray-950 lg:sticky lg:top-5 lg:h-[calc(100vh-2.5rem)]">
           <img
-            src="/images/image.png"
-            alt="My Local Force providers"
+            src="/images/SSaloon.jpg"
+            alt="My Local Force services"
             className="absolute inset-0 h-full w-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-gray-950/42 via-blue-950/16 to-gray-950/52" />
 
           <div className="relative flex h-full min-h-[20rem] flex-col justify-between p-6 text-white sm:p-8 lg:min-h-full lg:p-10">
-            <div className="text-2xl font-bold italic">My Local Force</div>
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/12 backdrop-blur">
+                <img
+                  src="/images/MLF.jpg"
+                  alt="My Local Force"
+                  className="h-7 w-7 rounded object-cover"
+                />
+              </div>
+              <div>
+                <p className="text-sm font-bold">My Local Force</p>
+              </div>
+            </div>
 
             <div className="max-w-md py-10 lg:py-0">
               <p className="text-sm font-bold uppercase tracking-wide text-blue-100">

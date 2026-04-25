@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import {
-  FiAlertCircle,
   FiArrowLeft,
   FiCheckCircle,
   FiCircle,
@@ -17,6 +16,7 @@ import {
 import { collection, getDocs, limit, query, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { firestore, functions } from '../services/firebase/firebaseConfig';
+import { notify, getUserFacingError } from '../utils/toast';
 
 const SEND_EMAIL_OTP_URL =
   'https://us-central1-mylocalforce-295b8.cloudfunctions.net/sendEmailOtp';
@@ -113,8 +113,6 @@ const ForgotPasswordScreen = () => {
   const [isVerifyingPhoneOtp, setIsVerifyingPhoneOtp] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
 
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [isResetComplete, setIsResetComplete] = useState(false);
 
   useEffect(() => {
@@ -156,13 +154,38 @@ const ForgotPasswordScreen = () => {
     (resetMethod === 'email' && emailOtpVerified) ||
     (resetMethod === 'phone' && phoneOtpVerified);
 
-  const clearMessages = () => {
-    setError('');
-    setSuccess('');
+  const clearMessages = ({
+    includeEmailFlow = false,
+    includePhoneFlow = false,
+    includeReset = false,
+    includeValidation = false,
+  } = {}) => {
+    if (includeEmailFlow) {
+      notify.dismiss('forgot-email-otp-send');
+      notify.dismiss('forgot-email-otp-verify');
+    }
+
+    if (includePhoneFlow) {
+      notify.dismiss('forgot-phone-otp-send');
+      notify.dismiss('forgot-phone-otp-verify');
+    }
+
+    if (includeReset) {
+      notify.dismiss('forgot-password-reset');
+    }
+
+    if (includeValidation) {
+      notify.dismiss('forgot-password-validation');
+    }
   };
 
   const resetCurrentFlow = () => {
-    clearMessages();
+    clearMessages({
+      includeEmailFlow: true,
+      includePhoneFlow: true,
+      includeReset: true,
+      includeValidation: true,
+    });
     setEmailOtp(initialFlowState.emailOtp);
     setPhoneOtp(initialFlowState.phoneOtp);
     setNewPassword(initialFlowState.newPassword);
@@ -232,15 +255,19 @@ const ForgotPasswordScreen = () => {
   };
 
   const handleSendEmailOtp = async () => {
-    clearMessages();
+    clearMessages({ includeEmailFlow: true, includeValidation: true });
 
     if (!email.trim()) {
-      setError('Please enter your email address.');
+      notify.error('Please enter your email address.', {
+        id: 'forgot-password-validation',
+      });
       return;
     }
 
     if (!isValidEmail(email)) {
-      setError('Please enter a valid email address.');
+      notify.error('Please enter a valid email address.', {
+        id: 'forgot-password-validation',
+      });
       return;
     }
 
@@ -276,57 +303,67 @@ const ForgotPasswordScreen = () => {
       setEmailOtpSent(true);
       setEmailOtpVerified(false);
       setEmailCooldown(60);
-      setSuccess(`Verification code sent to ${emailLower}.`);
+      notify.success(`Verification code sent to ${emailLower}.`, {
+        id: 'forgot-email-otp-send',
+      });
     } catch (sendError) {
-      setError(sendError.message || 'Failed to send OTP. Please try again.');
+      notify.error(getUserFacingError(sendError, 'Could not send verification code.'), {
+        id: 'forgot-email-otp-send',
+      });
     } finally {
       setIsSendingEmailOtp(false);
     }
   };
 
   const handleVerifyEmailOtp = () => {
-    clearMessages();
+    clearMessages({ includeEmailFlow: true, includeValidation: true });
     setIsVerifyingEmailOtp(true);
 
     window.setTimeout(() => {
       if (!emailOtp || emailOtp.length !== 6) {
-        setError('Please enter the 6-digit verification code.');
+        notify.error('Please enter the 6-digit verification code.', {
+          id: 'forgot-password-validation',
+        });
         setIsVerifyingEmailOtp(false);
         return;
       }
 
       setEmailOtpVerified(true);
-      setSuccess(
-        'Code format looks good. Set your new password to finish the reset.',
-      );
+      notify.success('Code verified. Set your new password to finish reset.', {
+        id: 'forgot-email-otp-verify',
+      });
       setIsVerifyingEmailOtp(false);
     }, 150);
   };
 
   const handleSendPhoneOtp = async () => {
-    clearMessages();
+    clearMessages({ includePhoneFlow: true, includeValidation: true });
 
     if (!selectedCountry) {
-      setError('Please select your country code.');
+      notify.error('Please select your country code.', {
+        id: 'forgot-password-validation',
+      });
       return;
     }
 
     if (!phone.trim()) {
-      setError('Please enter your phone number.');
+      notify.error('Please enter your phone number.', {
+        id: 'forgot-password-validation',
+      });
       return;
     }
 
     const validation = validatePhoneNumber(phone);
 
     if (!validation.valid) {
-      setError(validation.message);
+      notify.error(validation.message, { id: 'forgot-password-validation' });
       return;
     }
 
     const formattedPhone = formatPhoneNumber();
 
     if (!formattedPhone) {
-      setError('Invalid phone number.');
+      notify.error('Invalid phone number.', { id: 'forgot-password-validation' });
       return;
     }
 
@@ -374,24 +411,32 @@ const ForgotPasswordScreen = () => {
       setPhoneOtpSent(true);
       setPhoneOtpVerified(false);
       setPhoneCooldown(60);
-      setSuccess('Verification code sent by SMS.');
+      notify.success('Verification code sent by SMS.', {
+        id: 'forgot-phone-otp-send',
+      });
     } catch (sendError) {
-      setError(sendError.message || 'Failed to send OTP. Please try again.');
+      notify.error(getUserFacingError(sendError, 'Could not send verification code.'), {
+        id: 'forgot-phone-otp-send',
+      });
     } finally {
       setIsSendingPhoneOtp(false);
     }
   };
 
   const handleVerifyPhoneOtp = async () => {
-    clearMessages();
+    clearMessages({ includePhoneFlow: true, includeValidation: true });
 
     if (!phoneOtpSent) {
-      setError('Please request the verification code first.');
+      notify.error('Please request the verification code first.', {
+        id: 'forgot-password-validation',
+      });
       return;
     }
 
     if (!phoneOtp || phoneOtp.length !== 6) {
-      setError('Please enter the 6-digit verification code.');
+      notify.error('Please enter the 6-digit verification code.', {
+        id: 'forgot-password-validation',
+      });
       return;
     }
 
@@ -414,11 +459,13 @@ const ForgotPasswordScreen = () => {
       setVerifiedUid(data.uid);
       setVerifiedPhone(formattedPhone);
       setPhoneOtpVerified(true);
-      setSuccess(
-        'Phone verified successfully. Set your new password below.',
-      );
+      notify.success('Phone verified. Set your new password below.', {
+        id: 'forgot-phone-otp-verify',
+      });
     } catch (verifyError) {
-      setError(verifyError.message || 'Invalid or expired OTP.');
+      notify.error(getUserFacingError(verifyError, 'Could not verify code.'), {
+        id: 'forgot-phone-otp-verify',
+      });
     } finally {
       setIsVerifyingPhoneOtp(false);
     }
@@ -426,22 +473,28 @@ const ForgotPasswordScreen = () => {
 
   const handleResetPassword = async (event) => {
     event.preventDefault();
-    clearMessages();
+    clearMessages({ includeReset: true, includeValidation: true });
 
     if (!newPassword) {
-      setError('Please enter a new password.');
+      notify.error('Please enter a new password.', {
+        id: 'forgot-password-validation',
+      });
       return;
     }
 
     const meetsAllRequirements = Object.values(passwordValidation).every(Boolean);
 
     if (!meetsAllRequirements) {
-      setError('Please meet all password requirements.');
+      notify.error('Please meet all password requirements.', {
+        id: 'forgot-password-validation',
+      });
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match.');
+      notify.error('Passwords do not match.', {
+        id: 'forgot-password-validation',
+      });
       return;
     }
 
@@ -489,13 +542,13 @@ const ForgotPasswordScreen = () => {
       }
 
       setIsResetComplete(true);
-      setSuccess(
-        'Your password has been reset successfully. Please log in with your new password.',
-      );
+      notify.success('Password reset. Sign in with your new password.', {
+        id: 'forgot-password-reset',
+      });
     } catch (resetError) {
-      setError(
-        resetError.message || 'Failed to reset password. Please try again.',
-      );
+      notify.error(getUserFacingError(resetError, 'Could not reset password.'), {
+        id: 'forgot-password-reset',
+      });
     } finally {
       setIsResettingPassword(false);
     }
@@ -568,7 +621,8 @@ const ForgotPasswordScreen = () => {
                     Password Updated
                   </h1>
                   <p className="mt-3 text-base leading-7 text-gray-700">
-                    {success}
+                    Your password has been reset successfully. Please sign in
+                    with your new password.
                   </p>
                   <button
                     onClick={() => navigate('/login')}
@@ -671,24 +725,6 @@ const ForgotPasswordScreen = () => {
                   </p>
                 </div>
 
-                {error && (
-            <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4">
-              <div className="flex items-start gap-3">
-                <FiAlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
-                <p className="text-sm text-red-700">{error}</p>
-              </div>
-            </div>
-          )}
-
-          {success && (
-            <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-              <div className="flex items-start gap-3">
-                <FiCheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                <p className="text-sm text-emerald-700">{success}</p>
-              </div>
-            </div>
-          )}
-
           <div className="mb-8 grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1">
             <button
               type="button"
@@ -733,7 +769,7 @@ const ForgotPasswordScreen = () => {
                       value={email}
                       onChange={(event) => {
                         setEmail(event.target.value);
-                        clearMessages();
+                        clearMessages({ includeValidation: true });
                       }}
                       disabled={emailOtpVerified}
                       className={iconInputClass}
@@ -779,7 +815,7 @@ const ForgotPasswordScreen = () => {
                       value={emailOtp}
                       onChange={(event) => {
                         setEmailOtp(event.target.value.replace(/\D/g, '').slice(0, 6));
-                        clearMessages();
+                        clearMessages({ includeValidation: true });
                       }}
                       maxLength={6}
                       className={inputClass}
@@ -819,7 +855,7 @@ const ForgotPasswordScreen = () => {
                   value={selectedCountry}
                   onChange={(event) => {
                     setSelectedCountry(event.target.value);
-                    clearMessages();
+                    clearMessages({ includeValidation: true });
                   }}
                   disabled={phoneOtpVerified}
                   className={inputClass}
@@ -852,7 +888,7 @@ const ForgotPasswordScreen = () => {
                       value={phone}
                       onChange={(event) => {
                         setPhone(event.target.value.replace(/[^0-9]/g, '').slice(0, 10));
-                        clearMessages();
+                        clearMessages({ includeValidation: true });
                       }}
                       disabled={phoneOtpVerified}
                       className={iconInputClass}
@@ -898,7 +934,7 @@ const ForgotPasswordScreen = () => {
                       value={phoneOtp}
                       onChange={(event) => {
                         setPhoneOtp(event.target.value.replace(/\D/g, '').slice(0, 6));
-                        clearMessages();
+                        clearMessages({ includeValidation: true });
                       }}
                       maxLength={6}
                       className={inputClass}
@@ -947,7 +983,7 @@ const ForgotPasswordScreen = () => {
                     value={newPassword}
                     onChange={(event) => {
                       setNewPassword(event.target.value);
-                      clearMessages();
+                      clearMessages({ includeValidation: true });
                     }}
                     className={`${iconInputClass} pr-12`}
                   />
@@ -1004,7 +1040,7 @@ const ForgotPasswordScreen = () => {
                     value={confirmPassword}
                     onChange={(event) => {
                       setConfirmPassword(event.target.value);
-                      clearMessages();
+                      clearMessages({ includeValidation: true });
                     }}
                     className={`${iconInputClass} pr-12`}
                   />

@@ -17,6 +17,7 @@ import app, { auth as firebaseAuth, firestore } from '../../services/firebase/fi
 import { collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { saveNotificationToFirestore, sendPushNotification } from '../../services/firebase/notificationService';
 import { createCheckoutSession } from '../../services/firebase/stripeService';
+import { notify, getUserFacingError } from '../../utils/toast';
 
 // NOTE: geocoding fallback uses the Google Geocoding API. Ensure this key has Geocoding enabled.
 const GOOGLE_GEOCODING_API_KEY = 'AIzaSyBfeBvLPaPSEyHpwuqcUXCa-YJnZ3iJu1Q';
@@ -517,7 +518,9 @@ const BookingScreen = () => {
 
   const handleTimeSelect = (time) => {
     if (selectedDate && !isBookingTimeValid(selectedDate, time)) {
-      alert('Bookings must be made at least 8 hours in advance. Please select a different time or date.');
+      notify.warning('Bookings must be made at least 8 hours in advance.', {
+        id: 'booking-time-window',
+      });
       return;
     }
     setSelectedTime(time);
@@ -531,23 +534,29 @@ const BookingScreen = () => {
     const finalAddress = defaultAddress;
 
     if (!selectedDate || !selectedTime || !finalAddress || !phoneNumber) {
-      alert('Please fill in all required fields (date, time, address, phone).');
+      notify.error('Add date, time, address, and phone to continue.', {
+        id: 'booking-validation',
+      });
       return;
     }
 
     if (!isBookingTimeValid(selectedDate, selectedTime)) {
-      alert('Bookings must be made at least 8 hours in advance. Please select a different date or time.');
+      notify.warning('Bookings must be made at least 8 hours in advance.', {
+        id: 'booking-time-window',
+      });
       return;
     }
 
     if (!user) {
-      alert('Please log in to make a booking.');
+      notify.info('Sign in to continue your booking.', { id: 'booking-login-required' });
       navigate('/login');
       return;
     }
 
     if (!serviceData?.ownerId && !selectedProvider) {
-      alert('Service information missing. Please try selecting the service again.');
+      notify.error('Service information is missing. Select the service again.', {
+        id: 'booking-service-missing',
+      });
       return;
     }
 
@@ -588,12 +597,16 @@ const BookingScreen = () => {
               effectiveCustomerCoords = { lat: geoCust.lat, lng: geoCust.lng };
               setCustomerCoords({ lat: geoCust.lat, lng: geoCust.lng });
             } else {
-              alert('Your location is unavailable. Please set your address in your profile.');
+              notify.error('We could not confirm your location. Choose an address and try again.', {
+                id: 'booking-location-unavailable',
+              });
               setIsLoading(false);
               return;
             }
           } catch (_gErr) {
-            alert('Your location is unavailable. Please set your address in your profile.');
+            notify.error('We could not confirm your location. Choose an address and try again.', {
+              id: 'booking-location-unavailable',
+            });
             setIsLoading(false);
             return;
           }
@@ -606,7 +619,9 @@ const BookingScreen = () => {
           providerCoords.lng
         );
         if (distanceKm > 20) {
-          alert('This provider is more than 20 km away. Booking is only allowed within 20 km.');
+          notify.warning('This provider is outside the service range. Choose another provider.', {
+            id: 'booking-provider-distance',
+          });
           setIsLoading(false);
           return;
         }
@@ -645,6 +660,9 @@ const BookingScreen = () => {
       };
 
       if (!isLead) {
+        const paymentToastId = 'booking-payment-session';
+        notify.loading('Creating secure payment session...', { id: paymentToastId });
+
         const bookingId = await createBooking(user.uid, bookingData);
         console.log('Booking created with ID:', bookingId);
 
@@ -661,12 +679,18 @@ const BookingScreen = () => {
         const checkoutSession = await createCheckoutSession(stripeSessionData);
         console.log('Checkout session created:', checkoutSession.sessionId);
 
+        notify.success('Redirecting to payment...', { id: paymentToastId });
+
         // Redirect to Stripe Checkout — Stripe will redirect back to our
         // payment-success page after completion (success or cancel).
         window.location.href = checkoutSession.url;
+        return;
       }
 
       if (isLead) {
+        const leadToastId = 'booking-lead-request';
+        notify.loading('Sending your request to providers...', { id: leadToastId });
+
         const leadData = {
           status: 'lead',
           customerId: user.uid,
@@ -710,11 +734,14 @@ const BookingScreen = () => {
           const broadcastResult = await broadcastResponse.json();
 
           if (broadcastResult.success) {
-            alert(
-              `Your request has been sent to ${broadcastResult.notifiedCount} providers. They will receive email, SMS and app notifications.`
+            notify.success(
+              `Your request was sent to ${broadcastResult.notifiedCount} providers.`,
+              { id: leadToastId }
             );
           } else {
-            alert('Your request has been saved. Providers will be notified.');
+            notify.info('Your request has been saved. Providers will be notified.', {
+              id: leadToastId,
+            });
           }
 
           navigate(-1);
@@ -784,9 +811,13 @@ const BookingScreen = () => {
                 /* ignore */
               }
             }
-            alert(`Lead saved and notified ${notified} providers.`);
+            notify.success(`Request saved and notified ${notified} providers.`, {
+              id: leadToastId,
+            });
           } catch (_sErr) {
-            alert('Lead saved, but failed to notify providers.');
+            notify.warning('Request saved, but provider notification failed.', {
+              id: leadToastId,
+            });
           }
 
           navigate(-1);
@@ -796,7 +827,9 @@ const BookingScreen = () => {
       }
     } catch (error) {
       console.error('Error creating booking:', error);
-      alert('Sorry, there was an error processing your booking. Please try again.');
+      notify.error(getUserFacingError(error, 'Could not start payment. Please try again.'), {
+        id: isLead ? 'booking-lead-request' : 'booking-payment-session',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -1271,8 +1304,12 @@ const BookingScreen = () => {
 
             <button
               onClick={() => {
-                navigator.clipboard.writeText('4242424242424242');
-                alert('Card number copied to clipboard!');
+                navigator.clipboard
+                  .writeText('4242424242424242')
+                  .then(() => notify.info('Card number copied.', { id: 'booking-card-copy' }))
+                  .catch(() =>
+                    notify.error('Could not copy card number.', { id: 'booking-card-copy' })
+                  );
               }}
               className="w-full flex items-center justify-between bg-white/10 rounded-md py-1.5 sm:py-2 px-2.5 sm:px-3 mb-4 sm:mb-6 hover:bg-white/20 transition-colors"
             >

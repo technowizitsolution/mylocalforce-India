@@ -6,6 +6,7 @@ import DesktopFallbackUpload from './DesktopFallbackUpload';
 import QrCodeDisplay from './QrCodeDisplay';
 import SessionExpiryCountdown from './SessionExpiryCountdown';
 import UploadProgressTracker from './UploadProgressTracker';
+import { getUserFacingError } from '../../../utils/toast';
 
 /**
  * Converts Firestore/callable timestamp shapes to milliseconds.
@@ -116,7 +117,7 @@ const MobileUploadCard = ({
     try {
       await prepareAndCreateSession(canUseSms ? 'both' : 'qr');
     } catch (createError) {
-      setError(createError.message || 'Could not create QR upload link.');
+      setError(getUserFacingError(createError, 'Could not create QR upload link.'));
     }
   };
 
@@ -127,7 +128,7 @@ const MobileUploadCard = ({
       await sendSms(verifiedMobileNumber);
       setNotice('Upload link sent by SMS.');
     } catch (smsError) {
-      setError(smsError.message || 'Could not send upload SMS.');
+      setError(getUserFacingError(smsError, 'Could not send upload SMS.'));
     }
   };
 

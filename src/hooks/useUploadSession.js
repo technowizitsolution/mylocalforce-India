@@ -5,6 +5,7 @@ import {
   subscribeToLatestProviderUploadSession,
   subscribeToUploadSessionProgress,
 } from '../services/firebase/documentUploadService';
+import { notify, getUserFacingError } from '../utils/toast';
 
 /**
  * Tracks and manages a provider upload session.
@@ -41,7 +42,12 @@ export const useUploadSession = ({
         setSession((current) => latestSession || current);
       },
       (snapshotError) => {
-        setError(snapshotError.message || 'Upload session could not be loaded.');
+        const message = getUserFacingError(
+          snapshotError,
+          'Upload session could not be loaded.',
+        );
+        setError(message);
+        notify.error(message, { id: 'upload-session-load' });
       },
     );
   }, [providerId, registrationStep]);
@@ -60,7 +66,12 @@ export const useUploadSession = ({
         setDocuments(summary.documents || []);
       },
       (snapshotError) => {
-        setError(snapshotError.message || 'Upload progress could not be loaded.');
+        const message = getUserFacingError(
+          snapshotError,
+          'Upload progress could not be loaded.',
+        );
+        setError(message);
+        notify.error(message, { id: 'upload-progress-load' });
       },
     );
   }, [providerId, session?.id]);
@@ -104,9 +115,15 @@ export const useUploadSession = ({
         setSession(result.session || null);
         setMobileUrl(result.mobileUrl || '');
         setRawToken(result.rawToken || '');
+        notify.success('Upload session created.', { id: 'upload-session-create' });
         return result;
       } catch (createError) {
-        setError(createError.message || 'Could not create upload session.');
+        const message = getUserFacingError(
+          createError,
+          'Could not create upload session.',
+        );
+        setError(message);
+        notify.error(message, { id: 'upload-session-create' });
         throw createError;
       } finally {
         setLoading(false);
@@ -140,9 +157,12 @@ export const useUploadSession = ({
         setSession(result.session || activeSession);
         setMobileUrl(result.mobileUrl || '');
         setRawToken('');
+        notify.success('Upload link sent by SMS.', { id: 'upload-session-sms' });
         return result;
       } catch (smsError) {
-        setError(smsError.message || 'Could not send upload link.');
+        const message = getUserFacingError(smsError, 'Could not send upload link.');
+        setError(message);
+        notify.error(message, { id: 'upload-session-sms' });
         throw smsError;
       } finally {
         setLoading(false);
