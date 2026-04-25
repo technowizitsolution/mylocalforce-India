@@ -12,6 +12,22 @@ import UploadStep from './UploadStep';
  */
 const completionKey = (documentType, side) => `${documentType}:${side}`;
 
+const normalizeRequirement = (requirement) => {
+  if (requirement.id !== 'passport') {
+    return requirement;
+  }
+
+  return {
+    ...requirement,
+    required: true,
+    description:
+      requirement.description?.replace(
+        /\s+if it is your identity document\.?$/i,
+        '',
+      ) || 'Upload a clear JPEG image of your passport.',
+  };
+};
+
 /**
  * Guided mobile upload flow.
  *
@@ -25,6 +41,7 @@ const GuidedUploadFlow = ({ session, settings, uploadedDocuments = [] }) => {
   const steps = useMemo(
     () =>
       (settings.requirements || [])
+        .map(normalizeRequirement)
         .slice()
         .sort((a, b) => (a.order || 0) - (b.order || 0))
         .flatMap((requirement) =>
@@ -72,8 +89,8 @@ const GuidedUploadFlow = ({ session, settings, uploadedDocuments = [] }) => {
   };
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-xl flex-col bg-white px-5 py-6">
-      <div className="mb-6">
+    <div className="mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col overflow-hidden bg-white px-5 pt-6">
+      <div className="mb-6 shrink-0">
         <p className="text-sm font-semibold text-blue-600">
           Step {Math.min(currentIndex + 1, steps.length + 1)} of {steps.length + 1}
         </p>
@@ -87,7 +104,7 @@ const GuidedUploadFlow = ({ session, settings, uploadedDocuments = [] }) => {
         </div>
       </div>
 
-      <div className="flex-1">
+      <div className="min-h-0 flex-1 overflow-y-auto pb-6">
         {isSubmitStep ? (
           <SubmitScreen
             sessionId={session.id}
@@ -111,7 +128,7 @@ const GuidedUploadFlow = ({ session, settings, uploadedDocuments = [] }) => {
       </div>
 
       {!isSubmitStep && (
-        <div className="mt-8 flex items-center justify-between gap-3 border-t border-gray-100 pt-5">
+        <div className="-mx-5 flex shrink-0 items-center justify-between gap-3 border-t border-gray-100 bg-white px-5 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-4 shadow-[0_-12px_24px_rgba(15,23,42,0.08)]">
           <button
             type="button"
             onClick={() => setCurrentIndex((current) => Math.max(current - 1, 0))}

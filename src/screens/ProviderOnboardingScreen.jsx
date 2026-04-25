@@ -126,15 +126,10 @@ const steps = [
   { number: 5, title: 'Documents', icon: FiShield },
 ];
 
-const normalizeItemLabel = (item) =>
-  item?.name || item?.title || item?.label || item?.id || '';
+const normalizeItemLabel = (item) => item?.name || item?.title || item?.label || item?.id || '';
 
 const getSubcategories = (category) =>
-  category?.subcategories ||
-  category?.subCategories ||
-  category?.subs ||
-  category?.children ||
-  [];
+  category?.subcategories || category?.subCategories || category?.subs || category?.children || [];
 
 const parseStoredDate = (value) => {
   if (!value) {
@@ -145,8 +140,8 @@ const parseStoredDate = (value) => {
     typeof value === 'string'
       ? value
       : typeof value?.toDate === 'function'
-      ? value.toDate().toISOString().slice(0, 10)
-      : '';
+        ? value.toDate().toISOString().slice(0, 10)
+        : '';
 
   const match = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(stringValue);
 
@@ -166,9 +161,10 @@ const formatStoredDate = (value) => {
     return null;
   }
 
-  return `${value.year}-${String(value.month).padStart(2, '0')}-${String(
-    value.day,
-  ).padStart(2, '0')}`;
+  return `${value.year}-${String(value.month).padStart(2, '0')}-${String(value.day).padStart(
+    2,
+    '0'
+  )}`;
 };
 
 const getFileNameFromUrl = (url, fallback) => {
@@ -239,9 +235,7 @@ const UploadField = ({
         <Icon className="w-5 h-5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-bold text-gray-900">
-          {actionLabel}
-        </span>
+        <span className="block text-sm font-bold text-gray-900">{actionLabel}</span>
         <span className="block text-xs text-gray-500 mt-1">
           {helperText || 'Select a file from your device'}
         </span>
@@ -249,13 +243,7 @@ const UploadField = ({
       <span className="hidden sm:inline-flex rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white">
         Browse
       </span>
-      <input
-        type="file"
-        className="hidden"
-        accept={accept}
-        onChange={onChange}
-        capture={capture}
-      />
+      <input type="file" className="hidden" accept={accept} onChange={onChange} capture={capture} />
     </label>
 
     {(selectedFile || existingUrl) && (
@@ -280,10 +268,7 @@ const UploadField = ({
 
         {typeof progress === 'number' && progress > 0 && progress < 100 && (
           <div className="mt-3 h-2 rounded-full bg-gray-200 overflow-hidden">
-            <div
-              className="h-full bg-blue-600 transition-all"
-              style={{ width: `${progress}%` }}
-            />
+            <div className="h-full bg-blue-600 transition-all" style={{ width: `${progress}%` }} />
           </div>
         )}
       </div>
@@ -312,15 +297,11 @@ const StepIndicator = ({ currentStep }) => {
                   isActive
                     ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
                     : isCompleted
-                    ? 'border-emerald-600 bg-emerald-600 text-white'
-                    : 'border-gray-200 bg-white text-gray-400'
+                      ? 'border-emerald-600 bg-emerald-600 text-white'
+                      : 'border-gray-200 bg-white text-gray-400'
                 }`}
               >
-                {isCompleted ? (
-                  <FiCheckCircle className="w-4 h-4" />
-                ) : (
-                  <Icon className="w-4 h-4" />
-                )}
+                {isCompleted ? <FiCheckCircle className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
               </div>
               <div className="mt-2 min-w-0">
                 <p
@@ -387,7 +368,7 @@ const ProviderOnboardingScreen = () => {
 
   const [notificationPref, setNotificationPref] = useState('both');
 
-  const [passportSelected, setPassportSelected] = useState(false);
+  const [passportSelected, setPassportSelected] = useState(true);
   const [drivingLicenceSelected, setDrivingLicenceSelected] = useState(false);
   const [passportData, setPassportData] = useState({
     number: '',
@@ -415,6 +396,10 @@ const ProviderOnboardingScreen = () => {
   });
   const [uploadProgress, setUploadProgress] = useState({});
   const [secureUploadSummary, setSecureUploadSummary] = useState(null);
+  const [secureUploadAvailability, setSecureUploadAvailability] = useState({
+    loading: true,
+    enabled: true,
+  });
 
   const newSignup = location.state?.newSignup === true;
 
@@ -440,8 +425,7 @@ const ProviderOnboardingScreen = () => {
     const profileDetails = providerDetails.profile || {};
     const bankingDetails = providerDetails.bankingDetails || {};
     const businessInformation = providerDetails.businessInformation || {};
-    const notificationPreferences =
-      providerDetails.notificationPreferences || {};
+    const notificationPreferences = providerDetails.notificationPreferences || {};
     const documents = providerDetails.documents || {};
     const passport = providerDetails.passport || {};
     const drivingLicence = providerDetails.drivingLicence || {};
@@ -451,11 +435,7 @@ const ProviderOnboardingScreen = () => {
 
     setNationalityStatus(profileDetails.nationalityStatus || '');
     setPreferredGender(profileDetails.preferredGender || 'any');
-    setExperience(
-      profileDetails.experience != null
-        ? String(profileDetails.experience)
-        : '',
-    );
+    setExperience(profileDetails.experience != null ? String(profileDetails.experience) : '');
     setVisaCategory(profileDetails.visaCategory || '');
     setVisaNumber(profileDetails.visaNumber || '');
     setVisaExpiry(parseStoredDate(profileDetails.visaExpiry));
@@ -471,10 +451,8 @@ const ProviderOnboardingScreen = () => {
 
     setNotificationPref(notificationPreferences.preference || 'both');
 
-    setPassportSelected(Boolean(documents.passportUrl || passport.number));
-    setDrivingLicenceSelected(
-      Boolean(documents.drivingLicenceUrl || drivingLicence.number),
-    );
+    setPassportSelected(true);
+    setDrivingLicenceSelected(Boolean(documents.drivingLicenceUrl || drivingLicence.number));
     setPassportData({
       number: passport.number || '',
       expiry: parseStoredDate(passport.expiry),
@@ -497,8 +475,8 @@ const ProviderOnboardingScreen = () => {
       const inferredCategoryIds = categories
         .filter((category) =>
           getSubcategories(category).some((subcategory) =>
-            existingServices.includes(normalizeItemLabel(subcategory)),
-          ),
+            existingServices.includes(normalizeItemLabel(subcategory))
+          )
         )
         .map((category) => category.id);
 
@@ -552,8 +530,7 @@ const ProviderOnboardingScreen = () => {
       } catch (loadFailure) {
         if (!cancelled) {
           setLoadError(
-            loadFailure.message ||
-              'Failed to load onboarding details. Please try again.',
+            loadFailure.message || 'Failed to load onboarding details. Please try again.'
           );
         }
       } finally {
@@ -582,8 +559,8 @@ const ProviderOnboardingScreen = () => {
       selectedMainCategoryIds.length > 0
         ? selectedMainCategoryIds
         : selectedMainCategoryId
-        ? [selectedMainCategoryId]
-        : [dataCategories[0].id];
+          ? [selectedMainCategoryId]
+          : [dataCategories[0].id];
 
     const combined = [];
 
@@ -601,9 +578,7 @@ const ProviderOnboardingScreen = () => {
 
     setAvailableSubcategories(combined);
     setSelectedServices((current) =>
-      current.filter((service) =>
-        combined.some((item) => normalizeItemLabel(item) === service),
-      ),
+      current.filter((service) => combined.some((item) => normalizeItemLabel(item) === service))
     );
   }, [dataCategories, selectedMainCategoryId, selectedMainCategoryIds]);
 
@@ -623,19 +598,14 @@ const ProviderOnboardingScreen = () => {
     const maxSize = type === 'verificationVideo' ? MAX_VIDEO_SIZE : MAX_DOCUMENT_SIZE;
 
     if (file.size > maxSize) {
-      return `Please select a file smaller than ${
-        type === 'verificationVideo' ? '50MB' : '10MB'
-      }.`;
+      return `Please select a file smaller than ${type === 'verificationVideo' ? '50MB' : '10MB'}.`;
     }
 
     if (type === 'passport' || type === 'drivingLicence') {
-      const isJpeg =
-        file.type === 'image/jpeg' || /\.jpe?g$/i.test(file.name || '');
+      const isJpeg = file.type === 'image/jpeg' || /\.jpe?g$/i.test(file.name || '');
 
       if (!isJpeg) {
-        return `${
-          type === 'passport' ? 'Passport' : 'Driving licence'
-        } image must be a JPEG file.`;
+        return `${type === 'passport' ? 'Passport' : 'Driving licence'} image must be a JPEG file.`;
       }
     }
 
@@ -672,9 +642,7 @@ const ProviderOnboardingScreen = () => {
       : [...selectedMainCategoryIds, categoryId];
 
     setSelectedMainCategoryIds(nextSelected);
-    setSelectedMainCategoryId(
-      nextSelected[0] || dataCategories[0]?.id || categoryId || null,
-    );
+    setSelectedMainCategoryId(nextSelected[0] || dataCategories[0]?.id || categoryId || null);
   };
 
   const toggleService = (serviceLabel) => {
@@ -682,14 +650,12 @@ const ProviderOnboardingScreen = () => {
     setSelectedServices((current) =>
       current.includes(serviceLabel)
         ? current.filter((item) => item !== serviceLabel)
-        : [...current, serviceLabel],
+        : [...current, serviceLabel]
     );
   };
 
   const hasSecureDocument = (documentTypes) => {
-    const acceptedTypes = Array.isArray(documentTypes)
-      ? documentTypes
-      : [documentTypes];
+    const acceptedTypes = Array.isArray(documentTypes) ? documentTypes : [documentTypes];
 
     return (secureUploadSummary?.documents || []).some((document) => {
       const status = document.status || '';
@@ -741,23 +707,8 @@ const ProviderOnboardingScreen = () => {
     }
 
     if (step === 5) {
-      const hasPassport =
-        passportSelected &&
-        (selectedFiles.passport ||
-          existingDocuments.passportUrl ||
-          hasSecureDocument('passport'));
-      const hasDrivingLicence =
-        drivingLicenceSelected &&
-        (selectedFiles.drivingLicence ||
-          existingDocuments.drivingLicenceUrl ||
-          hasSecureDocument([
-            'driving_licence',
-            'driving_license',
-            'drivingLicence',
-          ]));
-
-      if (!hasPassport && !hasDrivingLicence) {
-        return 'Please provide at least one ID proof: Passport or Driving Licence.';
+      if (!passportSelected) {
+        return 'Passport is required for provider verification.';
       }
 
       if (passportSelected) {
@@ -793,11 +744,7 @@ const ProviderOnboardingScreen = () => {
         if (
           !selectedFiles.drivingLicence &&
           !existingDocuments.drivingLicenceUrl &&
-          !hasSecureDocument([
-            'driving_licence',
-            'driving_license',
-            'drivingLicence',
-          ])
+          !hasSecureDocument(['driving_licence', 'driving_license', 'drivingLicence'])
         ) {
           return 'Please upload your driving licence image.';
         }
@@ -831,9 +778,7 @@ const ProviderOnboardingScreen = () => {
       experience: experience || null,
       ...(visaCategory ? { visaCategory } : {}),
       ...(visaNumber ? { visaNumber: visaNumber.trim() } : {}),
-      ...(formatStoredDate(visaExpiry)
-        ? { visaExpiry: formatStoredDate(visaExpiry) }
-        : {}),
+      ...(formatStoredDate(visaExpiry) ? { visaExpiry: formatStoredDate(visaExpiry) } : {}),
     },
     bankingDetails: {
       bankName: bankName.trim(),
@@ -883,12 +828,9 @@ const ProviderOnboardingScreen = () => {
     }
 
     const legacyDocuments = Object.fromEntries(
-      Object.entries(existingDocuments).filter(([, value]) => Boolean(value)),
+      Object.entries(existingDocuments).filter(([, value]) => Boolean(value))
     );
-    await saveProviderOnboardingDraft(
-      user.uid,
-      buildProviderDetails(legacyDocuments, 'draft'),
-    );
+    await saveProviderOnboardingDraft(user.uid, buildProviderDetails(legacyDocuments, 'draft'));
   };
 
   const handleNext = async () => {
@@ -898,7 +840,7 @@ const ProviderOnboardingScreen = () => {
     if (validationMessage) {
       notify.error(validationMessage, {
         id: 'provider-onboarding-validation',
-        duration: 10000,
+        duration: 5000,
       });
       return;
     }
@@ -917,8 +859,8 @@ const ProviderOnboardingScreen = () => {
 
       const usingSecureDocuments = Boolean(
         secureUploadSummary?.sessionId ||
-          secureUploadSummary?.hasUploadedDocuments ||
-          secureUploadSummary?.isSubmitted,
+        secureUploadSummary?.hasUploadedDocuments ||
+        secureUploadSummary?.isSubmitted
       );
 
       const uploadSingleDocument = async ({
@@ -946,15 +888,11 @@ const ProviderOnboardingScreen = () => {
           [progressKey]: 0,
         }));
 
-        const uploadedUrl = await uploadProviderDocument(
-          user.uid,
-          file,
-          docType,
-          (progress) =>
-            setUploadProgress((current) => ({
-              ...current,
-              [progressKey]: progress,
-            })),
+        const uploadedUrl = await uploadProviderDocument(user.uid, file, docType, (progress) =>
+          setUploadProgress((current) => ({
+            ...current,
+            [progressKey]: progress,
+          }))
         );
 
         setExistingDocuments((current) => ({
@@ -1046,7 +984,7 @@ const ProviderOnboardingScreen = () => {
     } catch (submitError) {
       const message = getUserFacingError(
         submitError,
-        'Failed to submit your onboarding details. Please try again.',
+        'Failed to submit your onboarding details. Please try again.'
       );
       notify.error(message, { id: 'provider-onboarding-submit' });
     } finally {
@@ -1070,8 +1008,8 @@ const ProviderOnboardingScreen = () => {
                 option.value === 'australian_citizen'
                   ? 'No expiry details needed'
                   : option.value === 'permanent_resident'
-                  ? 'Add residency expiry'
-                  : 'Add visa details'
+                    ? 'Add residency expiry'
+                    : 'Add visa details'
               }
               className="min-h-[5.25rem]"
               onClick={() => {
@@ -1109,9 +1047,7 @@ const ProviderOnboardingScreen = () => {
               {visaCategory === 'other' && (
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <label className="text-sm font-semibold text-gray-900">
-                      Visa Number
-                    </label>
+                    <label className="text-sm font-semibold text-gray-900">Visa Number</label>
                     <span className="text-xs text-blue-600 inline-flex items-center gap-1">
                       <FiInfo className="w-3.5 h-3.5" />
                       Grant or subclass identifier
@@ -1133,8 +1069,7 @@ const ProviderOnboardingScreen = () => {
           </div>
         )}
 
-        {(nationalityStatus === 'visa_holder' ||
-          nationalityStatus === 'permanent_resident') && (
+        {(nationalityStatus === 'visa_holder' || nationalityStatus === 'permanent_resident') && (
           <div className="mt-5">
             <label className="block text-sm font-semibold text-gray-900 mb-2">
               {nationalityStatus === 'permanent_resident'
@@ -1267,9 +1202,7 @@ const ProviderOnboardingScreen = () => {
 
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div>
-          <label className="block text-sm font-semibold text-gray-900 mb-3">
-            Preferred Gender
-          </label>
+          <label className="block text-sm font-semibold text-gray-900 mb-3">Preferred Gender</label>
           <div className="grid grid-cols-2 gap-2">
             {PREFERRED_GENDER_OPTIONS.map((option) => (
               <ChoiceCard
@@ -1287,9 +1220,7 @@ const ProviderOnboardingScreen = () => {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-900 mb-2">
-            Experience *
-          </label>
+          <label className="block text-sm font-semibold text-gray-900 mb-2">Experience *</label>
           <select
             value={experience}
             onChange={(event) => {
@@ -1315,9 +1246,7 @@ const ProviderOnboardingScreen = () => {
       <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 sm:p-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-900 mb-2">
-              Bank Name *
-            </label>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">Bank Name *</label>
             <select
               value={bankName}
               onChange={(event) => {
@@ -1336,9 +1265,7 @@ const ProviderOnboardingScreen = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-900 mb-2">
-              Account Name *
-            </label>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">Account Name *</label>
             <input
               type="text"
               value={accountName}
@@ -1397,9 +1324,7 @@ const ProviderOnboardingScreen = () => {
       <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 sm:p-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-900 mb-2">
-              TFN Number
-            </label>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">TFN Number</label>
             <input
               type="text"
               value={tfnNumber}
@@ -1414,9 +1339,7 @@ const ProviderOnboardingScreen = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-900 mb-2">
-              ABN Number *
-            </label>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">ABN Number *</label>
             <input
               type="text"
               value={abnNumber}
@@ -1437,9 +1360,7 @@ const ProviderOnboardingScreen = () => {
   const renderNotificationsStep = () => (
     <div className="space-y-6">
       <section>
-        <h2 className="text-lg font-bold text-gray-900 mb-2">
-          Notification Preferences
-        </h2>
+        <h2 className="text-lg font-bold text-gray-900 mb-2">Notification Preferences</h2>
         <p className="text-sm text-gray-500 mb-4">
           Choose how you&apos;d like to receive booking notifications.
         </p>
@@ -1454,8 +1375,8 @@ const ProviderOnboardingScreen = () => {
                 option.value === 'both'
                   ? 'Best for urgent booking updates'
                   : option.value === 'none'
-                  ? 'You can still check updates in-app'
-                  : 'Use one notification channel'
+                    ? 'You can still check updates in-app'
+                    : 'Use one notification channel'
               }
               className="min-h-[5.25rem]"
               onClick={() => {
@@ -1469,467 +1390,517 @@ const ProviderOnboardingScreen = () => {
     </div>
   );
 
-  const renderDocumentsStep = () => (
-    <div className="space-y-6">
-      <section className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+  const renderDocumentsStep = () => {
+    const secureUploadEnabled =
+      secureUploadAvailability.loading || secureUploadAvailability.enabled;
+    const showDirectUploadFallback =
+      !secureUploadAvailability.loading && !secureUploadAvailability.enabled;
+
+    const renderDocumentStatus = ({ existingUrl, label, prompt, secureUploaded }) => {
+      if (secureUploaded) {
+        return (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">
+            <div className="flex items-center gap-2">
+              <FiCheckCircle className="h-4 w-4 shrink-0" />
+              {label} received.
+            </div>
+          </div>
+        );
+      }
+
+      if (existingUrl) {
+        return (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <span className="inline-flex items-center gap-2 font-semibold">
+                <FiCheckCircle className="h-4 w-4 shrink-0" />
+                {label} already on file.
+              </span>
+              <a
+                href={existingUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 font-semibold text-emerald-800 hover:text-emerald-900"
+              >
+                <FiExternalLink className="h-4 w-4" />
+                View
+              </a>
+            </div>
+          </div>
+        );
+      }
+
+      if (secureUploadEnabled && prompt) {
+        return (
+          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700">
+            <div className="flex items-start gap-2">
+              <FiInfo className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{prompt}</span>
+            </div>
+          </div>
+        );
+      }
+
+      return null;
+    };
+
+    return (
+      <div className="space-y-6">
+        <section className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-gray-950">Documents for review</h2>
+              <p className="mt-1 text-sm leading-6 text-gray-600">
+                Add your required passport details, then upload the requested files in one secure
+                checklist.
+              </p>
+            </div>
+            <span className="inline-flex w-fit rounded-full bg-white px-3 py-1 text-xs font-bold text-blue-700">
+              One upload flow
+            </span>
+          </div>
+        </section>
+
+        <section className="space-y-4">
           <div>
-            <h2 className="text-lg font-bold text-gray-950">Documents</h2>
-            <p className="mt-1 text-sm leading-6 text-gray-600">
-              Upload identity, resume, certificates, and any optional
-              verification video.
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Step 1</p>
+            <h3 className="mt-1 text-base font-bold text-gray-950">Identity details</h3>
+            <p className="mt-1 text-sm leading-6 text-gray-500">
+              Passport is required for provider verification. Driving licence is optional.
             </p>
           </div>
-          <span className="inline-flex w-fit rounded-full bg-white px-3 py-1 text-xs font-bold text-blue-700">
-            JPEG, PDF, DOC supported
-          </span>
-        </div>
-      </section>
 
-      <MobileUploadCard
-        providerId={user.uid}
-        registrationStep="provider_onboarding_documents"
-        verifiedMobileNumber={user.phone || user.phoneNumber}
-        onSummaryChange={setSecureUploadSummary}
-        onBeforeCreateSession={saveDraftForSecureUpload}
-      />
-
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div
-          className={`rounded-xl border bg-white p-4 transition ${
-            passportSelected
-              ? 'border-blue-300 shadow-sm'
-              : 'border-gray-200 hover:border-gray-300'
-          }`}
-        >
-          <label className="flex cursor-pointer items-start justify-between gap-4">
-            <span className="flex items-start gap-3">
-              <span
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                  passportSelected
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-500'
-                }`}
-              >
-                <FiFileText className="h-5 w-5" />
-              </span>
-              <span>
-                <span className="block text-sm font-bold text-gray-950">
-                  Passport
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div
+              className={`rounded-xl border bg-white p-4 transition ${
+                passportSelected
+                  ? 'border-blue-300 shadow-sm'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <span className="flex items-start gap-3">
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                      passportSelected ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'
+                    }`}
+                  >
+                    <FiFileText className="h-5 w-5" />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-bold text-gray-950">Passport</span>
+                    <span className="mt-1 block text-xs text-gray-500">
+                      Required for identity verification.
+                    </span>
+                  </span>
                 </span>
-                <span className="mt-1 block text-xs text-gray-500">
-                  Use if passport is your primary identity document.
+                <span className="mt-0.5 rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">
+                  Required
                 </span>
-              </span>
-            </span>
-            <input
-              type="checkbox"
-              checked={passportSelected}
-              onChange={(event) => {
-                clearMessages();
-                const enabled = event.target.checked;
-                setPassportSelected(enabled);
+              </div>
 
-                if (!enabled) {
-                  setPassportData({ number: '', expiry: emptyDate() });
-                  setSelectedFiles((current) => ({ ...current, passport: null }));
-                  setExistingDocuments((current) => ({
-                    ...current,
-                    passportUrl: '',
-                  }));
-                }
-              }}
-              className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-          </label>
+              {passportSelected && (
+                <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Passport Number *
+                    </label>
+                    <input
+                      type="text"
+                      value={passportData.number}
+                      onChange={(event) => {
+                        clearMessages();
+                        setPassportData((current) => ({
+                          ...current,
+                          number: event.target.value,
+                        }));
+                      }}
+                      className={controlClass}
+                      placeholder="Enter passport number"
+                    />
+                  </div>
 
-          {passportSelected && (
-            <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Passport Number *
-                </label>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Passport Expiry Date *
+                    </label>
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                      <select
+                        value={passportData.expiry.day}
+                        onChange={(event) => {
+                          clearMessages();
+                          setPassportData((current) => ({
+                            ...current,
+                            expiry: {
+                              ...current.expiry,
+                              day: event.target.value,
+                            },
+                          }));
+                        }}
+                        className={compactControlClass}
+                      >
+                        <option value="">Day</option>
+                        {DAYS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={passportData.expiry.month}
+                        onChange={(event) => {
+                          clearMessages();
+                          setPassportData((current) => ({
+                            ...current,
+                            expiry: {
+                              ...current.expiry,
+                              month: event.target.value,
+                            },
+                          }));
+                        }}
+                        className={compactControlClass}
+                      >
+                        <option value="">Month</option>
+                        {MONTHS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={passportData.expiry.year}
+                        onChange={(event) => {
+                          clearMessages();
+                          setPassportData((current) => ({
+                            ...current,
+                            expiry: {
+                              ...current.expiry,
+                              year: event.target.value,
+                            },
+                          }));
+                        }}
+                        className={compactControlClass}
+                      >
+                        <option value="">Year</option>
+                        {FUTURE_YEARS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {renderDocumentStatus({
+                    existingUrl: existingDocuments.passportUrl,
+                    label: 'Passport image',
+                    prompt: 'Upload the passport image in the secure upload area.',
+                    secureUploaded: hasSecureDocument('passport'),
+                  }) || (
+                    <UploadField
+                      label="Passport Image"
+                      required
+                      icon={FiImage}
+                      selectedFile={selectedFiles.passport}
+                      existingUrl={existingDocuments.passportUrl}
+                      onChange={handleFileSelect('passport', 'passport')}
+                      accept="image/jpeg,image/jpg"
+                      helperText="JPEG only"
+                      progress={uploadProgress.passport}
+                      actionLabel="Upload Passport Image"
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div
+              className={`rounded-xl border bg-white p-4 transition ${
+                drivingLicenceSelected
+                  ? 'border-blue-300 shadow-sm'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <label className="flex cursor-pointer items-start justify-between gap-4">
+                <span className="flex items-start gap-3">
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                      drivingLicenceSelected
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-500'
+                    }`}
+                  >
+                    <FiCreditCard className="h-5 w-5" />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-bold text-gray-950">Driving Licence</span>
+                    <span className="mt-1 block text-xs text-gray-500">
+                      Use your licence for identity verification.
+                    </span>
+                  </span>
+                </span>
                 <input
-                  type="text"
-                  value={passportData.number}
+                  type="checkbox"
+                  checked={drivingLicenceSelected}
                   onChange={(event) => {
                     clearMessages();
-                    setPassportData((current) => ({
-                      ...current,
-                      number: event.target.value,
-                    }));
+                    const enabled = event.target.checked;
+                    setDrivingLicenceSelected(enabled);
+
+                    if (!enabled) {
+                      setDrivingLicenceData({
+                        number: '',
+                        cardNumber: '',
+                        expiry: emptyDate(),
+                      });
+                      setSelectedFiles((current) => ({
+                        ...current,
+                        drivingLicence: null,
+                      }));
+                      setExistingDocuments((current) => ({
+                        ...current,
+                        drivingLicenceUrl: '',
+                      }));
+                    }
                   }}
-                  className={controlClass}
-                  placeholder="Enter passport number"
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-              </div>
+              </label>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Passport Expiry Date *
-                </label>
-                <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                  <select
-                    value={passportData.expiry.day}
-                    onChange={(event) => {
-                      clearMessages();
-                      setPassportData((current) => ({
-                        ...current,
-                        expiry: {
-                          ...current.expiry,
-                          day: event.target.value,
-                        },
-                      }));
-                    }}
-                    className={compactControlClass}
-                  >
-                    <option value="">Day</option>
-                    {DAYS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={passportData.expiry.month}
-                    onChange={(event) => {
-                      clearMessages();
-                      setPassportData((current) => ({
-                        ...current,
-                        expiry: {
-                          ...current.expiry,
-                          month: event.target.value,
-                        },
-                      }));
-                    }}
-                    className={compactControlClass}
-                  >
-                    <option value="">Month</option>
-                    {MONTHS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={passportData.expiry.year}
-                    onChange={(event) => {
-                      clearMessages();
-                      setPassportData((current) => ({
-                        ...current,
-                        expiry: {
-                          ...current.expiry,
-                          year: event.target.value,
-                        },
-                      }));
-                    }}
-                    className={compactControlClass}
-                  >
-                    <option value="">Year</option>
-                    {FUTURE_YEARS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              {drivingLicenceSelected && (
+                <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-2">
+                        Licence Number *
+                      </label>
+                      <input
+                        type="text"
+                        value={drivingLicenceData.number}
+                        onChange={(event) => {
+                          clearMessages();
+                          setDrivingLicenceData((current) => ({
+                            ...current,
+                            number: event.target.value,
+                          }));
+                        }}
+                        className={controlClass}
+                        placeholder="Enter licence number"
+                      />
+                    </div>
 
-              {hasSecureDocument('passport') ? (
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">
-                  Passport image uploaded through secure document upload.
-                </div>
-              ) : (
-                <UploadField
-                  label="Passport Image"
-                  required
-                  icon={FiImage}
-                  selectedFile={selectedFiles.passport}
-                  existingUrl={existingDocuments.passportUrl}
-                  onChange={handleFileSelect('passport', 'passport')}
-                  accept="image/jpeg,image/jpg"
-                  helperText="JPEG only"
-                  progress={uploadProgress.passport}
-                  actionLabel="Upload Passport Image"
-                />
-              )}
-            </div>
-          )}
-        </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-2">
+                        Card Number *
+                      </label>
+                      <input
+                        type="text"
+                        value={drivingLicenceData.cardNumber}
+                        onChange={(event) => {
+                          clearMessages();
+                          setDrivingLicenceData((current) => ({
+                            ...current,
+                            cardNumber: event.target.value,
+                          }));
+                        }}
+                        className={controlClass}
+                        placeholder="Enter card number"
+                      />
+                    </div>
+                  </div>
 
-        <div
-          className={`rounded-xl border bg-white p-4 transition ${
-            drivingLicenceSelected
-              ? 'border-blue-300 shadow-sm'
-              : 'border-gray-200 hover:border-gray-300'
-          }`}
-        >
-          <label className="flex cursor-pointer items-start justify-between gap-4">
-            <span className="flex items-start gap-3">
-              <span
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                  drivingLicenceSelected
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-500'
-                }`}
-              >
-                <FiCreditCard className="h-5 w-5" />
-              </span>
-              <span>
-                <span className="block text-sm font-bold text-gray-950">
-                  Driving Licence
-                </span>
-                <span className="mt-1 block text-xs text-gray-500">
-                  Use if licence is your primary identity document.
-                </span>
-              </span>
-            </span>
-            <input
-              type="checkbox"
-              checked={drivingLicenceSelected}
-              onChange={(event) => {
-                clearMessages();
-                const enabled = event.target.checked;
-                setDrivingLicenceSelected(enabled);
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Licence Expiry Date *
+                    </label>
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                      <select
+                        value={drivingLicenceData.expiry.day}
+                        onChange={(event) => {
+                          clearMessages();
+                          setDrivingLicenceData((current) => ({
+                            ...current,
+                            expiry: {
+                              ...current.expiry,
+                              day: event.target.value,
+                            },
+                          }));
+                        }}
+                        className={compactControlClass}
+                      >
+                        <option value="">Day</option>
+                        {DAYS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={drivingLicenceData.expiry.month}
+                        onChange={(event) => {
+                          clearMessages();
+                          setDrivingLicenceData((current) => ({
+                            ...current,
+                            expiry: {
+                              ...current.expiry,
+                              month: event.target.value,
+                            },
+                          }));
+                        }}
+                        className={compactControlClass}
+                      >
+                        <option value="">Month</option>
+                        {MONTHS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={drivingLicenceData.expiry.year}
+                        onChange={(event) => {
+                          clearMessages();
+                          setDrivingLicenceData((current) => ({
+                            ...current,
+                            expiry: {
+                              ...current.expiry,
+                              year: event.target.value,
+                            },
+                          }));
+                        }}
+                        className={compactControlClass}
+                      >
+                        <option value="">Year</option>
+                        {FUTURE_YEARS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
 
-                if (!enabled) {
-                  setDrivingLicenceData({
-                    number: '',
-                    cardNumber: '',
-                    expiry: emptyDate(),
-                  });
-                  setSelectedFiles((current) => ({
-                    ...current,
-                    drivingLicence: null,
-                  }));
-                  setExistingDocuments((current) => ({
-                    ...current,
-                    drivingLicenceUrl: '',
-                  }));
-                }
-              }}
-              className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-          </label>
-
-          {drivingLicenceSelected && (
-            <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
-                    Licence Number *
-                  </label>
-                  <input
-                    type="text"
-                    value={drivingLicenceData.number}
-                    onChange={(event) => {
-                      clearMessages();
-                      setDrivingLicenceData((current) => ({
-                        ...current,
-                        number: event.target.value,
-                      }));
-                    }}
-                    className={controlClass}
-                    placeholder="Enter licence number"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
-                    Card Number *
-                  </label>
-                  <input
-                    type="text"
-                    value={drivingLicenceData.cardNumber}
-                    onChange={(event) => {
-                      clearMessages();
-                      setDrivingLicenceData((current) => ({
-                        ...current,
-                        cardNumber: event.target.value,
-                      }));
-                    }}
-                    className={controlClass}
-                    placeholder="Enter card number"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Licence Expiry Date *
-                </label>
-                <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                  <select
-                    value={drivingLicenceData.expiry.day}
-                    onChange={(event) => {
-                      clearMessages();
-                      setDrivingLicenceData((current) => ({
-                        ...current,
-                        expiry: {
-                          ...current.expiry,
-                          day: event.target.value,
-                        },
-                      }));
-                    }}
-                    className={compactControlClass}
-                  >
-                    <option value="">Day</option>
-                    {DAYS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={drivingLicenceData.expiry.month}
-                    onChange={(event) => {
-                      clearMessages();
-                      setDrivingLicenceData((current) => ({
-                        ...current,
-                        expiry: {
-                          ...current.expiry,
-                          month: event.target.value,
-                        },
-                      }));
-                    }}
-                    className={compactControlClass}
-                  >
-                    <option value="">Month</option>
-                    {MONTHS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={drivingLicenceData.expiry.year}
-                    onChange={(event) => {
-                      clearMessages();
-                      setDrivingLicenceData((current) => ({
-                        ...current,
-                        expiry: {
-                          ...current.expiry,
-                          year: event.target.value,
-                        },
-                      }));
-                    }}
-                    className={compactControlClass}
-                  >
-                    <option value="">Year</option>
-                    {FUTURE_YEARS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {hasSecureDocument([
-                'driving_licence',
-                'driving_license',
-                'drivingLicence',
-              ]) ? (
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">
-                  Driving licence image uploaded through secure document upload.
-                </div>
-              ) : (
-                <UploadField
-                  label="Driving Licence Image"
-                  required
-                  icon={FiImage}
-                  selectedFile={selectedFiles.drivingLicence}
-                  existingUrl={existingDocuments.drivingLicenceUrl}
-                  onChange={handleFileSelect(
-                    'drivingLicence',
-                    'drivingLicence',
+                  {renderDocumentStatus({
+                    existingUrl: existingDocuments.drivingLicenceUrl,
+                    label: 'Driving licence image',
+                    prompt: 'Upload the driving licence image in the secure upload area.',
+                    secureUploaded: hasSecureDocument([
+                      'driving_licence',
+                      'driving_license',
+                      'drivingLicence',
+                    ]),
+                  }) || (
+                    <UploadField
+                      label="Driving Licence Image"
+                      required
+                      icon={FiImage}
+                      selectedFile={selectedFiles.drivingLicence}
+                      existingUrl={existingDocuments.drivingLicenceUrl}
+                      onChange={handleFileSelect('drivingLicence', 'drivingLicence')}
+                      accept="image/jpeg,image/jpg"
+                      helperText="JPEG only"
+                      progress={uploadProgress.drivingLicence}
+                      actionLabel="Upload Driving Licence"
+                    />
                   )}
-                  accept="image/jpeg,image/jpg"
-                  helperText="JPEG only"
-                  progress={uploadProgress.drivingLicence}
-                  actionLabel="Upload Driving Licence"
-                />
+                </div>
               )}
             </div>
-          )}
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 sm:p-5">
-        <div className="mb-4">
-          <h3 className="text-base font-bold text-gray-950">
-            Professional Files
-          </h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Add documents that help admins verify your qualifications.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-          {hasSecureDocument(['resume_cv', 'resume']) ? (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">
-              Resume / CV uploaded through secure document upload.
-            </div>
-          ) : (
-            <UploadField
-              label="Resume / CV"
-              required
-              icon={FiFileText}
-              selectedFile={selectedFiles.resume}
-              existingUrl={existingDocuments.resumeUrl}
-              onChange={handleFileSelect('resume', 'resume')}
-              accept=".pdf,.doc,.docx,image/*"
-              helperText="Accepted up to 10MB"
-              progress={uploadProgress.resume}
-              actionLabel="Upload Resume / CV"
-            />
-          )}
-
-          {hasSecureDocument('certificates') ? (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">
-              Certificates uploaded through secure document upload.
-            </div>
-          ) : (
-            <UploadField
-              label="Certificates"
-              required
-              icon={FiFileText}
-              selectedFile={selectedFiles.certificates}
-              existingUrl={existingDocuments.certificatesUrl}
-              onChange={handleFileSelect('certificates', 'certificates')}
-              accept=".pdf,.doc,.docx,image/*"
-              helperText="Accepted up to 10MB"
-              progress={uploadProgress.certificates}
-              actionLabel="Upload Certificates"
-            />
-          )}
-
-          <div className="lg:col-span-2">
-            {hasSecureDocument('verification_video') ? (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">
-                Verification video uploaded through secure document upload.
-              </div>
-            ) : (
-              <UploadField
-                label="Verification Video"
-                icon={FiVideo}
-                selectedFile={selectedFiles.verificationVideo}
-                existingUrl={existingDocuments.verificationVideoUrl}
-                onChange={handleFileSelect(
-                  'verificationVideo',
-                  'verificationVideo',
-                )}
-                accept="video/*"
-                helperText="Optional, up to 50MB"
-                progress={uploadProgress.verificationVideo}
-                actionLabel="Upload Verification Video"
-              />
-            )}
           </div>
-        </div>
-      </section>
-    </div>
-  );
+        </section>
+
+        <section className="space-y-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Step 2</p>
+            <h3 className="mt-1 text-base font-bold text-gray-950">Upload files</h3>
+            <p className="mt-1 text-sm leading-6 text-gray-500">
+              Use one method below. The checklist shows each file the review team needs.
+            </p>
+          </div>
+
+          <MobileUploadCard
+            providerId={user.uid}
+            registrationStep="provider_onboarding_documents"
+            verifiedMobileNumber={user.phone || user.phoneNumber}
+            onSummaryChange={setSecureUploadSummary}
+            onAvailabilityChange={setSecureUploadAvailability}
+            onBeforeCreateSession={saveDraftForSecureUpload}
+          />
+        </section>
+
+        {showDirectUploadFallback && (
+          <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 sm:p-5">
+            <div className="mb-4">
+              <h3 className="text-base font-bold text-gray-950">Direct file upload</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Secure upload is unavailable, so attach these files from this device.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              {renderDocumentStatus({
+                existingUrl: existingDocuments.resumeUrl,
+                label: 'Resume / CV',
+                secureUploaded: hasSecureDocument(['resume_cv', 'resume']),
+              }) || (
+                <UploadField
+                  label="Resume / CV"
+                  required
+                  icon={FiFileText}
+                  selectedFile={selectedFiles.resume}
+                  existingUrl={existingDocuments.resumeUrl}
+                  onChange={handleFileSelect('resume', 'resume')}
+                  accept=".pdf,.doc,.docx,image/*"
+                  helperText="Accepted up to 10MB"
+                  progress={uploadProgress.resume}
+                  actionLabel="Upload Resume / CV"
+                />
+              )}
+
+              {renderDocumentStatus({
+                existingUrl: existingDocuments.certificatesUrl,
+                label: 'Certificates',
+                secureUploaded: hasSecureDocument('certificates'),
+              }) || (
+                <UploadField
+                  label="Certificates"
+                  required
+                  icon={FiFileText}
+                  selectedFile={selectedFiles.certificates}
+                  existingUrl={existingDocuments.certificatesUrl}
+                  onChange={handleFileSelect('certificates', 'certificates')}
+                  accept=".pdf,.doc,.docx,image/*"
+                  helperText="Accepted up to 10MB"
+                  progress={uploadProgress.certificates}
+                  actionLabel="Upload Certificates"
+                />
+              )}
+
+              <div className="lg:col-span-2">
+                {renderDocumentStatus({
+                  existingUrl: existingDocuments.verificationVideoUrl,
+                  label: 'Verification video',
+                  secureUploaded: hasSecureDocument('verification_video'),
+                }) || (
+                  <UploadField
+                    label="Verification Video"
+                    icon={FiVideo}
+                    selectedFile={selectedFiles.verificationVideo}
+                    existingUrl={existingDocuments.verificationVideoUrl}
+                    onChange={handleFileSelect('verificationVideo', 'verificationVideo')}
+                    accept="video/*"
+                    helperText="Optional, up to 50MB"
+                    progress={uploadProgress.verificationVideo}
+                    actionLabel="Upload Verification Video"
+                  />
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+      </div>
+    );
+  };
 
   const renderCurrentStep = () => {
     if (currentStep === 1) {
@@ -1970,153 +1941,143 @@ const ProviderOnboardingScreen = () => {
   return (
     <div className="min-h-screen bg-white p-4 sm:p-5">
       <div className="grid min-h-[calc(100vh-2rem)] grid-cols-1 gap-8 lg:min-h-[calc(100vh-2.5rem)] lg:grid-cols-[minmax(22rem,45vw)_1fr] lg:gap-12">
-      <aside className="relative min-h-[20rem] overflow-hidden rounded-2xl bg-gray-950 lg:sticky lg:top-5 lg:h-[calc(100vh-2.5rem)]">
-        <img
-          src="/images/SSaloon.jpg"
-          alt="My Local Force services"
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-gray-950/42 via-blue-950/16 to-gray-950/52" />
+        <aside className="relative min-h-[20rem] overflow-hidden rounded-2xl bg-gray-950 lg:sticky lg:top-5 lg:h-[calc(100vh-2.5rem)]">
+          <img
+            src="/images/SSaloon.jpg"
+            alt="My Local Force services"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-gray-950/42 via-blue-950/16 to-gray-950/52" />
 
-        <div className="relative flex h-full min-h-[20rem] flex-col justify-between p-6 text-white sm:p-8 lg:min-h-full lg:p-10">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/12 backdrop-blur">
-                <img
-                  src="/images/MLF.jpg"
-                  alt="My Local Force"
-                  className="h-7 w-7 rounded object-cover"
-                />
-              </div>
-              <div>
-                <p className="text-sm font-bold">My Local Force</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="max-w-md py-10 lg:py-0">
-            <p className="text-sm font-semibold text-blue-100">
-              Provider Setup
-            </p>
-            <h1 className="mt-3 text-4xl font-bold leading-tight sm:text-5xl">
-              Complete your profile for review.
-            </h1>
-            <p className="mt-4 text-base leading-7 text-white/78">
-              Add your services, payment details, business information, and
-              documents so the admin team can approve your account.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg border border-white/25 bg-white/15 p-4 backdrop-blur">
-              <FiShield className="mb-3 h-5 w-5 text-blue-100" />
-              <p className="text-sm font-bold">Secure review</p>
-              <p className="mt-1 text-xs text-white/65">Submitted to admin</p>
-            </div>
-            <div className="rounded-lg border border-white/25 bg-white/15 p-4 backdrop-blur">
-              <CurrentStepIcon className="mb-3 h-5 w-5 text-blue-100" />
-              <p className="text-sm font-bold">
-                Step {currentStep} of {steps.length}
-              </p>
-              <p className="mt-1 truncate text-xs text-white/65">
-                {currentStepMeta.title}
-              </p>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      <main className="min-h-screen bg-white">
-        <div className="mx-auto flex min-h-screen w-full max-w-[58rem] flex-col px-5 py-6 sm:px-8 lg:px-14">
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => navigate('/provider')}
-              className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700"
-            >
-              <FiArrowLeft className="h-4 w-4" />
-              Go Back
-            </button>
-          </div>
-
-          <div className="flex-1 py-9 sm:py-12 lg:py-16">
-            <div className="max-w-3xl">
-              <p className="text-sm font-semibold text-blue-600">
-                Provider onboarding
-              </p>
-              <h2 className="mt-3 text-3xl font-bold leading-tight text-gray-950 sm:text-4xl">
-                {currentStepMeta.title}
-              </h2>
-              <p className="mt-3 text-base leading-7 text-gray-600">
-                Step {currentStep} of {steps.length}. Complete this section to
-                move your profile closer to admin approval.
-              </p>
-            </div>
-
-            <div className="mt-8 max-w-4xl">
-              <StepIndicator currentStep={currentStep} />
-            </div>
-
-            <div className="mt-9 max-w-4xl">
-              {newSignup && (
-                <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                  <div className="flex items-start gap-3">
-                    <FiCheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                    <p className="text-sm text-emerald-700">
-                      Your provider account has been created. Finish onboarding
-                      to submit it for admin approval.
-                    </p>
-                  </div>
+          <div className="relative flex h-full min-h-[20rem] flex-col justify-between p-6 text-white sm:p-8 lg:min-h-full lg:p-10">
+            <div>
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/12 backdrop-blur">
+                  <img
+                    src="/images/MLF.jpg"
+                    alt="My Local Force"
+                    className="h-7 w-7 rounded object-cover"
+                  />
                 </div>
-              )}
-
-              {renderCurrentStep()}
-
-              <div className="mt-10 flex flex-col-reverse gap-3 border-t border-gray-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  {currentStep > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        clearMessages();
-                        setCurrentStep((current) => Math.max(current - 1, 1));
-                      }}
-                      disabled={isSubmitting}
-                      className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 px-5 font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-70 sm:w-auto"
-                    >
-                      <FiChevronLeft className="h-4 w-4" />
-                      Back
-                    </button>
-                  )}
+                  <p className="text-sm font-bold">My Local Force</p>
                 </div>
+              </div>
+            </div>
 
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  disabled={isSubmitting}
-                  className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-8 font-semibold text-white shadow-[0_12px_28px_rgba(37,99,235,0.24)] transition hover:bg-blue-700 disabled:opacity-70 sm:w-auto sm:min-w-48"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <FiRefreshCw className="h-4 w-4 animate-spin" />
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      {currentStep === steps.length
-                        ? 'Submit for review'
-                        : 'Continue'}
-                      {currentStep < steps.length && (
-                        <FiChevronRight className="h-4 w-4" />
-                      )}
-                    </>
-                  )}
-                </button>
+            <div className="max-w-md py-10 lg:py-0">
+              <p className="text-sm font-semibold text-blue-100">Provider Setup</p>
+              <h1 className="mt-3 text-4xl font-bold leading-tight sm:text-5xl">
+                Complete your profile for review.
+              </h1>
+              <p className="mt-4 text-base leading-7 text-white/78">
+                Add your services, payment details, business information, and documents so the admin
+                team can approve your account.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-white/25 bg-white/15 p-4 backdrop-blur">
+                <FiShield className="mb-3 h-5 w-5 text-blue-100" />
+                <p className="text-sm font-bold">Secure review</p>
+                <p className="mt-1 text-xs text-white/65">Submitted to admin</p>
+              </div>
+              <div className="rounded-lg border border-white/25 bg-white/15 p-4 backdrop-blur">
+                <CurrentStepIcon className="mb-3 h-5 w-5 text-blue-100" />
+                <p className="text-sm font-bold">
+                  Step {currentStep} of {steps.length}
+                </p>
+                <p className="mt-1 truncate text-xs text-white/65">{currentStepMeta.title}</p>
               </div>
             </div>
           </div>
-        </div>
-      </main>
+        </aside>
+
+        <main className="min-h-screen bg-white">
+          <div className="mx-auto flex min-h-screen w-full max-w-[58rem] flex-col px-5 py-6 sm:px-8 lg:px-14">
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => navigate('/provider')}
+                className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700"
+              >
+                <FiArrowLeft className="h-4 w-4" />
+                Go Back
+              </button>
+            </div>
+
+            <div className="flex-1 py-9 sm:py-12 lg:py-16">
+              <div className="max-w-3xl">
+                <p className="text-sm font-semibold text-blue-600">Provider onboarding</p>
+                <h2 className="mt-3 text-3xl font-bold leading-tight text-gray-950 sm:text-4xl">
+                  {currentStepMeta.title}
+                </h2>
+                <p className="mt-3 text-base leading-7 text-gray-600">
+                  Step {currentStep} of {steps.length}. Complete this section to move your profile
+                  closer to admin approval.
+                </p>
+              </div>
+
+              <div className="mt-8 max-w-4xl">
+                <StepIndicator currentStep={currentStep} />
+              </div>
+
+              <div className="mt-9 max-w-4xl">
+                {newSignup && (
+                  <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                    <div className="flex items-start gap-3">
+                      <FiCheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                      <p className="text-sm text-emerald-700">
+                        Your provider account has been created. Finish onboarding to submit it for
+                        admin approval.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {renderCurrentStep()}
+
+                <div className="mt-10 flex flex-col-reverse gap-3 border-t border-gray-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    {currentStep > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          clearMessages();
+                          setCurrentStep((current) => Math.max(current - 1, 1));
+                        }}
+                        disabled={isSubmitting}
+                        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 px-5 font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-70 sm:w-auto"
+                      >
+                        <FiChevronLeft className="h-4 w-4" />
+                        Back
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleNext}
+                    disabled={isSubmitting}
+                    className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-8 font-semibold text-white shadow-[0_12px_28px_rgba(37,99,235,0.24)] transition hover:bg-blue-700 disabled:opacity-70 sm:w-auto sm:min-w-48"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <FiRefreshCw className="h-4 w-4 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        {currentStep === steps.length ? 'Submit for review' : 'Continue'}
+                        {currentStep < steps.length && <FiChevronRight className="h-4 w-4" />}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );

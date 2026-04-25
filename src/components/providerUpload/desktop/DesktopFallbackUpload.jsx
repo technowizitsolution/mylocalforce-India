@@ -19,7 +19,7 @@ const expandRequirements = (requirements = []) =>
         key: `${requirement.id}:${side}`,
         requirement,
         side,
-      })),
+      }))
     );
 
 /**
@@ -52,10 +52,8 @@ const DesktopFallbackUpload = ({
 
   const uploaded = new Set(
     documents
-      .filter((document) =>
-        ['uploaded', 'submitted', 'approved'].includes(document.status),
-      )
-      .map((document) => `${document.documentType}:${document.side}`),
+      .filter((document) => ['uploaded', 'submitted', 'approved'].includes(document.status))
+      .map((document) => `${document.documentType}:${document.side}`)
   );
   const steps = expandRequirements(settings.requirements);
 
@@ -115,9 +113,7 @@ const DesktopFallbackUpload = ({
     try {
       const result = await submitMobileDocuments(session.id);
       if (result.success === false) {
-        const missing = (result.missing || [])
-          .map((item) => item.label)
-          .join(', ');
+        const missing = (result.missing || []).map((item) => item.label).join(', ');
         setErrors((current) => ({
           ...current,
           submit: missing
@@ -125,21 +121,16 @@ const DesktopFallbackUpload = ({
             : 'Required documents are missing.',
         }));
         notify.warning(
-          missing
-            ? `Missing required documents: ${missing}.`
-            : 'Required documents are missing.',
+          missing ? `Missing required documents: ${missing}.` : 'Required documents are missing.',
           { id: 'desktop-upload-submit' }
         );
         return;
       }
 
       onSubmitted?.(result);
-      notify.success('All documents submitted.', { id: 'desktop-upload-submit' });
+      notify.success('Document uploads finished.', { id: 'desktop-upload-submit' });
     } catch (error) {
-      const message = getUserFacingError(
-        error,
-        'Secure document submission failed.',
-      );
+      const message = getUserFacingError(error, 'Secure document submission failed.');
       setErrors((current) => ({
         ...current,
         submit: message,
@@ -154,11 +145,9 @@ const DesktopFallbackUpload = ({
     <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 sm:p-5">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 className="text-base font-bold text-gray-950">
-            Secure desktop upload
-          </h3>
+          <h3 className="text-base font-bold text-gray-950">Upload from this device</h3>
           <p className="mt-1 text-sm text-gray-500">
-            Files are stored privately and reviewed through signed admin links.
+            Attach each file from your computer and finish this checklist.
           </p>
         </div>
         {session?.status === 'submitted' && (
@@ -188,9 +177,7 @@ const DesktopFallbackUpload = ({
                       : step.requirement.label}
                     {step.requirement.required ? ' *' : ''}
                   </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {step.requirement.description}
-                  </p>
+                  <p className="mt-1 text-xs text-gray-500">{step.requirement.description}</p>
                 </div>
               </div>
 
@@ -225,9 +212,7 @@ const DesktopFallbackUpload = ({
                 </p>
               )}
 
-              {errors[step.key] && (
-                <p className="mt-3 text-sm text-red-600">{errors[step.key]}</p>
-              )}
+              {errors[step.key] && <p className="mt-3 text-sm text-red-600">{errors[step.key]}</p>}
             </div>
           );
         })}
@@ -246,7 +231,7 @@ const DesktopFallbackUpload = ({
           disabled={submitting || session?.status === 'submitted'}
           className="inline-flex h-11 items-center justify-center rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
         >
-          {submitting ? 'Submitting...' : 'Submit secure documents'}
+          {submitting ? 'Finishing...' : 'Finish uploads'}
         </button>
       </div>
     </section>

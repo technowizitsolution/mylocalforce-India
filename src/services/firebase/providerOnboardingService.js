@@ -1,14 +1,17 @@
 import { firestore, storage, functions as functionsClient } from './firebaseConfig';
-import { 
-  collection, doc, getDoc, setDoc, updateDoc, getDocs,
-  query, where, serverTimestamp, deleteField
-} from 'firebase/firestore';
 import {
-  ref,
-  uploadBytesResumable,
-  getDownloadURL,
-  deleteObject,
-} from 'firebase/storage';
+  collection,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  getDocs,
+  query,
+  where,
+  serverTimestamp,
+  deleteField,
+} from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 
 // Toggle to skip attempting to disable services from the client (useful while developing)
@@ -38,6 +41,104 @@ const parseVisaExpiryToDate = (visaExpiry) => {
   return null;
 };
 
+const SECURE_DOCUMENT_FIELD_KEYS = {
+  passport: 'passport',
+  driving_licence: 'drivingLicence',
+  driving_license: 'drivingLicence',
+  drivingLicence: 'drivingLicence',
+  resume_cv: 'resume',
+  resume: 'resume',
+  certificates: 'certificates',
+  verification_video: 'verificationVideo',
+};
+
+const timestampToMillis = (value) => {
+  if (!value) return null;
+  if (typeof value === 'number') return value;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.seconds === 'number') return value.seconds * 1000;
+  return null;
+};
+
+const toSecureDocumentSummary = (documentItem) => ({
+  id: documentItem.id,
+  documentType: documentItem.documentType,
+  side: documentItem.side || 'single',
+  status: documentItem.status || 'submitted',
+  reviewStatus: documentItem.reviewStatus || 'pending_review',
+  originalName: documentItem.originalName || '',
+  mimeType: documentItem.mimeType || '',
+  sizeBytes: documentItem.sizeBytes || 0,
+  storagePath: documentItem.storagePath || '',
+  source: documentItem.source || 'mobile',
+  uploadedAt: timestampToMillis(documentItem.uploadedAt),
+  updatedAt: timestampToMillis(documentItem.updatedAt),
+});
+
+const buildSecureOnboardingDocuments = (documents = [], sessionId = '') => {
+  const secureDocuments = {};
+  const secureDocumentIds = [];
+  const secureStoragePaths = [];
+
+  documents.forEach((documentItem) => {
+    if (!documentItem?.id || !documentItem?.documentType) {
+      return;
+    }
+
+    const fieldKey =
+      SECURE_DOCUMENT_FIELD_KEYS[documentItem.documentType] || documentItem.documentType;
+    const summary = toSecureDocumentSummary(documentItem);
+
+    if (!secureDocuments[fieldKey]) {
+      secureDocuments[fieldKey] = {
+        uploadMode: 'secure_v2',
+        documentType: documentItem.documentType,
+        status: summary.status,
+        reviewStatus: summary.reviewStatus,
+        documentIds: [],
+        storagePaths: [],
+        files: [],
+      };
+    }
+
+    secureDocuments[fieldKey].status = summary.status;
+    secureDocuments[fieldKey].reviewStatus = summary.reviewStatus;
+    secureDocuments[fieldKey].documentIds.push(summary.id);
+    secureDocuments[fieldKey].files.push(summary);
+
+    secureDocumentIds.push(summary.id);
+
+    if (summary.storagePath) {
+      secureDocuments[fieldKey].storagePaths.push(summary.storagePath);
+      secureStoragePaths.push(summary.storagePath);
+    }
+  });
+
+  return {
+    secureUploadSessionId: sessionId,
+    secureUploadStatus: 'submitted',
+    secureDocumentIds,
+    secureStoragePaths,
+    secureDocuments,
+    ...secureDocuments,
+  };
+};
+
+const fetchSecureProviderDocuments = async (userId, sessionId) => {
+  const documentsSnapshot = await getDocs(
+    query(
+      collection(firestore, 'providerDocuments'),
+      where('providerId', '==', userId),
+      where('uploadSessionId', '==', sessionId)
+    )
+  );
+
+  return documentsSnapshot.docs.map((documentSnapshot) => ({
+    id: documentSnapshot.id,
+    ...documentSnapshot.data(),
+  }));
+};
+
 /**
  * Upload provider document to Firebase Storage
  * @param {string} userId - User ID
@@ -50,7 +151,7 @@ export const uploadProviderDocument = async (userId, file, docType, onProgress) 
   try {
     console.log('Upload document - userId:', userId, 'docType:', docType);
     console.log('Upload document - file:', file);
-    
+
     if (!userId || !file) {
       throw new Error('User ID and file are required');
     }
@@ -59,16 +160,16 @@ export const uploadProviderDocument = async (userId, file, docType, onProgress) 
     const timestamp = Date.now();
     const extension = file.name.split('.').pop();
     const filename = `${docType}_${timestamp}.${extension}`;
-    
+
     // Create storage reference: provider_documents/{userId}/{docType}_{timestamp}.{ext}
     const storagePath = `provider_documents/${userId}/${filename}`;
     console.log('Storage path:', storagePath);
-    
+
     const storageRef = ref(storage, storagePath);
 
     // Upload file as blob
     const blob = file instanceof Blob ? file : await (await fetch(file.uri || file)).blob();
-    
+
     console.log('Uploading document...');
     const uploadTask = uploadBytesResumable(storageRef, blob, {
       contentType: file.type || 'application/octet-stream',
@@ -79,14 +180,12 @@ export const uploadProviderDocument = async (userId, file, docType, onProgress) 
         'state_changed',
         (snapshot) => {
           if (typeof onProgress === 'function' && snapshot.totalBytes > 0) {
-            const percent = Math.round(
-              (snapshot.bytesTransferred / snapshot.totalBytes) * 100,
-            );
+            const percent = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
             onProgress(percent);
           }
         },
         reject,
-        resolve,
+        resolve
       );
     });
 
@@ -110,8 +209,11 @@ export const uploadProviderDocument = async (userId, file, docType, onProgress) 
 export const saveProviderDetails = async (userId, providerDetails) => {
   try {
     console.log('saveProviderDetails - Starting save for userId:', userId);
-    console.log('saveProviderDetails - Provider details:', JSON.stringify(providerDetails, null, 2));
-    
+    console.log(
+      'saveProviderDetails - Provider details:',
+      JSON.stringify(providerDetails, null, 2)
+    );
+
     if (!userId || !providerDetails) {
       throw new Error('User ID and provider details are required');
     }
@@ -119,7 +221,10 @@ export const saveProviderDetails = async (userId, providerDetails) => {
     // Save to users/{userId}/details subcollection in mylocalforce database
     const detailsRef = doc(firestore, 'users', userId, 'details', 'provider_onboarding');
 
-    console.log('saveProviderDetails - Firestore path:', `users/${userId}/details/provider_onboarding`);
+    console.log(
+      'saveProviderDetails - Firestore path:',
+      `users/${userId}/details/provider_onboarding`
+    );
 
     const dataToSave = {
       ...providerDetails,
@@ -139,7 +244,8 @@ export const saveProviderDetails = async (userId, providerDetails) => {
 
     // If provider supplied visa details in the saved payload, mark account as pending approval
     try {
-      const visaExpiry = providerDetails?.profile?.visaExpiry || providerDetails?.visaExpiry || null;
+      const visaExpiry =
+        providerDetails?.profile?.visaExpiry || providerDetails?.visaExpiry || null;
       const visaDate = parseVisaExpiryToDate(visaExpiry);
       if (visaDate) {
         topLevelUpdates.visaExpiryTimestamp = visaDate;
@@ -163,15 +269,23 @@ export const saveProviderDetails = async (userId, providerDetails) => {
       if (topLevelUpdates.accountDisabled === true) {
         console.log('saveProviderDetails: requesting service disable for userId:', userId);
         if (SKIP_DISABLE_PROVIDER_SERVICES) {
-          console.warn('SKIP_DISABLE_PROVIDER_SERVICES is true - skipping disableProviderServices call');
+          console.warn(
+            'SKIP_DISABLE_PROVIDER_SERVICES is true - skipping disableProviderServices call'
+          );
         } else {
           try {
             await disableProviderServices(userId);
           } catch (err) {
             const msg = err && err.message ? err.message : String(err);
             console.error('disableProviderServices failed during saveProviderDetails:', msg);
-            if (msg.includes('providerId is required') || msg.includes('Cloud Functions client not initialized') || msg.includes('disableProviderServices failed')) {
-              console.warn('Skipping service disable due to callable configuration issue. Deploy functions or set SKIP_DISABLE_PROVIDER_SERVICES=true to suppress this message.');
+            if (
+              msg.includes('providerId is required') ||
+              msg.includes('Cloud Functions client not initialized') ||
+              msg.includes('disableProviderServices failed')
+            ) {
+              console.warn(
+                'Skipping service disable due to callable configuration issue. Deploy functions or set SKIP_DISABLE_PROVIDER_SERVICES=true to suppress this message.'
+              );
             } else {
               console.error('Unexpected error disabling provider services:', err);
             }
@@ -204,13 +318,7 @@ export const saveProviderOnboardingDraft = async (userId, providerDetails) => {
     throw new Error('User ID and provider details are required');
   }
 
-  const detailsRef = doc(
-    firestore,
-    'users',
-    userId,
-    'details',
-    'provider_onboarding',
-  );
+  const detailsRef = doc(firestore, 'users', userId, 'details', 'provider_onboarding');
 
   await setDoc(
     detailsRef,
@@ -222,7 +330,7 @@ export const saveProviderOnboardingDraft = async (userId, providerDetails) => {
           : 'draft',
       updatedAt: serverTimestamp(),
     },
-    { merge: true },
+    { merge: true }
   );
 };
 
@@ -237,17 +345,13 @@ export const saveProviderOnboardingDraft = async (userId, providerDetails) => {
 export const saveProviderDetailsWithSecureDocuments = async (
   userId,
   providerDetails,
-  uploadSummary,
+  uploadSummary
 ) => {
   if (!userId || !providerDetails || !uploadSummary?.sessionId) {
     throw new Error('User ID, provider details, and upload session are required');
   }
 
-  const sessionRef = doc(
-    firestore,
-    'providerUploadSessions',
-    uploadSummary.sessionId,
-  );
+  const sessionRef = doc(firestore, 'providerUploadSessions', uploadSummary.sessionId);
   let sessionSnap = await getDoc(sessionRef);
 
   if (!sessionSnap.exists()) {
@@ -255,8 +359,7 @@ export const saveProviderDetailsWithSecureDocuments = async (
   }
 
   let sessionData = sessionSnap.data() || {};
-  let documentsMetadata =
-    uploadSummary.documentsMetadata || sessionData.documentsMetadata || {};
+  let documentsMetadata = uploadSummary.documentsMetadata || sessionData.documentsMetadata || {};
 
   if (sessionData.status !== 'submitted') {
     const submitFn = httpsCallable(functionsClient, 'submitMobileDocuments');
@@ -264,13 +367,11 @@ export const saveProviderDetailsWithSecureDocuments = async (
     const submitData = submitResult.data || {};
 
     if (submitData.success === false) {
-      const missingLabels = (submitData.missing || [])
-        .map((item) => item.label)
-        .join(', ');
+      const missingLabels = (submitData.missing || []).map((item) => item.label).join(', ');
       throw new Error(
         missingLabels
           ? `Please upload missing secure documents: ${missingLabels}.`
-          : 'Please finish secure document upload before submitting.',
+          : 'Please finish secure document upload before submitting.'
       );
     }
 
@@ -283,25 +384,29 @@ export const saveProviderDetailsWithSecureDocuments = async (
     throw new Error('Secure document upload session is not submitted yet.');
   }
 
-  const detailsRef = doc(
-    firestore,
-    'users',
-    userId,
-    'details',
-    'provider_onboarding',
+  const secureDocuments = await fetchSecureProviderDocuments(userId, uploadSummary.sessionId);
+  const secureOnboardingDocuments = buildSecureOnboardingDocuments(
+    secureDocuments,
+    uploadSummary.sessionId
   );
+
+  const detailsRef = doc(firestore, 'users', userId, 'details', 'provider_onboarding');
 
   await setDoc(
     detailsRef,
     {
       ...providerDetails,
-      documents: providerDetails.documents || {},
+      documents: {
+        ...(providerDetails.documents || {}),
+        ...secureOnboardingDocuments,
+      },
       documentUploadMode: 'secure_v2',
       latestDocumentUploadSessionId: uploadSummary.sessionId,
       documentsMetadata,
+      secureDocumentCount: secureDocuments.length,
       updatedAt: serverTimestamp(),
     },
-    { merge: true },
+    { merge: true }
   );
 
   const userRef = doc(firestore, 'users', userId);
@@ -312,11 +417,12 @@ export const saveProviderDetailsWithSecureDocuments = async (
     status: 'pending',
     documentUploadMode: 'secure_v2',
     latestDocumentUploadSessionId: uploadSummary.sessionId,
+    secureDocumentCount: secureDocuments.length,
+    documentsMetadata,
   };
 
   try {
-    const visaExpiry =
-      providerDetails?.profile?.visaExpiry || providerDetails?.visaExpiry || null;
+    const visaExpiry = providerDetails?.profile?.visaExpiry || providerDetails?.visaExpiry || null;
     const visaDate = parseVisaExpiryToDate(visaExpiry);
     if (visaDate) {
       topLevelUpdates.visaExpiryTimestamp = visaDate;
@@ -344,14 +450,17 @@ export const fetchProviderDetails = async (userId) => {
     }
 
     console.log('fetchProviderDetails - userId:', userId);
-    console.log('fetchProviderDetails - Firestore path:', `users/${userId}/details/provider_onboarding`);
+    console.log(
+      'fetchProviderDetails - Firestore path:',
+      `users/${userId}/details/provider_onboarding`
+    );
 
     const detailsRef = doc(firestore, 'users', userId, 'details', 'provider_onboarding');
 
     const detailsSnap = await getDoc(detailsRef);
 
     console.log('fetchProviderDetails - Document exists:', detailsSnap.exists());
-    
+
     if (detailsSnap.exists()) {
       const data = detailsSnap.data();
       console.log('fetchProviderDetails - Document data:', JSON.stringify(data, null, 2));
@@ -383,10 +492,14 @@ export const updateProviderDetails = async (userId, updates) => {
     const detailsRef = doc(firestore, 'users', userId, 'details', 'provider_onboarding');
 
     // Use set with merge so the details doc is created if it doesn't exist
-    await setDoc(detailsRef, {
-      ...updates,
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
+    await setDoc(
+      detailsRef,
+      {
+        ...updates,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
 
     // Also ensure user document has onboarding flags. Use set with merge to avoid
     // firestore/not-found errors if the user document doesn't exist for some reason.
@@ -430,15 +543,23 @@ export const updateProviderDetails = async (userId, updates) => {
       if (topLevelUpdates.accountDisabled === true) {
         console.log('updateProviderDetails: requesting service disable for userId:', userId);
         if (SKIP_DISABLE_PROVIDER_SERVICES) {
-          console.warn('SKIP_DISABLE_PROVIDER_SERVICES is true - skipping disableProviderServices call');
+          console.warn(
+            'SKIP_DISABLE_PROVIDER_SERVICES is true - skipping disableProviderServices call'
+          );
         } else {
           try {
             await disableProviderServices(userId);
           } catch (err) {
             const msg = err && err.message ? err.message : String(err);
             console.error('disableProviderServices failed during updateProviderDetails:', msg);
-            if (msg.includes('providerId is required') || msg.includes('Cloud Functions client not initialized') || msg.includes('disableProviderServices failed')) {
-              console.warn('Skipping service disable due to callable configuration issue. Deploy functions or set SKIP_DISABLE_PROVIDER_SERVICES=true to suppress this message.');
+            if (
+              msg.includes('providerId is required') ||
+              msg.includes('Cloud Functions client not initialized') ||
+              msg.includes('disableProviderServices failed')
+            ) {
+              console.warn(
+                'Skipping service disable due to callable configuration issue. Deploy functions or set SKIP_DISABLE_PROVIDER_SERVICES=true to suppress this message.'
+              );
             } else {
               console.error('Unexpected error disabling provider services:', err);
             }
@@ -495,24 +616,31 @@ const enableProviderServices = async (userId) => {
     const servicesCol = collection(firestore, 'services');
     const ownerQuery = query(servicesCol, where('ownerId', '==', userId));
     const ownerSnap = await getDocs(ownerQuery);
-    ownerSnap.forEach(docSnap => {
+    ownerSnap.forEach((docSnap) => {
       const data = docSnap.data();
       const docRef = docSnap.ref;
       if (data && data.disabledByVisa) {
-        setDoc(docRef, { status: 'active', disabledByVisa: deleteField() }, { merge: true }).catch(err => console.error('Failed to re-enable owner service', docRef.path, err));
+        setDoc(docRef, { status: 'active', disabledByVisa: deleteField() }, { merge: true }).catch(
+          (err) => console.error('Failed to re-enable owner service', docRef.path, err)
+        );
       }
     });
 
     // Assigned services: re-add provider from removedProvidersByVisa
-    const removedQuery = query(servicesCol, where('removedProvidersByVisa', 'array-contains', userId));
+    const removedQuery = query(
+      servicesCol,
+      where('removedProvidersByVisa', 'array-contains', userId)
+    );
     const removedSnap = await getDocs(removedQuery);
     const { arrayUnion, arrayRemove } = await import('firebase/firestore');
-    removedSnap.forEach(docSnap => {
+    removedSnap.forEach((docSnap) => {
       const docRef = docSnap.ref;
       updateDoc(docRef, {
         providers: arrayUnion(userId),
-        removedProvidersByVisa: arrayRemove(userId)
-      }).catch(err => console.error('Failed to restore provider to assigned service', docRef.path, err));
+        removedProvidersByVisa: arrayRemove(userId),
+      }).catch((err) =>
+        console.error('Failed to restore provider to assigned service', docRef.path, err)
+      );
     });
 
     console.log('Service re-enable completed for provider:', userId);
@@ -587,7 +715,15 @@ export const updateProviderOnboardingStatus = async (userId, status, rejectionRe
     try {
       const userRef = doc(firestore, 'users', userId);
       if (status === 'approved' || status === 'approved_by_admin' || status === 'approved_admin') {
-        await setDoc(userRef, { visaStatus: 'active', providerAccountDisabled: false, onboardingApprovedAt: serverTimestamp() }, { merge: true });
+        await setDoc(
+          userRef,
+          {
+            visaStatus: 'active',
+            providerAccountDisabled: false,
+            onboardingApprovedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
         // Restore services previously disabled/removed by visa pause
         try {
           await enableProviderServices(userId);
@@ -595,9 +731,22 @@ export const updateProviderOnboardingStatus = async (userId, status, rejectionRe
           console.error('Failed to re-enable provider services after approval:', e);
         }
       } else if (status === 'rejected') {
-        await setDoc(userRef, { visaStatus: 'blocked', providerAccountDisabled: true, onboardingRejectedAt: serverTimestamp(), rejectionReason: rejectionReason || null }, { merge: true });
+        await setDoc(
+          userRef,
+          {
+            visaStatus: 'blocked',
+            providerAccountDisabled: true,
+            onboardingRejectedAt: serverTimestamp(),
+            rejectionReason: rejectionReason || null,
+          },
+          { merge: true }
+        );
       } else if (status === 'under_review' || status === 'pending') {
-        await setDoc(userRef, { visaStatus: 'blocked', providerAccountDisabled: true }, { merge: true });
+        await setDoc(
+          userRef,
+          { visaStatus: 'blocked', providerAccountDisabled: true },
+          { merge: true }
+        );
       }
     } catch (e) {
       console.error('Failed to update top-level user doc when changing onboarding status:', e);

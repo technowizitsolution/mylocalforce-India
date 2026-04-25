@@ -54,6 +54,47 @@ const isUnauthenticatedCallableError = (error) =>
     .toLowerCase()
     .includes('authentication required');
 
+const normalizeUploadRequirement = (requirement) => {
+  if (requirement?.id !== 'passport') {
+    return requirement;
+  }
+
+  return {
+    ...requirement,
+    required: true,
+    description:
+      requirement.description?.replace(
+        /\s+if it is your identity document\.?$/i,
+        '',
+      ) || 'Upload a clear JPEG image of your passport.',
+  };
+};
+
+const normalizeUploadSettings = (settings) => {
+  if (!settings) {
+    return settings;
+  }
+
+  return {
+    ...settings,
+    requirements: (settings.requirements || []).map(normalizeUploadRequirement),
+  };
+};
+
+const normalizeUploadSettingsResponse = (response) => {
+  if (!response?.settings) {
+    return response;
+  }
+
+  const settings = normalizeUploadSettings(response.settings);
+
+  return {
+    ...response,
+    settings,
+    requirements: settings.requirements,
+  };
+};
+
 /**
  * Calls a secure document upload Cloud Function.
  *
@@ -108,7 +149,9 @@ const callDocumentUploadFunction = async (
  * @returns {Promise<Object>}
  */
 export const createUploadSession = (payload) =>
-  callDocumentUploadFunction('createUploadSession', payload);
+  callDocumentUploadFunction('createUploadSession', payload).then(
+    normalizeUploadSettingsResponse,
+  );
 
 /**
  * Sends or resends a provider upload session SMS.
@@ -130,7 +173,7 @@ export const validateMobileUploadToken = (token) =>
     'validateMobileUploadToken',
     { token },
     { requireAuth: false },
-  );
+  ).then(normalizeUploadSettingsResponse);
 
 /**
  * Gets upload session status.
@@ -165,7 +208,9 @@ export const submitMobileDocuments = (sessionId) =>
  * @returns {Promise<Object>}
  */
 export const getDocumentUploadSettings = () =>
-  callDocumentUploadFunction('getDocumentUploadSettings');
+  callDocumentUploadFunction('getDocumentUploadSettings').then(
+    normalizeUploadSettingsResponse,
+  );
 
 /**
  * Subscribes to a specific upload session and its documents.

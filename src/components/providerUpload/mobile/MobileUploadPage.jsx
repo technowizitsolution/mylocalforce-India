@@ -160,8 +160,8 @@ const MobileUploadPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="border-b border-gray-100 bg-white px-5 py-4">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-white">
+      <div className="shrink-0 border-b border-gray-100 bg-white px-5 py-4">
         <div className="mx-auto flex max-w-xl items-center gap-2 text-sm font-bold text-gray-950">
           <FiClock className="h-4 w-4 text-blue-600" />
           MyLocalForce document upload

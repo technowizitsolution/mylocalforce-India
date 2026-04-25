@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FiMessageSquare, FiMonitor, FiSmartphone } from 'react-icons/fi';
 import { useDocumentUploadSettings } from '../../../hooks/useDocumentUploadSettings';
 import { useUploadSession } from '../../../hooks/useUploadSession';
@@ -30,6 +30,7 @@ const toMillis = (value) => {
  * @param {string} props.registrationStep
  * @param {string} [props.verifiedMobileNumber]
  * @param {Function} [props.onSummaryChange]
+ * @param {Function} [props.onAvailabilityChange]
  * @param {Function} [props.onBeforeCreateSession]
  * @returns {JSX.Element|null}
  */
@@ -38,10 +39,10 @@ const MobileUploadCard = ({
   registrationStep,
   verifiedMobileNumber,
   onSummaryChange,
+  onAvailabilityChange,
   onBeforeCreateSession,
 }) => {
-  const { settings, loading: settingsLoading, error: settingsError } =
-    useDocumentUploadSettings();
+  const { settings, loading: settingsLoading, error: settingsError } = useDocumentUploadSettings();
   const [activeMode, setActiveMode] = useState('qr');
   const [notice, setNotice] = useState('');
   const {
@@ -66,12 +67,54 @@ const MobileUploadCard = ({
   const canUseDesktop = Boolean(settings?.desktopFallbackEnabled);
   const isEnabled = canUseQr || canUseSms || canUseDesktop;
   const hasAuthSettingsError = /auth|unauth|unauthorized|sign in/i.test(
-    String(settingsError || ''),
+    String(settingsError || '')
   );
   const qrRefreshSoon = useMemo(() => {
     if (!session?.expiresAt) return false;
     return toMillis(session.expiresAt) - Date.now() < 10 * 60 * 1000;
   }, [session?.expiresAt]);
+
+  useEffect(() => {
+    onAvailabilityChange?.({
+      loading: settingsLoading,
+      enabled: isEnabled,
+      error: settingsError || '',
+      canUseQr,
+      canUseSms,
+      canUseDesktop,
+    });
+  }, [
+    canUseDesktop,
+    canUseQr,
+    canUseSms,
+    isEnabled,
+    onAvailabilityChange,
+    settingsError,
+    settingsLoading,
+  ]);
+
+  useEffect(() => {
+    if (settingsLoading) {
+      return;
+    }
+
+    const activeModeAvailable =
+      (activeMode === 'qr' && canUseQr) ||
+      (activeMode === 'sms' && canUseSms) ||
+      (activeMode === 'desktop' && canUseDesktop);
+
+    if (activeModeAvailable) {
+      return;
+    }
+
+    if (canUseQr) {
+      setActiveMode('qr');
+    } else if (canUseSms) {
+      setActiveMode('sms');
+    } else if (canUseDesktop) {
+      setActiveMode('desktop');
+    }
+  }, [activeMode, canUseDesktop, canUseQr, canUseSms, settingsLoading]);
 
   if (settingsLoading) {
     return (
@@ -84,9 +127,7 @@ const MobileUploadCard = ({
   if (settingsError && !settings) {
     return (
       <section className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-        <h3 className="text-base font-bold text-red-900">
-          Secure document upload unavailable
-        </h3>
+        <h3 className="text-base font-bold text-red-900">Secure document upload unavailable</h3>
         <p className="mt-1">
           {hasAuthSettingsError
             ? 'Your secure session is not authenticated. Please log in again and retry.'
@@ -136,17 +177,12 @@ const MobileUploadCard = ({
     <section className="space-y-4 rounded-xl border border-blue-100 bg-blue-50/40 p-4 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 className="text-base font-bold text-gray-950">
-            Secure document upload
-          </h3>
+          <h3 className="text-base font-bold text-gray-950">Secure upload checklist</h3>
           <p className="mt-1 text-sm leading-6 text-gray-600">
-            Continue on mobile with your camera or upload privately from this
-            device.
+            Pick one upload method. Progress updates here as files are received.
           </p>
         </div>
-        {session?.status === 'active' && (
-          <SessionExpiryCountdown expiresAt={session.expiresAt} />
-        )}
+        {session?.status === 'active' && <SessionExpiryCountdown expiresAt={session.expiresAt} />}
       </div>
 
       {(settingsError || error) && (
@@ -161,51 +197,56 @@ const MobileUploadCard = ({
         </p>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {canUseQr && (
-          <button
-            type="button"
-            onClick={handleQr}
-            disabled={loading}
-            className={`flex h-12 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold transition ${
-              activeMode === 'qr'
-                ? 'border-blue-600 bg-blue-600 text-white'
-                : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'
-            } disabled:opacity-60`}
-          >
-            <FiSmartphone className="h-4 w-4" />
-            QR code
-          </button>
-        )}
-        {canUseSms && (
-          <button
-            type="button"
-            onClick={handleSms}
-            disabled={loading || !verifiedMobileNumber}
-            className={`flex h-12 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold transition ${
-              activeMode === 'sms'
-                ? 'border-blue-600 bg-blue-600 text-white'
-                : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'
-            } disabled:opacity-60`}
-          >
-            <FiMessageSquare className="h-4 w-4" />
-            Send SMS
-          </button>
-        )}
-        {canUseDesktop && (
-          <button
-            type="button"
-            onClick={() => setActiveMode('desktop')}
-            className={`flex h-12 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold transition ${
-              activeMode === 'desktop'
-                ? 'border-blue-600 bg-blue-600 text-white'
-                : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'
-            }`}
-          >
-            <FiMonitor className="h-4 w-4" />
-            Desktop
-          </button>
-        )}
+      <div>
+        <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-blue-700">
+          Upload method
+        </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {canUseQr && (
+            <button
+              type="button"
+              onClick={handleQr}
+              disabled={loading}
+              className={`flex h-12 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold transition ${
+                activeMode === 'qr'
+                  ? 'border-blue-600 bg-blue-600 text-white'
+                  : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'
+              } disabled:opacity-60`}
+            >
+              <FiSmartphone className="h-4 w-4" />
+              Mobile camera
+            </button>
+          )}
+          {canUseSms && (
+            <button
+              type="button"
+              onClick={handleSms}
+              disabled={loading || !verifiedMobileNumber}
+              className={`flex h-12 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold transition ${
+                activeMode === 'sms'
+                  ? 'border-blue-600 bg-blue-600 text-white'
+                  : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'
+              } disabled:opacity-60`}
+            >
+              <FiMessageSquare className="h-4 w-4" />
+              Text link
+            </button>
+          )}
+          {canUseDesktop && (
+            <button
+              type="button"
+              onClick={() => setActiveMode('desktop')}
+              className={`flex h-12 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold transition ${
+                activeMode === 'desktop'
+                  ? 'border-blue-600 bg-blue-600 text-white'
+                  : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'
+              }`}
+            >
+              <FiMonitor className="h-4 w-4" />
+              This device
+            </button>
+          )}
+        </div>
       </div>
 
       {activeMode === 'qr' && (
