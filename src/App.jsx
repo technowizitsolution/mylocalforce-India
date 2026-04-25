@@ -20,6 +20,7 @@ import ProviderOnboardingScreen from './screens/ProviderOnboardingScreen';
 import ProviderUnderReviewScreen from './screens/ProviderUnderReviewScreen';
 import BookingScreen from './customer/pages/BookingScreen';
 import PaymentSuccess from './customer/pages/PaymentSuccess';
+import MobileUploadPage from './components/providerUpload/mobile/MobileUploadPage';
 /**
  * App component - Main routing configuration
  * Handles all route definitions and protects routes based on user roles
@@ -38,6 +39,7 @@ const App = () => {
       <Route path="/signup/provider" element={<ProviderSignupScreen />} />
       <Route path="/forgot-password" element={<ForgotPasswordScreen />} />
       <Route path="/main-tabs" element={<Navigate to="/customer" replace />} />
+      <Route path="/mobile-upload/:token" element={<MobileUploadPage />} />
 
       {/* Customer Routes - Protected by role */}
       <Route

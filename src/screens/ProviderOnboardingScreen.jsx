@@ -25,9 +25,12 @@ import {
   fetchProviderDetails,
   fetchUserProfile,
   saveProviderDetails,
+  saveProviderDetailsWithSecureDocuments,
+  saveProviderOnboardingDraft,
   uploadProviderDocument,
 } from '../services/firebase';
 import { switchActiveRole } from '../services/firebase/userService';
+import MobileUploadCard from '../components/providerUpload/desktop/MobileUploadCard';
 
 const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024;
@@ -413,6 +416,7 @@ const ProviderOnboardingScreen = () => {
     verificationVideoUrl: '',
   });
   const [uploadProgress, setUploadProgress] = useState({});
+  const [secureUploadSummary, setSecureUploadSummary] = useState(null);
 
   const newSignup = location.state?.newSignup === true;
 
@@ -676,6 +680,20 @@ const ProviderOnboardingScreen = () => {
     );
   };
 
+  const hasSecureDocument = (documentTypes) => {
+    const acceptedTypes = Array.isArray(documentTypes)
+      ? documentTypes
+      : [documentTypes];
+
+    return (secureUploadSummary?.documents || []).some((document) => {
+      const status = document.status || '';
+      return (
+        acceptedTypes.includes(document.documentType) &&
+        ['uploaded', 'submitted', 'approved'].includes(status)
+      );
+    });
+  };
+
   const validateStep = (step) => {
     if (step === 1) {
       if (!nationalityStatus) {
@@ -717,10 +735,20 @@ const ProviderOnboardingScreen = () => {
     }
 
     if (step === 5) {
-      const hasPassport = passportSelected && (selectedFiles.passport || existingDocuments.passportUrl);
+      const hasPassport =
+        passportSelected &&
+        (selectedFiles.passport ||
+          existingDocuments.passportUrl ||
+          hasSecureDocument('passport'));
       const hasDrivingLicence =
         drivingLicenceSelected &&
-        (selectedFiles.drivingLicence || existingDocuments.drivingLicenceUrl);
+        (selectedFiles.drivingLicence ||
+          existingDocuments.drivingLicenceUrl ||
+          hasSecureDocument([
+            'driving_licence',
+            'driving_license',
+            'drivingLicence',
+          ]));
 
       if (!hasPassport && !hasDrivingLicence) {
         return 'Please provide at least one ID proof: Passport or Driving Licence.';
@@ -736,7 +764,11 @@ const ProviderOnboardingScreen = () => {
           return 'Please complete your passport number and expiry date.';
         }
 
-        if (!selectedFiles.passport && !existingDocuments.passportUrl) {
+        if (
+          !selectedFiles.passport &&
+          !existingDocuments.passportUrl &&
+          !hasSecureDocument('passport')
+        ) {
           return 'Please upload your passport image.';
         }
       }
@@ -754,22 +786,103 @@ const ProviderOnboardingScreen = () => {
 
         if (
           !selectedFiles.drivingLicence &&
-          !existingDocuments.drivingLicenceUrl
+          !existingDocuments.drivingLicenceUrl &&
+          !hasSecureDocument([
+            'driving_licence',
+            'driving_license',
+            'drivingLicence',
+          ])
         ) {
           return 'Please upload your driving licence image.';
         }
       }
 
-      if (!selectedFiles.resume && !existingDocuments.resumeUrl) {
+      if (
+        !selectedFiles.resume &&
+        !existingDocuments.resumeUrl &&
+        !hasSecureDocument(['resume_cv', 'resume'])
+      ) {
         return 'Please upload your resume or CV.';
       }
 
-      if (!selectedFiles.certificates && !existingDocuments.certificatesUrl) {
+      if (
+        !selectedFiles.certificates &&
+        !existingDocuments.certificatesUrl &&
+        !hasSecureDocument('certificates')
+      ) {
         return 'Please upload your certificates.';
       }
     }
 
     return null;
+  };
+
+  const buildProviderDetails = (documents = {}, status = 'under_review') => ({
+    profile: {
+      nationalityStatus: nationalityStatus || null,
+      servicesOffered: selectedServices,
+      preferredGender: preferredGender || 'any',
+      experience: experience || null,
+      ...(visaCategory ? { visaCategory } : {}),
+      ...(visaNumber ? { visaNumber: visaNumber.trim() } : {}),
+      ...(formatStoredDate(visaExpiry)
+        ? { visaExpiry: formatStoredDate(visaExpiry) }
+        : {}),
+    },
+    bankingDetails: {
+      bankName: bankName.trim(),
+      accountName: accountName.trim(),
+      bsb: bsb.trim(),
+      accountNumber: accountNumber.trim(),
+    },
+    businessInformation: {
+      tfnNumber: tfnNumber.trim() || null,
+      abnNumber: abnNumber.trim(),
+    },
+    notificationPreferences: {
+      preference: notificationPref,
+    },
+    documents,
+    ...(passportSelected && passportData.number.trim()
+      ? {
+          passport: {
+            number: passportData.number.trim(),
+            expiry: formatStoredDate(passportData.expiry),
+          },
+        }
+      : {}),
+    ...(drivingLicenceSelected && drivingLicenceData.number.trim()
+      ? {
+          drivingLicence: {
+            number: drivingLicenceData.number.trim(),
+            cardNumber: drivingLicenceData.cardNumber.trim(),
+            expiry: formatStoredDate(drivingLicenceData.expiry),
+          },
+        }
+      : {}),
+    submittedAt: status === 'under_review' ? new Date().toISOString() : null,
+    status,
+  });
+
+  const saveDraftForSecureUpload = async () => {
+    if (!user?.uid) {
+      throw new Error('User not authenticated.');
+    }
+
+    for (const stepNumber of [1, 2, 3, 4]) {
+      const validationMessage = validateStep(stepNumber);
+      if (validationMessage) {
+        throw new Error(validationMessage);
+      }
+    }
+
+    const legacyDocuments = Object.fromEntries(
+      Object.entries(existingDocuments).filter(([, value]) => Boolean(value)),
+    );
+    await saveProviderOnboardingDraft(
+      user.uid,
+      buildProviderDetails(legacyDocuments, 'draft'),
+    );
   };
 
   const handleNext = async () => {
@@ -793,6 +906,12 @@ const ProviderOnboardingScreen = () => {
         throw new Error('User not authenticated.');
       }
 
+      const usingSecureDocuments = Boolean(
+        secureUploadSummary?.sessionId ||
+          secureUploadSummary?.hasUploadedDocuments ||
+          secureUploadSummary?.isSubmitted,
+      );
+
       const uploadSingleDocument = async ({
         file,
         existingUrl,
@@ -801,6 +920,10 @@ const ProviderOnboardingScreen = () => {
         progressKey,
         shouldInclude = true,
       }) => {
+        if (usingSecureDocuments) {
+          return existingUrl || '';
+        }
+
         if (!shouldInclude) {
           return '';
         }
@@ -878,62 +1001,26 @@ const ProviderOnboardingScreen = () => {
           Boolean(existingDocuments.verificationVideoUrl),
       });
 
-      const documents = {
-        ...(passportUrl ? { passportUrl } : {}),
-        ...(drivingLicenceUrl ? { drivingLicenceUrl } : {}),
-        ...(resumeUrl ? { resumeUrl } : {}),
-        ...(certificatesUrl ? { certificatesUrl } : {}),
-        ...(verificationVideoUrl ? { verificationVideoUrl } : {}),
-      };
+      const documents = usingSecureDocuments
+        ? {}
+        : {
+            ...(passportUrl ? { passportUrl } : {}),
+            ...(drivingLicenceUrl ? { drivingLicenceUrl } : {}),
+            ...(resumeUrl ? { resumeUrl } : {}),
+            ...(certificatesUrl ? { certificatesUrl } : {}),
+            ...(verificationVideoUrl ? { verificationVideoUrl } : {}),
+          };
 
-      const providerDetails = {
-        profile: {
-          nationalityStatus: nationalityStatus || null,
-          servicesOffered: selectedServices,
-          preferredGender: preferredGender || 'any',
-          experience: experience || null,
-          ...(visaCategory ? { visaCategory } : {}),
-          ...(visaNumber ? { visaNumber: visaNumber.trim() } : {}),
-          ...(formatStoredDate(visaExpiry)
-            ? { visaExpiry: formatStoredDate(visaExpiry) }
-            : {}),
-        },
-        bankingDetails: {
-          bankName: bankName.trim(),
-          accountName: accountName.trim(),
-          bsb: bsb.trim(),
-          accountNumber: accountNumber.trim(),
-        },
-        businessInformation: {
-          tfnNumber: tfnNumber.trim() || null,
-          abnNumber: abnNumber.trim(),
-        },
-        notificationPreferences: {
-          preference: notificationPref,
-        },
-        documents,
-        ...(passportSelected && passportData.number.trim()
-          ? {
-              passport: {
-                number: passportData.number.trim(),
-                expiry: formatStoredDate(passportData.expiry),
-              },
-            }
-          : {}),
-        ...(drivingLicenceSelected && drivingLicenceData.number.trim()
-          ? {
-              drivingLicence: {
-                number: drivingLicenceData.number.trim(),
-                cardNumber: drivingLicenceData.cardNumber.trim(),
-                expiry: formatStoredDate(drivingLicenceData.expiry),
-              },
-            }
-          : {}),
-        submittedAt: new Date().toISOString(),
-        status: 'under_review',
-      };
+      const providerDetails = buildProviderDetails(documents, 'under_review');
 
-      await saveProviderDetails(user.uid, providerDetails);
+      if (usingSecureDocuments) {
+        await saveProviderDetailsWithSecureDocuments(user.uid, providerDetails, {
+          sessionId: secureUploadSummary.sessionId,
+          documentsMetadata: secureUploadSummary.documentsMetadata || {},
+        });
+      } else {
+        await saveProviderDetails(user.uid, providerDetails);
+      }
       await refreshUserData?.();
       await switchActiveRole(user.uid, 'client').catch(() => undefined);
 
@@ -1387,6 +1474,14 @@ const ProviderOnboardingScreen = () => {
         </div>
       </section>
 
+      <MobileUploadCard
+        providerId={user.uid}
+        registrationStep="provider_onboarding_documents"
+        verifiedMobileNumber={user.phone || user.phoneNumber}
+        onSummaryChange={setSecureUploadSummary}
+        onBeforeCreateSession={saveDraftForSecureUpload}
+      />
+
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div
           className={`rounded-xl border bg-white p-4 transition ${
@@ -1528,18 +1623,24 @@ const ProviderOnboardingScreen = () => {
                 </div>
               </div>
 
-              <UploadField
-                label="Passport Image"
-                required
-                icon={FiImage}
-                selectedFile={selectedFiles.passport}
-                existingUrl={existingDocuments.passportUrl}
-                onChange={handleFileSelect('passport', 'passport')}
-                accept="image/jpeg,image/jpg"
-                helperText="JPEG only"
-                progress={uploadProgress.passport}
-                actionLabel="Upload Passport Image"
-              />
+              {hasSecureDocument('passport') ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">
+                  Passport image uploaded through secure document upload.
+                </div>
+              ) : (
+                <UploadField
+                  label="Passport Image"
+                  required
+                  icon={FiImage}
+                  selectedFile={selectedFiles.passport}
+                  existingUrl={existingDocuments.passportUrl}
+                  onChange={handleFileSelect('passport', 'passport')}
+                  accept="image/jpeg,image/jpg"
+                  helperText="JPEG only"
+                  progress={uploadProgress.passport}
+                  actionLabel="Upload Passport Image"
+                />
+              )}
             </div>
           )}
         </div>
@@ -1712,21 +1813,31 @@ const ProviderOnboardingScreen = () => {
                 </div>
               </div>
 
-              <UploadField
-                label="Driving Licence Image"
-                required
-                icon={FiImage}
-                selectedFile={selectedFiles.drivingLicence}
-                existingUrl={existingDocuments.drivingLicenceUrl}
-                onChange={handleFileSelect(
-                  'drivingLicence',
-                  'drivingLicence',
-                )}
-                accept="image/jpeg,image/jpg"
-                helperText="JPEG only"
-                progress={uploadProgress.drivingLicence}
-                actionLabel="Upload Driving Licence"
-              />
+              {hasSecureDocument([
+                'driving_licence',
+                'driving_license',
+                'drivingLicence',
+              ]) ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">
+                  Driving licence image uploaded through secure document upload.
+                </div>
+              ) : (
+                <UploadField
+                  label="Driving Licence Image"
+                  required
+                  icon={FiImage}
+                  selectedFile={selectedFiles.drivingLicence}
+                  existingUrl={existingDocuments.drivingLicenceUrl}
+                  onChange={handleFileSelect(
+                    'drivingLicence',
+                    'drivingLicence',
+                  )}
+                  accept="image/jpeg,image/jpg"
+                  helperText="JPEG only"
+                  progress={uploadProgress.drivingLicence}
+                  actionLabel="Upload Driving Licence"
+                />
+              )}
             </div>
           )}
         </div>
@@ -1743,44 +1854,65 @@ const ProviderOnboardingScreen = () => {
         </div>
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-          <UploadField
-            label="Resume / CV"
-            required
-            icon={FiFileText}
-            selectedFile={selectedFiles.resume}
-            existingUrl={existingDocuments.resumeUrl}
-            onChange={handleFileSelect('resume', 'resume')}
-            accept=".pdf,.doc,.docx,image/*"
-            helperText="Accepted up to 10MB"
-            progress={uploadProgress.resume}
-            actionLabel="Upload Resume / CV"
-          />
+          {hasSecureDocument(['resume_cv', 'resume']) ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">
+              Resume / CV uploaded through secure document upload.
+            </div>
+          ) : (
+            <UploadField
+              label="Resume / CV"
+              required
+              icon={FiFileText}
+              selectedFile={selectedFiles.resume}
+              existingUrl={existingDocuments.resumeUrl}
+              onChange={handleFileSelect('resume', 'resume')}
+              accept=".pdf,.doc,.docx,image/*"
+              helperText="Accepted up to 10MB"
+              progress={uploadProgress.resume}
+              actionLabel="Upload Resume / CV"
+            />
+          )}
 
-          <UploadField
-            label="Certificates"
-            required
-            icon={FiFileText}
-            selectedFile={selectedFiles.certificates}
-            existingUrl={existingDocuments.certificatesUrl}
-            onChange={handleFileSelect('certificates', 'certificates')}
-            accept=".pdf,.doc,.docx,image/*"
-            helperText="Accepted up to 10MB"
-            progress={uploadProgress.certificates}
-            actionLabel="Upload Certificates"
-          />
+          {hasSecureDocument('certificates') ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">
+              Certificates uploaded through secure document upload.
+            </div>
+          ) : (
+            <UploadField
+              label="Certificates"
+              required
+              icon={FiFileText}
+              selectedFile={selectedFiles.certificates}
+              existingUrl={existingDocuments.certificatesUrl}
+              onChange={handleFileSelect('certificates', 'certificates')}
+              accept=".pdf,.doc,.docx,image/*"
+              helperText="Accepted up to 10MB"
+              progress={uploadProgress.certificates}
+              actionLabel="Upload Certificates"
+            />
+          )}
 
           <div className="lg:col-span-2">
-            <UploadField
-              label="Verification Video"
-              icon={FiVideo}
-              selectedFile={selectedFiles.verificationVideo}
-              existingUrl={existingDocuments.verificationVideoUrl}
-              onChange={handleFileSelect('verificationVideo', 'verificationVideo')}
-              accept="video/*"
-              helperText="Optional, up to 50MB"
-              progress={uploadProgress.verificationVideo}
-              actionLabel="Upload Verification Video"
-            />
+            {hasSecureDocument('verification_video') ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">
+                Verification video uploaded through secure document upload.
+              </div>
+            ) : (
+              <UploadField
+                label="Verification Video"
+                icon={FiVideo}
+                selectedFile={selectedFiles.verificationVideo}
+                existingUrl={existingDocuments.verificationVideoUrl}
+                onChange={handleFileSelect(
+                  'verificationVideo',
+                  'verificationVideo',
+                )}
+                accept="video/*"
+                helperText="Optional, up to 50MB"
+                progress={uploadProgress.verificationVideo}
+                actionLabel="Upload Verification Video"
+              />
+            )}
           </div>
         </div>
       </section>

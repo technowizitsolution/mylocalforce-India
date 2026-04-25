@@ -94,11 +94,17 @@ export {
 export {
   uploadProviderDocument,
   saveProviderDetails,
+  saveProviderOnboardingDraft,
+  saveProviderDetailsWithSecureDocuments,
   fetchProviderDetails,
   updateProviderDetails,
   deleteProviderDocument,
   updateProviderOnboardingStatus
 } from './providerOnboardingService';
+
+// Secure provider document uploads
+export * from './documentUploadService';
+export * from './secureDocumentStorageService';
 
 // Other services
 export * from './storageService';

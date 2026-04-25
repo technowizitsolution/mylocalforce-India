@@ -193,6 +193,146 @@ export const saveProviderDetails = async (userId, providerDetails) => {
 };
 
 /**
+ * Saves a non-submitted provider onboarding draft before secure upload starts.
+ *
+ * @param {string} userId - User ID
+ * @param {object} providerDetails - Draft provider details
+ * @returns {Promise<void>}
+ */
+export const saveProviderOnboardingDraft = async (userId, providerDetails) => {
+  if (!userId || !providerDetails) {
+    throw new Error('User ID and provider details are required');
+  }
+
+  const detailsRef = doc(
+    firestore,
+    'users',
+    userId,
+    'details',
+    'provider_onboarding',
+  );
+
+  await setDoc(
+    detailsRef,
+    {
+      ...providerDetails,
+      status:
+        providerDetails.status && providerDetails.status !== 'under_review'
+          ? providerDetails.status
+          : 'draft',
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+};
+
+/**
+ * Saves provider onboarding details after secure document upload.
+ *
+ * @param {string} userId - User ID
+ * @param {object} providerDetails - Provider details object
+ * @param {{ sessionId: string, documentsMetadata?: Object.<string, *> }} uploadSummary
+ * @returns {Promise<void>}
+ */
+export const saveProviderDetailsWithSecureDocuments = async (
+  userId,
+  providerDetails,
+  uploadSummary,
+) => {
+  if (!userId || !providerDetails || !uploadSummary?.sessionId) {
+    throw new Error('User ID, provider details, and upload session are required');
+  }
+
+  const sessionRef = doc(
+    firestore,
+    'providerUploadSessions',
+    uploadSummary.sessionId,
+  );
+  let sessionSnap = await getDoc(sessionRef);
+
+  if (!sessionSnap.exists()) {
+    throw new Error('Secure document upload session was not found.');
+  }
+
+  let sessionData = sessionSnap.data() || {};
+  let documentsMetadata =
+    uploadSummary.documentsMetadata || sessionData.documentsMetadata || {};
+
+  if (sessionData.status !== 'submitted') {
+    const submitFn = httpsCallable(functionsClient, 'submitMobileDocuments');
+    const submitResult = await submitFn({ sessionId: uploadSummary.sessionId });
+    const submitData = submitResult.data || {};
+
+    if (submitData.success === false) {
+      const missingLabels = (submitData.missing || [])
+        .map((item) => item.label)
+        .join(', ');
+      throw new Error(
+        missingLabels
+          ? `Please upload missing secure documents: ${missingLabels}.`
+          : 'Please finish secure document upload before submitting.',
+      );
+    }
+
+    documentsMetadata = submitData.documentsMetadata || documentsMetadata;
+    sessionSnap = await getDoc(sessionRef);
+    sessionData = sessionSnap.data() || {};
+  }
+
+  if (sessionData.status !== 'submitted') {
+    throw new Error('Secure document upload session is not submitted yet.');
+  }
+
+  const detailsRef = doc(
+    firestore,
+    'users',
+    userId,
+    'details',
+    'provider_onboarding',
+  );
+
+  await setDoc(
+    detailsRef,
+    {
+      ...providerDetails,
+      documents: providerDetails.documents || {},
+      documentUploadMode: 'secure_v2',
+      latestDocumentUploadSessionId: uploadSummary.sessionId,
+      documentsMetadata,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  const userRef = doc(firestore, 'users', userId);
+  const topLevelUpdates = {
+    onboardingDocuments: true,
+    onboardingSubmittedAt: serverTimestamp(),
+    approvalStatus: 'pending',
+    status: 'pending',
+    documentUploadMode: 'secure_v2',
+    latestDocumentUploadSessionId: uploadSummary.sessionId,
+  };
+
+  try {
+    const visaExpiry =
+      providerDetails?.profile?.visaExpiry || providerDetails?.visaExpiry || null;
+    const visaDate = parseVisaExpiryToDate(visaExpiry);
+    if (visaDate) {
+      topLevelUpdates.visaExpiryTimestamp = visaDate;
+      topLevelUpdates.visaStatus = 'blocked';
+      topLevelUpdates.providerAccountDisabled = true;
+      topLevelUpdates.visaRemindersSentCount = 0;
+      topLevelUpdates.visaReminderLastSentAt = null;
+    }
+  } catch (error) {
+    console.warn('Could not normalize visa expiry during secure save:', error);
+  }
+
+  await setDoc(userRef, topLevelUpdates, { merge: true });
+};
+
+/**
  * Fetch provider details from Firestore
  * @param {string} userId - User ID
  * @returns {Promise<object|null>} Provider details or null

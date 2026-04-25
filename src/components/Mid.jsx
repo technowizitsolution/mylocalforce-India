@@ -8,11 +8,10 @@ const Mid = () => {
   const AUTO_SCROLL_INTERVAL = 3000 // Increased slightly for better readability
 
   const promotions = [
-    { id: 1, badge: 'Up to ₹2,100 off', title: 'Relax & rejuvenate at home', image: '/images/stressReliefMen.webp', bgColor: 'bg-green-700', buttonText: 'Book now' },
-    { id: 2, badge: 'Up to ₹2,100 off', title: 'Relax & rejuvenate at home', image: '/images/stressReliefWomen.webp', bgColor: 'bg-yellow-600', buttonText: 'Book now' },
-    { id: 3, badge: 'Up to ₹2,100 off', title: 'NATIVE RO Water Purifier', image: '/images/HairCare.webp', bgColor: 'bg-black', buttonText: 'Buy now' },
-    { id: 4, badge: 'Up to ₹2,100 off', title: 'Get experts in 2 hours at ₹149', image: '/images/Facial.webp', bgColor: 'bg-blue-600', buttonText: 'Book now' },
-    { id: 5, badge: 'Up to ₹2,100 off', title: 'Relax & rejuvenate at home', image: '/images/stressReliefMen.webp', bgColor: 'bg-gray-100', buttonText: 'Book now', textColor: 'text-black' },
+    { id: 1, badge: 'Up to $21 off', title: 'Relax & rejuvenate at home', image: '/images/stressReliefMen.webp', bgColor: 'bg-green-700', buttonText: 'Book now' },
+    { id: 2, badge: 'Up to $21 off', title: 'Relax & rejuvenate at home', image: '/images/stressReliefWomen.webp', bgColor: 'bg-yellow-600', buttonText: 'Book now' },
+    { id: 3, badge: 'Up to $21 off', title: 'Get experts in 2 hours at $149', image: '/images/Facial.webp', bgColor: 'bg-blue-600', buttonText: 'Book now' },
+    { id: 3, badge: 'Up to $21 off', title: 'Relax & rejuvenate at home', image: '/images/stressReliefMen.webp', bgColor: 'bg-gray-100', buttonText: 'Book now', textColor: 'text-black' },
   ]
 
   // Use 3 sets of items for the infinite illusion

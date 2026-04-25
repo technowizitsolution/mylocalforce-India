@@ -262,6 +262,15 @@ export const AuthProvider = ({ children }) => {
 
   const authenticateWithLinkedAccount = async (userData) => {
     try {
+      const firebaseUser = auth.currentUser;
+
+      if (!firebaseUser || firebaseUser.uid !== userData.uid) {
+        return {
+          success: false,
+          error: 'Firebase authentication session is missing. Please log in again.',
+        };
+      }
+
       // Manually set authentication state for linked accounts
       const rolesData = await fetchUserRoles(userData.uid);
 
@@ -320,7 +329,7 @@ export const AuthProvider = ({ children }) => {
     refreshUserData,
     authenticateWithLinkedAccount,
     getNavigationDestination,
-    isAuthenticated: !!user,
+    isAuthenticated: Boolean(auth.currentUser && user),
   };
 
   return (

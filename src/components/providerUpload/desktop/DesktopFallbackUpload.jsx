@@ -1,0 +1,238 @@
+import { useState } from 'react';
+import { FiCheckCircle, FiFileText, FiUpload } from 'react-icons/fi';
+import { submitMobileDocuments } from '../../../services/firebase/documentUploadService';
+import { uploadProviderDocumentSecure } from '../../../services/firebase/secureDocumentStorageService';
+
+/**
+ * Expands document requirements into upload steps.
+ *
+ * @param {Object[]} requirements
+ * @returns {Object[]}
+ */
+const expandRequirements = (requirements = []) =>
+  requirements
+    .slice()
+    .sort((a, b) => (a.order || 0) - (b.order || 0))
+    .flatMap((requirement) =>
+      (requirement.sides || ['single']).map((side) => ({
+        key: `${requirement.id}:${side}`,
+        requirement,
+        side,
+      })),
+    );
+
+/**
+ * Lets providers upload secure documents from desktop when enabled.
+ *
+ * @param {Object} props
+ * @param {string} props.providerId
+ * @param {Object|null} props.settings
+ * @param {Object|null} props.session
+ * @param {Object[]} props.documents
+ * @param {Function} props.createSession
+ * @param {Function} [props.onSubmitted]
+ * @returns {JSX.Element|null}
+ */
+const DesktopFallbackUpload = ({
+  providerId,
+  settings,
+  session,
+  documents = [],
+  createSession,
+  onSubmitted,
+}) => {
+  const [progress, setProgress] = useState({});
+  const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+
+  if (!settings?.desktopFallbackEnabled) {
+    return null;
+  }
+
+  const uploaded = new Set(
+    documents
+      .filter((document) =>
+        ['uploaded', 'submitted', 'approved'].includes(document.status),
+      )
+      .map((document) => `${document.documentType}:${document.side}`),
+  );
+  const steps = expandRequirements(settings.requirements);
+
+  const uploadFile = async (step, file) => {
+    if (!file) {
+      return;
+    }
+
+    setErrors((current) => ({ ...current, [step.key]: '' }));
+
+    try {
+      let activeSession = session;
+      if (!activeSession?.id) {
+        const result = await createSession('qr');
+        activeSession = result.session;
+      }
+
+      await uploadProviderDocumentSecure({
+        file,
+        providerId,
+        sessionId: activeSession.id,
+        documentType: step.requirement.id,
+        side: step.side,
+        source: 'desktop',
+        onProgress: (uploadProgress) => {
+          setProgress((current) => ({
+            ...current,
+            [step.key]: uploadProgress.percent,
+          }));
+        },
+      });
+    } catch (error) {
+      setErrors((current) => ({
+        ...current,
+        [step.key]: error.message || 'Upload failed. Please try again.',
+      }));
+    }
+  };
+
+  const submitSecureDocuments = async () => {
+    if (!session?.id) {
+      setErrors((current) => ({
+        ...current,
+        submit: 'Upload at least one secure document first.',
+      }));
+      return;
+    }
+
+    setSubmitting(true);
+    setErrors((current) => ({ ...current, submit: '' }));
+
+    try {
+      const result = await submitMobileDocuments(session.id);
+      if (result.success === false) {
+        const missing = (result.missing || [])
+          .map((item) => item.label)
+          .join(', ');
+        setErrors((current) => ({
+          ...current,
+          submit: missing
+            ? `Missing required documents: ${missing}.`
+            : 'Required documents are missing.',
+        }));
+        return;
+      }
+
+      onSubmitted?.(result);
+    } catch (error) {
+      setErrors((current) => ({
+        ...current,
+        submit: error.message || 'Secure document submission failed.',
+      }));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 sm:p-5">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-base font-bold text-gray-950">
+            Secure desktop upload
+          </h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Files are stored privately and reviewed through signed admin links.
+          </p>
+        </div>
+        {session?.status === 'submitted' && (
+          <span className="inline-flex w-fit items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+            <FiCheckCircle className="h-3.5 w-3.5" />
+            Submitted
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {steps.map((step) => {
+          const accept = (step.requirement.allowedMimeTypes || []).join(',');
+          const done = uploaded.has(step.key);
+          const percent = progress[step.key];
+
+          return (
+            <div key={step.key} className="rounded-lg border border-gray-200 bg-white p-4">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                  <FiFileText className="h-5 w-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-gray-950">
+                    {(step.requirement.sides || []).length > 1
+                      ? `${step.requirement.label} (${step.side})`
+                      : step.requirement.label}
+                    {step.requirement.required ? ' *' : ''}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {step.requirement.description}
+                  </p>
+                </div>
+              </div>
+
+              <label className="mt-4 flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-50">
+                <FiUpload className="h-4 w-4" />
+                {done ? 'Replace file' : 'Upload file'}
+                <input
+                  type="file"
+                  className="hidden"
+                  accept={accept}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] || null;
+                    event.target.value = '';
+                    uploadFile(step, file);
+                  }}
+                />
+              </label>
+
+              {typeof percent === 'number' && percent > 0 && percent < 100 && (
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-200">
+                  <div
+                    className="h-full rounded-full bg-blue-600 transition-all"
+                    style={{ width: `${percent}%` }}
+                  />
+                </div>
+              )}
+
+              {done && (
+                <p className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-emerald-700">
+                  <FiCheckCircle className="h-3.5 w-3.5" />
+                  Uploaded
+                </p>
+              )}
+
+              {errors[step.key] && (
+                <p className="mt-3 text-sm text-red-600">{errors[step.key]}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {errors.submit && (
+        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {errors.submit}
+        </p>
+      )}
+
+      <div className="mt-5 flex justify-end">
+        <button
+          type="button"
+          onClick={submitSecureDocuments}
+          disabled={submitting || session?.status === 'submitted'}
+          className="inline-flex h-11 items-center justify-center rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+        >
+          {submitting ? 'Submitting...' : 'Submit secure documents'}
+        </button>
+      </div>
+    </section>
+  );
+};
+
+export default DesktopFallbackUpload;
