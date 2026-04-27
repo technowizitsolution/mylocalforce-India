@@ -54,19 +54,32 @@ const isUnauthenticatedCallableError = (error) =>
     .toLowerCase()
     .includes('authentication required');
 
+const IDENTITY_DOCUMENT_REQUIREMENTS = new Set([
+  'passport',
+  'driving_licence',
+  'driving_license',
+  'drivingLicence',
+]);
+
+const identityDescriptions = {
+  passport: 'Upload a clear JPEG image of your passport if it is your identity document.',
+  driving_licence:
+    'Upload a clear JPEG image of your driving licence if it is your identity document.',
+  driving_license:
+    'Upload a clear JPEG image of your driving licence if it is your identity document.',
+  drivingLicence:
+    'Upload a clear JPEG image of your driving licence if it is your identity document.',
+};
+
 const normalizeUploadRequirement = (requirement) => {
-  if (requirement?.id !== 'passport') {
+  if (!IDENTITY_DOCUMENT_REQUIREMENTS.has(requirement?.id)) {
     return requirement;
   }
 
   return {
     ...requirement,
-    required: true,
-    description:
-      requirement.description?.replace(
-        /\s+if it is your identity document\.?$/i,
-        '',
-      ) || 'Upload a clear JPEG image of your passport.',
+    required: false,
+    description: identityDescriptions[requirement.id] || requirement.description,
   };
 };
 
@@ -282,6 +295,7 @@ export const subscribeToUploadSessionProgress = (
  * @param {string} registrationStep
  * @param {(summary: Object) => void} onChange
  * @param {(error: Error) => void} [onError]
+ * @param {{ includeSubmitted?: boolean }} [options]
  * @returns {() => void}
  */
 export const subscribeToLatestProviderUploadSession = (
@@ -289,10 +303,13 @@ export const subscribeToLatestProviderUploadSession = (
   registrationStep,
   onChange,
   onError,
+  options = {},
 ) => {
   if (!providerId) {
     return () => {};
   }
+
+  const includeSubmitted = options.includeSubmitted !== false;
 
   const sessionsQuery = query(
     collection(firestore, 'providerUploadSessions'),
@@ -305,7 +322,11 @@ export const subscribeToLatestProviderUploadSession = (
     (snapshot) => {
       const sessions = snapshot.docs
         .map((item) => ({ id: item.id, ...item.data() }))
-        .filter((session) => ['active', 'submitted'].includes(session.status))
+        .filter((session) =>
+          includeSubmitted
+            ? ['active', 'submitted'].includes(session.status)
+            : session.status === 'active'
+        )
         .sort((a, b) => {
           const aTime = a.createdAt?.toMillis?.() || a.createdAt || 0;
           const bTime = b.createdAt?.toMillis?.() || b.createdAt || 0;

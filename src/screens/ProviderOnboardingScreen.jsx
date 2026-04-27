@@ -181,6 +181,131 @@ const getFileNameFromUrl = (url, fallback) => {
   }
 };
 
+const VALID_SECURE_DOCUMENT_STATUSES = new Set(['uploaded', 'submitted', 'approved']);
+
+const DOCUMENT_TYPE_ALIASES = {
+  passport: 'passport',
+  id_proof: 'id_proof',
+  idProof: 'id_proof',
+  driving_licence: 'driving_licence',
+  driving_license: 'driving_licence',
+  drivingLicence: 'driving_licence',
+  drivingLicense: 'driving_licence',
+  resume_cv: 'resume_cv',
+  resume: 'resume_cv',
+  cv: 'resume_cv',
+  certificates: 'certificates',
+  certificate: 'certificates',
+  verification_video: 'verification_video',
+  verificationVideo: 'verification_video',
+};
+
+const DOCUMENT_REUPLOAD_MATCHERS = [
+  { tokens: ['passport'], types: ['passport'] },
+  {
+    tokens: ['driving licence', 'driving license', 'licence', 'license'],
+    types: ['driving_licence'],
+  },
+  { tokens: ['resume', 'cv'], types: ['resume_cv'] },
+  { tokens: ['certificate', 'certificates'], types: ['certificates'] },
+  { tokens: ['verification video', 'video'], types: ['verification_video'] },
+  { tokens: ['id proof', 'identity'], types: ['passport', 'driving_licence'] },
+];
+
+const normalizeDocumentType = (value) => {
+  const raw = String(value || '').trim();
+  const snake = raw.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`).toLowerCase();
+  return DOCUMENT_TYPE_ALIASES[raw] || DOCUMENT_TYPE_ALIASES[snake] || snake || raw;
+};
+
+const addReuploadTypesFromText = (target, text) => {
+  const normalizedText = String(text || '').toLowerCase();
+  if (!normalizedText) return;
+
+  DOCUMENT_REUPLOAD_MATCHERS.forEach((matcher) => {
+    if (matcher.tokens.some((token) => normalizedText.includes(token))) {
+      matcher.types.forEach((type) => target.add(normalizeDocumentType(type)));
+    }
+  });
+};
+
+const deriveRequestedReuploadTypes = (currentUser) => {
+  const requested = new Set();
+  const meta = currentUser?.rejectionMeta || {};
+  const sourceItems = [
+    ...(Array.isArray(meta.reuploadItems) ? meta.reuploadItems : []),
+    ...(Array.isArray(currentUser?.rejectionReasons) ? currentUser.rejectionReasons : []),
+    ...(typeof currentUser?.rejectionReason === 'string' ? [currentUser.rejectionReason] : []),
+  ];
+
+  sourceItems.forEach((item) => addReuploadTypesFromText(requested, item));
+  return requested;
+};
+
+const collectSecureDocumentEntries = (target, value, fallbackType = '') => {
+  if (!value) return;
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectSecureDocumentEntries(target, item, fallbackType));
+    return;
+  }
+
+  if (typeof value !== 'object') return;
+
+  const documentType = normalizeDocumentType(value.documentType || fallbackType);
+  const hasDocumentShape =
+    value.id ||
+    value.documentId ||
+    value.storagePath ||
+    value.originalName ||
+    value.status ||
+    value.reviewStatus;
+
+  if (Array.isArray(value.files)) {
+    value.files.forEach((file) =>
+      collectSecureDocumentEntries(target, file, value.documentType || fallbackType)
+    );
+    return;
+  }
+
+  if (Array.isArray(value.documents)) {
+    value.documents.forEach((document) =>
+      collectSecureDocumentEntries(target, document, value.documentType || fallbackType)
+    );
+    return;
+  }
+
+  if (hasDocumentShape && documentType) {
+    target.push({
+      id: value.id || value.documentId || `${documentType}:${value.side || 'single'}`,
+      documentType,
+      side: value.side || 'single',
+      status: value.status || 'submitted',
+      reviewStatus: value.reviewStatus || 'pending_review',
+      originalName: value.originalName || '',
+      storagePath: value.storagePath || '',
+      uploadedAt: value.uploadedAt || null,
+      updatedAt: value.updatedAt || null,
+    });
+    return;
+  }
+
+  Object.entries(value).forEach(([key, nestedValue]) => {
+    collectSecureDocumentEntries(target, nestedValue, normalizeDocumentType(key) || fallbackType);
+  });
+};
+
+const flattenSecureDocuments = (documents = {}) => {
+  const entries = [];
+  collectSecureDocumentEntries(entries, documents.secureDocuments || {});
+
+  ['passport', 'drivingLicence', 'drivingLicense', 'resume', 'certificates', 'verificationVideo'].forEach(
+    (key) => collectSecureDocumentEntries(entries, documents[key], key)
+  );
+
+  return entries;
+};
+
 const controlClass =
   'h-12 w-full rounded-lg border border-gray-300 bg-white px-4 text-gray-900 placeholder-gray-500 transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500';
 const compactControlClass =
@@ -368,7 +493,7 @@ const ProviderOnboardingScreen = () => {
 
   const [notificationPref, setNotificationPref] = useState('both');
 
-  const [passportSelected, setPassportSelected] = useState(true);
+  const [passportSelected, setPassportSelected] = useState(false);
   const [drivingLicenceSelected, setDrivingLicenceSelected] = useState(false);
   const [passportData, setPassportData] = useState({
     number: '',
@@ -394,6 +519,8 @@ const ProviderOnboardingScreen = () => {
     certificatesUrl: '',
     verificationVideoUrl: '',
   });
+  const [storedSecureDocuments, setStoredSecureDocuments] = useState([]);
+  const [storedSecureUploadSessionId, setStoredSecureUploadSessionId] = useState('');
   const [uploadProgress, setUploadProgress] = useState({});
   const [secureUploadSummary, setSecureUploadSummary] = useState(null);
   const [secureUploadAvailability, setSecureUploadAvailability] = useState({
@@ -419,6 +546,8 @@ const ProviderOnboardingScreen = () => {
     }
 
     if (!providerDetails) {
+      setStoredSecureDocuments([]);
+      setStoredSecureUploadSessionId('');
       return;
     }
 
@@ -451,8 +580,24 @@ const ProviderOnboardingScreen = () => {
 
     setNotificationPref(notificationPreferences.preference || 'both');
 
-    setPassportSelected(true);
-    setDrivingLicenceSelected(Boolean(documents.drivingLicenceUrl || drivingLicence.number));
+    setPassportSelected(
+      Boolean(
+        documents.passportUrl ||
+          documents.passport ||
+          documents.secureDocuments?.passport ||
+          passport.number
+      )
+    );
+    setDrivingLicenceSelected(
+      Boolean(
+        documents.drivingLicenceUrl ||
+          documents.drivingLicence ||
+          documents.drivingLicense ||
+          documents.secureDocuments?.drivingLicence ||
+          documents.secureDocuments?.drivingLicense ||
+          drivingLicence.number
+      )
+    );
     setPassportData({
       number: passport.number || '',
       expiry: parseStoredDate(passport.expiry),
@@ -470,6 +615,13 @@ const ProviderOnboardingScreen = () => {
       certificatesUrl: documents.certificatesUrl || '',
       verificationVideoUrl: documents.verificationVideoUrl || '',
     });
+    setStoredSecureDocuments(flattenSecureDocuments(documents));
+    setStoredSecureUploadSessionId(
+      documents.secureUploadSessionId ||
+        providerDetails.latestDocumentUploadSessionId ||
+        providerDetails.secureUploadSessionId ||
+        ''
+    );
 
     if (categories.length > 0 && existingServices.length > 0) {
       const inferredCategoryIds = categories
@@ -590,6 +742,34 @@ const ProviderOnboardingScreen = () => {
     return selectedMainCategoryId ? '1 category selected' : 'No categories selected';
   }, [selectedMainCategoryId, selectedMainCategoryIds]);
 
+  const isRejectedApplication =
+    String(user?.approvalStatus || '').toLowerCase() === 'rejected';
+  const requestedReuploadTypes = useMemo(
+    () => deriveRequestedReuploadTypes(user),
+    [user?.rejectionMeta, user?.rejectionReason, user?.rejectionReasons]
+  );
+
+  const normalizeAcceptedTypes = (documentTypes) =>
+    (Array.isArray(documentTypes) ? documentTypes : [documentTypes]).map(normalizeDocumentType);
+
+  const requiresFreshDocument = (documentTypes) =>
+    normalizeAcceptedTypes(documentTypes).some((type) => requestedReuploadTypes.has(type));
+
+  const carriedForwardDocuments = useMemo(
+    () =>
+      storedSecureDocuments.filter((document) => {
+        const documentType = normalizeDocumentType(document.documentType);
+        return (
+          VALID_SECURE_DOCUMENT_STATUSES.has(document.status || '') &&
+          !requestedReuploadTypes.has(documentType)
+        );
+      }),
+    [requestedReuploadTypes, storedSecureDocuments]
+  );
+
+  const hasReusableExistingUrl = (documentKey, documentTypes) =>
+    Boolean(existingDocuments[documentKey]) && !requiresFreshDocument(documentTypes);
+
   const validateFile = (file, type) => {
     if (!file) {
       return null;
@@ -655,15 +835,22 @@ const ProviderOnboardingScreen = () => {
   };
 
   const hasSecureDocument = (documentTypes) => {
-    const acceptedTypes = Array.isArray(documentTypes) ? documentTypes : [documentTypes];
+    const acceptedTypes = normalizeAcceptedTypes(documentTypes);
+    const needsFreshUpload = requiresFreshDocument(acceptedTypes);
 
-    return (secureUploadSummary?.documents || []).some((document) => {
+    const hasCurrentUpload = (secureUploadSummary?.documents || []).some((document) => {
       const status = document.status || '';
-      return (
-        acceptedTypes.includes(document.documentType) &&
-        ['uploaded', 'submitted', 'approved'].includes(status)
-      );
+      return acceptedTypes.includes(normalizeDocumentType(document.documentType)) &&
+        VALID_SECURE_DOCUMENT_STATUSES.has(status);
     });
+
+    if (hasCurrentUpload || needsFreshUpload) {
+      return hasCurrentUpload;
+    }
+
+    return carriedForwardDocuments.some((document) =>
+      acceptedTypes.includes(normalizeDocumentType(document.documentType))
+    );
   };
 
   const validateStep = (step) => {
@@ -707,8 +894,8 @@ const ProviderOnboardingScreen = () => {
     }
 
     if (step === 5) {
-      if (!passportSelected) {
-        return 'Passport is required for provider verification.';
+      if (!passportSelected && !drivingLicenceSelected) {
+        return 'Please provide at least one ID proof (Passport or Driving Licence).';
       }
 
       if (passportSelected) {
@@ -723,7 +910,7 @@ const ProviderOnboardingScreen = () => {
 
         if (
           !selectedFiles.passport &&
-          !existingDocuments.passportUrl &&
+          !hasReusableExistingUrl('passportUrl', 'passport') &&
           !hasSecureDocument('passport')
         ) {
           return 'Please upload your passport image.';
@@ -743,7 +930,11 @@ const ProviderOnboardingScreen = () => {
 
         if (
           !selectedFiles.drivingLicence &&
-          !existingDocuments.drivingLicenceUrl &&
+          !hasReusableExistingUrl('drivingLicenceUrl', [
+            'driving_licence',
+            'driving_license',
+            'drivingLicence',
+          ]) &&
           !hasSecureDocument(['driving_licence', 'driving_license', 'drivingLicence'])
         ) {
           return 'Please upload your driving licence image.';
@@ -752,7 +943,7 @@ const ProviderOnboardingScreen = () => {
 
       if (
         !selectedFiles.resume &&
-        !existingDocuments.resumeUrl &&
+        !hasReusableExistingUrl('resumeUrl', ['resume_cv', 'resume']) &&
         !hasSecureDocument(['resume_cv', 'resume'])
       ) {
         return 'Please upload your resume or CV.';
@@ -760,7 +951,7 @@ const ProviderOnboardingScreen = () => {
 
       if (
         !selectedFiles.certificates &&
-        !existingDocuments.certificatesUrl &&
+        !hasReusableExistingUrl('certificatesUrl', 'certificates') &&
         !hasSecureDocument('certificates')
       ) {
         return 'Please upload your certificates.';
@@ -827,9 +1018,27 @@ const ProviderOnboardingScreen = () => {
       }
     }
 
-    const legacyDocuments = Object.fromEntries(
-      Object.entries(existingDocuments).filter(([, value]) => Boolean(value))
-    );
+    const legacyDocuments = {
+      ...(hasReusableExistingUrl('passportUrl', 'passport')
+        ? { passportUrl: existingDocuments.passportUrl }
+        : {}),
+      ...(hasReusableExistingUrl('drivingLicenceUrl', [
+        'driving_licence',
+        'driving_license',
+        'drivingLicence',
+      ])
+        ? { drivingLicenceUrl: existingDocuments.drivingLicenceUrl }
+        : {}),
+      ...(hasReusableExistingUrl('resumeUrl', ['resume_cv', 'resume'])
+        ? { resumeUrl: existingDocuments.resumeUrl }
+        : {}),
+      ...(hasReusableExistingUrl('certificatesUrl', 'certificates')
+        ? { certificatesUrl: existingDocuments.certificatesUrl }
+        : {}),
+      ...(hasReusableExistingUrl('verificationVideoUrl', 'verification_video')
+        ? { verificationVideoUrl: existingDocuments.verificationVideoUrl }
+        : {}),
+    };
     await saveProviderOnboardingDraft(user.uid, buildProviderDetails(legacyDocuments, 'draft'));
   };
 
@@ -857,10 +1066,13 @@ const ProviderOnboardingScreen = () => {
         throw new Error('User not authenticated.');
       }
 
+      const secureSubmissionSessionId =
+        secureUploadSummary?.sessionId || storedSecureUploadSessionId || '';
       const usingSecureDocuments = Boolean(
         secureUploadSummary?.sessionId ||
         secureUploadSummary?.hasUploadedDocuments ||
-        secureUploadSummary?.isSubmitted
+        secureUploadSummary?.isSubmitted ||
+        carriedForwardDocuments.length > 0
       );
 
       const uploadSingleDocument = async ({
@@ -961,8 +1173,12 @@ const ProviderOnboardingScreen = () => {
       const providerDetails = buildProviderDetails(documents, 'under_review');
 
       if (usingSecureDocuments) {
+        if (!secureSubmissionSessionId) {
+          throw new Error('Secure document upload session could not be found. Please create a new upload link and try again.');
+        }
+
         await saveProviderDetailsWithSecureDocuments(user.uid, providerDetails, {
-          sessionId: secureUploadSummary.sessionId,
+          sessionId: secureSubmissionSessionId,
           documentsMetadata: secureUploadSummary.documentsMetadata || {},
         });
       } else {
@@ -1451,7 +1667,7 @@ const ProviderOnboardingScreen = () => {
             <div>
               <h2 className="text-lg font-bold text-gray-950">Documents for review</h2>
               <p className="mt-1 text-sm leading-6 text-gray-600">
-                Add your required passport details, then upload the requested files in one secure
+                Add at least one identity proof, then upload the requested files in one secure
                 checklist.
               </p>
             </div>
@@ -1466,7 +1682,7 @@ const ProviderOnboardingScreen = () => {
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Step 1</p>
             <h3 className="mt-1 text-base font-bold text-gray-950">Identity details</h3>
             <p className="mt-1 text-sm leading-6 text-gray-500">
-              Passport is required for provider verification. Driving licence is optional.
+              Choose passport, driving licence, or both. At least one ID proof is required.
             </p>
           </div>
 
@@ -1478,7 +1694,7 @@ const ProviderOnboardingScreen = () => {
                   : 'border-gray-200 hover:border-gray-300'
               }`}
             >
-              <div className="flex items-start justify-between gap-4">
+              <label className="flex cursor-pointer items-start justify-between gap-4">
                 <span className="flex items-start gap-3">
                   <span
                     className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
@@ -1490,14 +1706,36 @@ const ProviderOnboardingScreen = () => {
                   <span>
                     <span className="block text-sm font-bold text-gray-950">Passport</span>
                     <span className="mt-1 block text-xs text-gray-500">
-                      Required for identity verification.
+                      Use your passport for identity verification.
                     </span>
                   </span>
                 </span>
-                <span className="mt-0.5 rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">
-                  Required
-                </span>
-              </div>
+                <input
+                  type="checkbox"
+                  checked={passportSelected}
+                  onChange={(event) => {
+                    clearMessages();
+                    const enabled = event.target.checked;
+                    setPassportSelected(enabled);
+
+                    if (!enabled) {
+                      setPassportData({
+                        number: '',
+                        expiry: emptyDate(),
+                      });
+                      setSelectedFiles((current) => ({
+                        ...current,
+                        passport: null,
+                      }));
+                      setExistingDocuments((current) => ({
+                        ...current,
+                        passportUrl: '',
+                      }));
+                    }
+                  }}
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+              </label>
 
               {passportSelected && (
                 <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
@@ -1592,7 +1830,9 @@ const ProviderOnboardingScreen = () => {
                   </div>
 
                   {renderDocumentStatus({
-                    existingUrl: existingDocuments.passportUrl,
+                    existingUrl: hasReusableExistingUrl('passportUrl', 'passport')
+                      ? existingDocuments.passportUrl
+                      : '',
                     label: 'Passport image',
                     prompt: 'Upload the passport image in the secure upload area.',
                     secureUploaded: hasSecureDocument('passport'),
@@ -1602,7 +1842,11 @@ const ProviderOnboardingScreen = () => {
                       required
                       icon={FiImage}
                       selectedFile={selectedFiles.passport}
-                      existingUrl={existingDocuments.passportUrl}
+                      existingUrl={
+                        hasReusableExistingUrl('passportUrl', 'passport')
+                          ? existingDocuments.passportUrl
+                          : ''
+                      }
                       onChange={handleFileSelect('passport', 'passport')}
                       accept="image/jpeg,image/jpg"
                       helperText="JPEG only"
@@ -1781,7 +2025,13 @@ const ProviderOnboardingScreen = () => {
                   </div>
 
                   {renderDocumentStatus({
-                    existingUrl: existingDocuments.drivingLicenceUrl,
+                    existingUrl: hasReusableExistingUrl('drivingLicenceUrl', [
+                      'driving_licence',
+                      'driving_license',
+                      'drivingLicence',
+                    ])
+                      ? existingDocuments.drivingLicenceUrl
+                      : '',
                     label: 'Driving licence image',
                     prompt: 'Upload the driving licence image in the secure upload area.',
                     secureUploaded: hasSecureDocument([
@@ -1795,7 +2045,15 @@ const ProviderOnboardingScreen = () => {
                       required
                       icon={FiImage}
                       selectedFile={selectedFiles.drivingLicence}
-                      existingUrl={existingDocuments.drivingLicenceUrl}
+                      existingUrl={
+                        hasReusableExistingUrl('drivingLicenceUrl', [
+                          'driving_licence',
+                          'driving_license',
+                          'drivingLicence',
+                        ])
+                          ? existingDocuments.drivingLicenceUrl
+                          : ''
+                      }
                       onChange={handleFileSelect('drivingLicence', 'drivingLicence')}
                       accept="image/jpeg,image/jpg"
                       helperText="JPEG only"
@@ -1822,6 +2080,9 @@ const ProviderOnboardingScreen = () => {
             providerId={user.uid}
             registrationStep="provider_onboarding_documents"
             verifiedMobileNumber={user.phone || user.phoneNumber}
+            ignoreSubmittedSessions={isRejectedApplication}
+            carriedForwardDocuments={carriedForwardDocuments}
+            requestedReuploadTypes={Array.from(requestedReuploadTypes)}
             onSummaryChange={setSecureUploadSummary}
             onAvailabilityChange={setSecureUploadAvailability}
             onBeforeCreateSession={saveDraftForSecureUpload}
@@ -1839,7 +2100,9 @@ const ProviderOnboardingScreen = () => {
 
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               {renderDocumentStatus({
-                existingUrl: existingDocuments.resumeUrl,
+                existingUrl: hasReusableExistingUrl('resumeUrl', ['resume_cv', 'resume'])
+                  ? existingDocuments.resumeUrl
+                  : '',
                 label: 'Resume / CV',
                 secureUploaded: hasSecureDocument(['resume_cv', 'resume']),
               }) || (
@@ -1848,7 +2111,11 @@ const ProviderOnboardingScreen = () => {
                   required
                   icon={FiFileText}
                   selectedFile={selectedFiles.resume}
-                  existingUrl={existingDocuments.resumeUrl}
+                  existingUrl={
+                    hasReusableExistingUrl('resumeUrl', ['resume_cv', 'resume'])
+                      ? existingDocuments.resumeUrl
+                      : ''
+                  }
                   onChange={handleFileSelect('resume', 'resume')}
                   accept=".pdf,.doc,.docx,image/*"
                   helperText="Accepted up to 10MB"
@@ -1858,7 +2125,9 @@ const ProviderOnboardingScreen = () => {
               )}
 
               {renderDocumentStatus({
-                existingUrl: existingDocuments.certificatesUrl,
+                existingUrl: hasReusableExistingUrl('certificatesUrl', 'certificates')
+                  ? existingDocuments.certificatesUrl
+                  : '',
                 label: 'Certificates',
                 secureUploaded: hasSecureDocument('certificates'),
               }) || (
@@ -1867,7 +2136,11 @@ const ProviderOnboardingScreen = () => {
                   required
                   icon={FiFileText}
                   selectedFile={selectedFiles.certificates}
-                  existingUrl={existingDocuments.certificatesUrl}
+                  existingUrl={
+                    hasReusableExistingUrl('certificatesUrl', 'certificates')
+                      ? existingDocuments.certificatesUrl
+                      : ''
+                  }
                   onChange={handleFileSelect('certificates', 'certificates')}
                   accept=".pdf,.doc,.docx,image/*"
                   helperText="Accepted up to 10MB"
@@ -1878,7 +2151,9 @@ const ProviderOnboardingScreen = () => {
 
               <div className="lg:col-span-2">
                 {renderDocumentStatus({
-                  existingUrl: existingDocuments.verificationVideoUrl,
+                  existingUrl: hasReusableExistingUrl('verificationVideoUrl', 'verification_video')
+                    ? existingDocuments.verificationVideoUrl
+                    : '',
                   label: 'Verification video',
                   secureUploaded: hasSecureDocument('verification_video'),
                 }) || (
@@ -1886,7 +2161,11 @@ const ProviderOnboardingScreen = () => {
                     label="Verification Video"
                     icon={FiVideo}
                     selectedFile={selectedFiles.verificationVideo}
-                    existingUrl={existingDocuments.verificationVideoUrl}
+                    existingUrl={
+                      hasReusableExistingUrl('verificationVideoUrl', 'verification_video')
+                        ? existingDocuments.verificationVideoUrl
+                        : ''
+                    }
                     onChange={handleFileSelect('verificationVideo', 'verificationVideo')}
                     accept="video/*"
                     helperText="Optional, up to 50MB"

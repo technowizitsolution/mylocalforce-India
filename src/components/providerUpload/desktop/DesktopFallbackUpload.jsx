@@ -4,6 +4,28 @@ import { submitMobileDocuments } from '../../../services/firebase/documentUpload
 import { uploadProviderDocumentSecure } from '../../../services/firebase/secureDocumentStorageService';
 import { notify, getUserFacingError } from '../../../utils/toast';
 
+const IDENTITY_DOCUMENT_REQUIREMENTS = new Set([
+  'passport',
+  'driving_licence',
+  'driving_license',
+  'drivingLicence',
+]);
+
+const DOCUMENT_TYPE_ALIASES = {
+  driving_license: 'driving_licence',
+  drivingLicence: 'driving_licence',
+  drivingLicense: 'driving_licence',
+  resume: 'resume_cv',
+  cv: 'resume_cv',
+  verificationVideo: 'verification_video',
+};
+
+const normalizeDocumentType = (value) => {
+  const raw = String(value || '');
+  const snake = raw.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`).toLowerCase();
+  return DOCUMENT_TYPE_ALIASES[raw] || DOCUMENT_TYPE_ALIASES[snake] || snake;
+};
+
 /**
  * Expands document requirements into upload steps.
  *
@@ -30,6 +52,8 @@ const expandRequirements = (requirements = []) =>
  * @param {Object|null} props.settings
  * @param {Object|null} props.session
  * @param {Object[]} props.documents
+ * @param {Object[]} [props.carriedForwardDocuments]
+ * @param {string[]} [props.requestedReuploadTypes]
  * @param {Function} props.createSession
  * @param {Function} [props.onSubmitted]
  * @returns {JSX.Element|null}
@@ -39,6 +63,8 @@ const DesktopFallbackUpload = ({
   settings,
   session,
   documents = [],
+  carriedForwardDocuments = [],
+  requestedReuploadTypes = [],
   createSession,
   onSubmitted,
 }) => {
@@ -53,7 +79,13 @@ const DesktopFallbackUpload = ({
   const uploaded = new Set(
     documents
       .filter((document) => ['uploaded', 'submitted', 'approved'].includes(document.status))
-      .map((document) => `${document.documentType}:${document.side}`)
+      .map((document) => `${normalizeDocumentType(document.documentType)}:${document.side}`)
+  );
+  const requestedTypes = new Set(requestedReuploadTypes.map(normalizeDocumentType));
+  const carriedForward = new Set(
+    carriedForwardDocuments
+      .filter((document) => !requestedTypes.has(normalizeDocumentType(document.documentType)))
+      .map((document) => `${normalizeDocumentType(document.documentType)}:${document.side}`)
   );
   const steps = expandRequirements(settings.requirements);
 
@@ -161,8 +193,12 @@ const DesktopFallbackUpload = ({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {steps.map((step) => {
           const accept = (step.requirement.allowedMimeTypes || []).join(',');
-          const done = uploaded.has(step.key);
+          const normalizedStepKey = `${normalizeDocumentType(step.requirement.id)}:${step.side}`;
+          const done = uploaded.has(normalizedStepKey) || carriedForward.has(normalizedStepKey);
+          const isCarriedForward =
+            !uploaded.has(normalizedStepKey) && carriedForward.has(normalizedStepKey);
           const percent = progress[step.key];
+          const isIdentityProof = IDENTITY_DOCUMENT_REQUIREMENTS.has(step.requirement.id);
 
           return (
             <div key={step.key} className="rounded-lg border border-gray-200 bg-white p-4">
@@ -177,6 +213,11 @@ const DesktopFallbackUpload = ({
                       : step.requirement.label}
                     {step.requirement.required ? ' *' : ''}
                   </p>
+                  {isIdentityProof && (
+                    <p className="mt-1 text-xs font-semibold text-blue-700">
+                      Passport or driving licence is required.
+                    </p>
+                  )}
                   <p className="mt-1 text-xs text-gray-500">{step.requirement.description}</p>
                 </div>
               </div>
@@ -206,9 +247,13 @@ const DesktopFallbackUpload = ({
               )}
 
               {done && (
-                <p className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-emerald-700">
+                <p
+                  className={`mt-3 inline-flex items-center gap-1 text-xs font-bold ${
+                    isCarriedForward ? 'text-blue-700' : 'text-emerald-700'
+                  }`}
+                >
                   <FiCheckCircle className="h-3.5 w-3.5" />
-                  Uploaded
+                  {isCarriedForward ? 'Already on file' : 'Uploaded'}
                 </p>
               )}
 

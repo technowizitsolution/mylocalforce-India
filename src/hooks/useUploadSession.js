@@ -14,6 +14,7 @@ import { notify, getUserFacingError } from '../utils/toast';
  * @param {string} params.providerId
  * @param {string} params.registrationStep
  * @param {string} [params.verifiedMobileNumber]
+ * @param {boolean} [params.ignoreSubmittedSessions]
  * @param {(summary: Object) => void} [params.onSummaryChange]
  * @returns {Object}
  */
@@ -21,6 +22,7 @@ export const useUploadSession = ({
   providerId,
   registrationStep,
   verifiedMobileNumber,
+  ignoreSubmittedSessions = false,
   onSummaryChange,
 }) => {
   const [session, setSession] = useState(null);
@@ -49,8 +51,9 @@ export const useUploadSession = ({
         setError(message);
         notify.error(message, { id: 'upload-session-load' });
       },
+      { includeSubmitted: !ignoreSubmittedSessions },
     );
-  }, [providerId, registrationStep]);
+  }, [ignoreSubmittedSessions, providerId, registrationStep]);
 
   useEffect(() => {
     if (!session?.id) {

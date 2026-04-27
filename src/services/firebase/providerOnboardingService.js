@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
+import { submitMobileDocuments as submitSecureMobileDocuments } from './documentUploadService';
 
 // Toggle to skip attempting to disable services from the client (useful while developing)
 // Set to true to skip calling the server callable and avoid permission errors.
@@ -240,6 +241,14 @@ export const saveProviderDetails = async (userId, providerDetails) => {
     const topLevelUpdates = {
       onboardingDocuments: true,
       onboardingSubmittedAt: serverTimestamp(),
+      approvalStatus: 'pending',
+      status: 'pending',
+      providerAccountDisabled: true,
+      disabledReason: 'Provider application pending review',
+      rejectedAt: null,
+      rejectionReason: null,
+      rejectionReasons: [],
+      rejectionMeta: null,
     };
 
     // If provider supplied visa details in the saved payload, mark account as pending approval
@@ -252,9 +261,6 @@ export const saveProviderDetails = async (userId, providerDetails) => {
         topLevelUpdates.visaStatus = 'blocked';
         // Use provider-scoped disabled flag so customer access isn't blocked
         topLevelUpdates.providerAccountDisabled = true;
-        // Mark account as pending review so the app shows the under-review screen
-        topLevelUpdates.approvalStatus = 'pending';
-        topLevelUpdates.status = 'pending';
         topLevelUpdates.visaRemindersSentCount = 0;
         topLevelUpdates.visaReminderLastSentAt = null;
       }
@@ -360,11 +366,15 @@ export const saveProviderDetailsWithSecureDocuments = async (
 
   let sessionData = sessionSnap.data() || {};
   let documentsMetadata = uploadSummary.documentsMetadata || sessionData.documentsMetadata || {};
+  let submittedDocuments = [];
+
+  const detailsRef = doc(firestore, 'users', userId, 'details', 'provider_onboarding');
+  const existingDetailsSnap = await getDoc(detailsRef).catch(() => null);
+  const existingDetails = existingDetailsSnap?.exists?.() ? existingDetailsSnap.data() || {} : {};
+  const existingDocumentReferences = existingDetails.documents || {};
 
   if (sessionData.status !== 'submitted') {
-    const submitFn = httpsCallable(functionsClient, 'submitMobileDocuments');
-    const submitResult = await submitFn({ sessionId: uploadSummary.sessionId });
-    const submitData = submitResult.data || {};
+    const submitData = await submitSecureMobileDocuments(uploadSummary.sessionId);
 
     if (submitData.success === false) {
       const missingLabels = (submitData.missing || []).map((item) => item.label).join(', ');
@@ -376,6 +386,7 @@ export const saveProviderDetailsWithSecureDocuments = async (
     }
 
     documentsMetadata = submitData.documentsMetadata || documentsMetadata;
+    submittedDocuments = submitData.uploadedDocuments || [];
     sessionSnap = await getDoc(sessionRef);
     sessionData = sessionSnap.data() || {};
   }
@@ -384,13 +395,14 @@ export const saveProviderDetailsWithSecureDocuments = async (
     throw new Error('Secure document upload session is not submitted yet.');
   }
 
-  const secureDocuments = await fetchSecureProviderDocuments(userId, uploadSummary.sessionId);
-  const secureOnboardingDocuments = buildSecureOnboardingDocuments(
-    secureDocuments,
-    uploadSummary.sessionId
-  );
-
-  const detailsRef = doc(firestore, 'users', userId, 'details', 'provider_onboarding');
+  const secureDocuments =
+    submittedDocuments.length > 0
+      ? submittedDocuments
+      : await fetchSecureProviderDocuments(userId, uploadSummary.sessionId);
+  const secureOnboardingDocuments =
+    submittedDocuments.length > 0 || !existingDocumentReferences.secureDocumentIds
+      ? buildSecureOnboardingDocuments(secureDocuments, uploadSummary.sessionId)
+      : existingDocumentReferences;
 
   await setDoc(
     detailsRef,
@@ -403,7 +415,10 @@ export const saveProviderDetailsWithSecureDocuments = async (
       documentUploadMode: 'secure_v2',
       latestDocumentUploadSessionId: uploadSummary.sessionId,
       documentsMetadata,
-      secureDocumentCount: secureDocuments.length,
+      secureDocumentCount: Math.max(
+        secureDocuments.length,
+        Number(existingDetails.secureDocumentCount || 0)
+      ),
       updatedAt: serverTimestamp(),
     },
     { merge: true }
@@ -415,9 +430,18 @@ export const saveProviderDetailsWithSecureDocuments = async (
     onboardingSubmittedAt: serverTimestamp(),
     approvalStatus: 'pending',
     status: 'pending',
+    providerAccountDisabled: true,
+    disabledReason: 'Provider application pending review',
+    rejectedAt: null,
+    rejectionReason: null,
+    rejectionReasons: [],
+    rejectionMeta: null,
     documentUploadMode: 'secure_v2',
     latestDocumentUploadSessionId: uploadSummary.sessionId,
-    secureDocumentCount: secureDocuments.length,
+    secureDocumentCount: Math.max(
+      secureDocuments.length,
+      Number(existingDetails.secureDocumentCount || 0)
+    ),
     documentsMetadata,
   };
 

@@ -4,6 +4,13 @@ import { uploadProviderDocumentSecure } from '../../../services/firebase/secureD
 import { notify, getUserFacingError } from '../../../utils/toast';
 import FileCapture from './FileCapture';
 
+const IDENTITY_DOCUMENT_REQUIREMENTS = new Set([
+  'passport',
+  'driving_licence',
+  'driving_license',
+  'drivingLicence',
+]);
+
 /**
  * Renders a single guided upload step.
  *
@@ -21,6 +28,7 @@ const UploadStep = ({ step, providerId, sessionId, completed, onUploaded }) => {
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
   const { requirement, side } = step;
+  const isIdentityProof = IDENTITY_DOCUMENT_REQUIREMENTS.has(requirement.id);
 
   const uploadFile = async (file) => {
     if (!file) {
@@ -64,12 +72,12 @@ const UploadStep = ({ step, providerId, sessionId, completed, onUploaded }) => {
           </h2>
           <span
             className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-              requirement.required
+              requirement.required || isIdentityProof
                 ? 'bg-red-50 text-red-700'
                 : 'bg-gray-100 text-gray-600'
             }`}
           >
-            {requirement.required ? 'Required' : 'Optional'}
+            {isIdentityProof ? 'One required' : requirement.required ? 'Required' : 'Optional'}
           </span>
         </div>
         <p className="mt-3 text-sm leading-6 text-gray-600">

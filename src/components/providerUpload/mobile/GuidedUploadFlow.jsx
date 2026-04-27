@@ -12,19 +12,32 @@ import UploadStep from './UploadStep';
  */
 const completionKey = (documentType, side) => `${documentType}:${side}`;
 
+const IDENTITY_DOCUMENT_REQUIREMENTS = new Set([
+  'passport',
+  'driving_licence',
+  'driving_license',
+  'drivingLicence',
+]);
+
+const identityDescriptions = {
+  passport: 'Upload a clear JPEG image of your passport if it is your identity document.',
+  driving_licence:
+    'Upload a clear JPEG image of your driving licence if it is your identity document.',
+  driving_license:
+    'Upload a clear JPEG image of your driving licence if it is your identity document.',
+  drivingLicence:
+    'Upload a clear JPEG image of your driving licence if it is your identity document.',
+};
+
 const normalizeRequirement = (requirement) => {
-  if (requirement.id !== 'passport') {
+  if (!IDENTITY_DOCUMENT_REQUIREMENTS.has(requirement.id)) {
     return requirement;
   }
 
   return {
     ...requirement,
-    required: true,
-    description:
-      requirement.description?.replace(
-        /\s+if it is your identity document\.?$/i,
-        '',
-      ) || 'Upload a clear JPEG image of your passport.',
+    required: false,
+    description: identityDescriptions[requirement.id] || requirement.description,
   };
 };
 
@@ -75,10 +88,13 @@ const GuidedUploadFlow = ({ session, settings, uploadedDocuments = [] }) => {
   const handleMissing = (missing) => {
     const firstMissing = missing
       .map((item) =>
-        steps.findIndex(
-          (step) =>
-            step.requirement.id === item.documentType && step.side === item.side,
-        ),
+        steps.findIndex((step) => {
+          if (item.documentType === 'identity') {
+            return IDENTITY_DOCUMENT_REQUIREMENTS.has(step.requirement.id);
+          }
+
+          return step.requirement.id === item.documentType && step.side === item.side;
+        }),
       )
       .find((index) => index >= 0);
 

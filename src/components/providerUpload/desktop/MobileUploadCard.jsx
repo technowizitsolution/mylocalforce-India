@@ -29,6 +29,9 @@ const toMillis = (value) => {
  * @param {string} props.providerId
  * @param {string} props.registrationStep
  * @param {string} [props.verifiedMobileNumber]
+ * @param {boolean} [props.ignoreSubmittedSessions]
+ * @param {Object[]} [props.carriedForwardDocuments]
+ * @param {string[]} [props.requestedReuploadTypes]
  * @param {Function} [props.onSummaryChange]
  * @param {Function} [props.onAvailabilityChange]
  * @param {Function} [props.onBeforeCreateSession]
@@ -38,6 +41,9 @@ const MobileUploadCard = ({
   providerId,
   registrationStep,
   verifiedMobileNumber,
+  ignoreSubmittedSessions = false,
+  carriedForwardDocuments = [],
+  requestedReuploadTypes = [],
   onSummaryChange,
   onAvailabilityChange,
   onBeforeCreateSession,
@@ -59,6 +65,7 @@ const MobileUploadCard = ({
     providerId,
     registrationStep,
     verifiedMobileNumber,
+    ignoreSubmittedSessions,
     onSummaryChange,
   });
 
@@ -261,6 +268,8 @@ const MobileUploadCard = ({
       <UploadProgressTracker
         requirements={settings?.requirements || []}
         documents={documents}
+        carriedForwardDocuments={carriedForwardDocuments}
+        requestedReuploadTypes={requestedReuploadTypes}
         session={session}
       />
 
@@ -270,6 +279,8 @@ const MobileUploadCard = ({
           settings={settings}
           session={session}
           documents={documents}
+          carriedForwardDocuments={carriedForwardDocuments}
+          requestedReuploadTypes={requestedReuploadTypes}
           createSession={async (...args) => {
             await onBeforeCreateSession?.();
             return createSession(...args);
