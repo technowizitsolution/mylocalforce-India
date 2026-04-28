@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Welcome from './components/Welcome';
+import AboutUs from './components/AboutUs';
 import RoleProtectedRoute from './components/RoleProtectedRoute';
 import Customer from './customer/Customer';
 import Home from './customer/pages/Home';
@@ -30,6 +31,8 @@ const App = () => {
     <Routes>
       {/* Public Routes */}
       <Route path="/" element={<Welcome />} />
+      <Route path="/about" element={<AboutUs />} />
+      <Route path="/about-us" element={<Navigate to="/about" replace />} />
 
       <Route path="/login" element={<LoginScreen />} />
 

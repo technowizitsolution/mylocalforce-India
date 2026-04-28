@@ -1,5 +1,6 @@
 import { FaFacebookF, FaInstagram, FaLinkedinIn } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
+import { Link } from 'react-router-dom';
 
 import React from 'react'
 
@@ -42,7 +43,7 @@ const Footer = () => {
                     <div>
                         <h3 className="mb-3 sm:mb-4 md:mb-6 font-bold text-gray-900 text-sm sm:text-base">Company</h3>
                         <ul className="space-y-2 sm:space-y-3">
-                            <li><a href="#" className="text-xs sm:text-sm text-gray-700 hover:text-gray-900 transition">About us</a></li>
+                            <li><Link to="/about" className="text-xs sm:text-sm text-gray-700 hover:text-gray-900 transition">About us</Link></li>
                             <li><a href="#" className="text-xs sm:text-sm text-gray-700 hover:text-gray-900 transition">Terms & conditions</a></li>
                             <li><a href="#" className="text-xs sm:text-sm text-gray-700 hover:text-gray-900 transition">Privacy policy</a></li>
                             <li><a href="#" className="text-xs sm:text-sm text-gray-700 hover:text-gray-900 transition">Careers</a></li>
