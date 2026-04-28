@@ -11,6 +11,88 @@ const IDENTITY_DOCUMENT_REQUIREMENTS = new Set([
   'drivingLicence',
 ]);
 
+const MIME_TYPE_ALIASES = {
+  'image/jpg': 'image/jpeg',
+  'image/pjpeg': 'image/jpeg',
+};
+
+const MIME_TYPE_BY_EXTENSION = {
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.mov': 'video/quicktime',
+  '.mp4': 'video/mp4',
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.webm': 'video/webm',
+};
+
+const EXTENSION_BY_MIME_TYPE = Object.entries(MIME_TYPE_BY_EXTENSION).reduce(
+  (lookup, [extension, mimeType]) => ({
+    ...lookup,
+    [mimeType]: extension === '.jpeg' ? '.jpg' : extension,
+  }),
+  {}
+);
+
+const getFileExtension = (file) => {
+  const match = /\.([A-Za-z0-9]+)$/.exec(file?.name || '');
+
+  if (match) {
+    return `.${match[1].toLowerCase()}`;
+  }
+
+  const rawType = String(file?.type || '').trim().toLowerCase();
+  return EXTENSION_BY_MIME_TYPE[MIME_TYPE_ALIASES[rawType] || rawType] || '';
+};
+
+const normalizeMimeType = (file, extension) => {
+  const rawType = String(file?.type || '').trim().toLowerCase();
+  const aliasedType = MIME_TYPE_ALIASES[rawType] || rawType;
+
+  if (aliasedType && aliasedType !== 'application/octet-stream') {
+    return aliasedType;
+  }
+
+  return MIME_TYPE_BY_EXTENSION[extension] || aliasedType;
+};
+
+const isAllowedMimeType = (allowedMimeTypes, mimeType) =>
+  allowedMimeTypes.some((allowed) => {
+    if (allowed.endsWith('/*')) {
+      return mimeType.startsWith(allowed.slice(0, -1));
+    }
+
+    return mimeType === allowed;
+  });
+
+const validateFileForRequirement = (file, requirement) => {
+  const extension = getFileExtension(file);
+  const mimeType = normalizeMimeType(file, extension);
+  const allowedExtensions = (requirement.allowedExtensions || []).map((item) =>
+    String(item || '').toLowerCase()
+  );
+  const allowedMimeTypes = (requirement.allowedMimeTypes || []).map((item) =>
+    String(item || '').toLowerCase()
+  );
+
+  if (Number(requirement.maxSizeBytes) > 0 && file.size > Number(requirement.maxSizeBytes)) {
+    const maxMb = Math.round(Number(requirement.maxSizeBytes) / (1024 * 1024));
+    return `File is too large. Maximum size is ${maxMb}MB.`;
+  }
+
+  if (allowedExtensions.length > 0 && !allowedExtensions.includes(extension)) {
+    return `File extension is not allowed. Use ${allowedExtensions.join(', ')}.`;
+  }
+
+  if (allowedMimeTypes.length > 0 && !isAllowedMimeType(allowedMimeTypes, mimeType)) {
+    return 'File type is not allowed for this document.';
+  }
+
+  return '';
+};
+
 /**
  * Renders a single guided upload step.
  *
@@ -38,6 +120,14 @@ const UploadStep = ({ step, providerId, sessionId, completed, onUploaded }) => {
     setSelectedFile(file);
     setProgress(0);
     setError('');
+
+    const validationMessage = validateFileForRequirement(file, requirement);
+    if (validationMessage) {
+      setError(validationMessage);
+      notify.error(validationMessage, { id: `mobile-upload-${step.key}` });
+      return;
+    }
+
     setUploading(true);
 
     try {

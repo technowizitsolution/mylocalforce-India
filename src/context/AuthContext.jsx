@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, firestore } from '../services/firebase/firebaseConfig';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { 
   loginWithEmail, 
@@ -38,20 +38,6 @@ export const AuthProvider = ({ children }) => {
             phoneNumber: firebaseUser.phoneNumber,
             ...(profile || {})
           };
-
-          // Check approval status for clients
-          const approvalStatus = profile?.approvalStatus || 'approved';
-          const hasClientRole = rolesData?.roles?.client === true;
-          
-          // Only reject completely rejected accounts
-          if (hasClientRole && approvalStatus === 'rejected') {
-            await signOut(auth);
-            setUser(null);
-            setUserRoles(null);
-            setActiveRole(null);
-            setIsLoggedIn(false);
-            return;
-          }
 
           const resolvedActiveRole =
             rolesData.activeRole || profile?.activeRole || null;
@@ -151,23 +137,17 @@ export const AuthProvider = ({ children }) => {
         
         const approvalStatus = profile?.approvalStatus || 'approved';
         const hasClientRole = rolesData?.roles?.client === true;
-        
-        // Only block rejected accounts from logging in
-        // Pending accounts can login but will be redirected to ProfileUnderReview screen
-        if (hasClientRole && approvalStatus === 'rejected') {
-          await signOut(auth);
-          return { 
-            success: false, 
-            error: 'Account Not Approved\n\nYour service provider application has been rejected. Please contact our support team for more information.' 
-          };
+
+        // Rejected/pending provider applications still need authenticated access
+        // so providers can see review feedback and re-upload requested documents.
+        if (
+          hasClientRole &&
+          (approvalStatus === 'pending' || approvalStatus === 'rejected')
+        ) {
+          return { success: true, approvalStatus };
         }
-        
-        // Store approval status for navigation handling
-        if (hasClientRole && approvalStatus === 'pending') {
-          return { success: true, approvalStatus: 'pending' };
-        }
-        
-        return { success: true };
+
+        return { success: true, approvalStatus };
       } else {
         return { success: false, error: 'Login failed' };
       }

@@ -237,8 +237,20 @@ const deriveRequestedReuploadTypes = (currentUser) => {
     ...(Array.isArray(currentUser?.rejectionReasons) ? currentUser.rejectionReasons : []),
     ...(typeof currentUser?.rejectionReason === 'string' ? [currentUser.rejectionReason] : []),
   ];
+  const sourceTypes = [
+    ...(Array.isArray(meta.reuploadDocumentTypes) ? meta.reuploadDocumentTypes : []),
+    ...(Array.isArray(meta.rejectedDocumentTypes) ? meta.rejectedDocumentTypes : []),
+    ...(Array.isArray(meta.documentTypes) ? meta.documentTypes : []),
+  ];
+  const lastDecision = meta.lastDocumentDecision || null;
 
   sourceItems.forEach((item) => addReuploadTypesFromText(requested, item));
+  sourceTypes.forEach((item) => requested.add(normalizeDocumentType(item)));
+  if (lastDecision?.documentType && ['rejected', 'reupload_required'].includes(
+    String(lastDecision.decision || '').toLowerCase()
+  )) {
+    requested.add(normalizeDocumentType(lastDecision.documentType));
+  }
   return requested;
 };
 
@@ -295,15 +307,38 @@ const collectSecureDocumentEntries = (target, value, fallbackType = '') => {
   });
 };
 
+const uniqueSecureDocuments = (documents = []) => {
+  const seen = new Set();
+
+  return documents.filter((document) => {
+    const key =
+      document.id ||
+      document.storagePath ||
+      `${document.documentType}:${document.side || 'single'}:${document.originalName || ''}`;
+
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 const flattenSecureDocuments = (documents = {}) => {
   const entries = [];
   collectSecureDocumentEntries(entries, documents.secureDocuments || {});
 
-  ['passport', 'drivingLicence', 'drivingLicense', 'resume', 'certificates', 'verificationVideo'].forEach(
-    (key) => collectSecureDocumentEntries(entries, documents[key], key)
-  );
+  [
+    'passport',
+    'drivingLicence',
+    'drivingLicense',
+    'driving_licence',
+    'resume',
+    'resume_cv',
+    'certificates',
+    'verificationVideo',
+    'verification_video',
+  ].forEach((key) => collectSecureDocumentEntries(entries, documents[key], key));
 
-  return entries;
+  return uniqueSecureDocuments(entries);
 };
 
 const controlClass =
@@ -546,8 +581,15 @@ const ProviderOnboardingScreen = () => {
     }
 
     if (!providerDetails) {
-      setStoredSecureDocuments([]);
-      setStoredSecureUploadSessionId('');
+      setStoredSecureDocuments(
+        uniqueSecureDocuments([
+          ...flattenSecureDocuments(profile?.documents || {}),
+          ...flattenSecureDocuments(profile?.documentsMetadata || {}),
+        ])
+      );
+      setStoredSecureUploadSessionId(
+        profile?.latestDocumentUploadSessionId || profile?.secureUploadSessionId || ''
+      );
       return;
     }
 
@@ -615,11 +657,20 @@ const ProviderOnboardingScreen = () => {
       certificatesUrl: documents.certificatesUrl || '',
       verificationVideoUrl: documents.verificationVideoUrl || '',
     });
-    setStoredSecureDocuments(flattenSecureDocuments(documents));
+    setStoredSecureDocuments(
+      uniqueSecureDocuments([
+        ...flattenSecureDocuments(documents),
+        ...flattenSecureDocuments(providerDetails.documentsMetadata || {}),
+        ...flattenSecureDocuments(profile?.documents || {}),
+        ...flattenSecureDocuments(profile?.documentsMetadata || {}),
+      ])
+    );
     setStoredSecureUploadSessionId(
       documents.secureUploadSessionId ||
         providerDetails.latestDocumentUploadSessionId ||
+        profile?.latestDocumentUploadSessionId ||
         providerDetails.secureUploadSessionId ||
+        profile?.secureUploadSessionId ||
         ''
     );
 

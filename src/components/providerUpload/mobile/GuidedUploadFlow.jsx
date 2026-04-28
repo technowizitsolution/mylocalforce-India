@@ -29,6 +29,21 @@ const identityDescriptions = {
     'Upload a clear JPEG image of your driving licence if it is your identity document.',
 };
 
+const DOCUMENT_TYPE_ALIASES = {
+  driving_license: 'driving_licence',
+  drivingLicence: 'driving_licence',
+  drivingLicense: 'driving_licence',
+  resume: 'resume_cv',
+  cv: 'resume_cv',
+  verificationVideo: 'verification_video',
+};
+
+const normalizeDocumentType = (value) => {
+  const raw = String(value || '').trim();
+  const snake = raw.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`).toLowerCase();
+  return DOCUMENT_TYPE_ALIASES[raw] || DOCUMENT_TYPE_ALIASES[snake] || snake;
+};
+
 const normalizeRequirement = (requirement) => {
   if (!IDENTITY_DOCUMENT_REQUIREMENTS.has(requirement.id)) {
     return requirement;
@@ -48,12 +63,32 @@ const normalizeRequirement = (requirement) => {
  * @param {Object} props.session
  * @param {Object} props.settings
  * @param {Object[]} props.uploadedDocuments
+ * @param {Object} [props.uploadContext]
  * @returns {JSX.Element}
  */
-const GuidedUploadFlow = ({ session, settings, uploadedDocuments = [] }) => {
+const GuidedUploadFlow = ({ session, settings, uploadedDocuments = [], uploadContext = {} }) => {
+  const requestedTypesKey = (uploadContext.requestedReuploadTypes || [])
+    .map(normalizeDocumentType)
+    .filter(Boolean)
+    .sort()
+    .join('|');
+  const visibleRequirements = useMemo(() => {
+    const requirements = settings.requirements || [];
+    const requestedTypes = new Set(requestedTypesKey.split('|').filter(Boolean));
+
+    if (uploadContext.mode !== 'reupload' || requestedTypes.size === 0) {
+      return requirements;
+    }
+
+    const scopedRequirements = requirements.filter((requirement) =>
+      requestedTypes.has(normalizeDocumentType(requirement.id)),
+    );
+
+    return scopedRequirements.length > 0 ? scopedRequirements : requirements;
+  }, [requestedTypesKey, settings.requirements, uploadContext.mode]);
   const steps = useMemo(
     () =>
-      (settings.requirements || [])
+      visibleRequirements
         .map(normalizeRequirement)
         .slice()
         .sort((a, b) => (a.order || 0) - (b.order || 0))
@@ -64,7 +99,7 @@ const GuidedUploadFlow = ({ session, settings, uploadedDocuments = [] }) => {
             side,
           })),
         ),
-    [settings.requirements],
+    [visibleRequirements],
   );
   const initialCompleted = useMemo(() => {
     const completed = {};

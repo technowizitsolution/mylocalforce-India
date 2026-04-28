@@ -87,7 +87,11 @@ const DesktopFallbackUpload = ({
       .filter((document) => !requestedTypes.has(normalizeDocumentType(document.documentType)))
       .map((document) => `${normalizeDocumentType(document.documentType)}:${document.side}`)
   );
-  const steps = expandRequirements(settings.requirements);
+  const steps = expandRequirements(settings.requirements).filter(
+    (step) =>
+      requestedTypes.size === 0 ||
+      requestedTypes.has(normalizeDocumentType(step.requirement.id))
+  );
 
   const uploadFile = async (step, file) => {
     if (!file) {

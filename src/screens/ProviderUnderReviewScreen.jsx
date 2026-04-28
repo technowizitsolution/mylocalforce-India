@@ -24,6 +24,45 @@ const InfoCard = ({ title, children, icon: Icon = FiFileText }) => (
   </div>
 );
 
+const DOCUMENT_TYPE_ALIASES = {
+  driving_license: 'driving_licence',
+  drivingLicence: 'driving_licence',
+  drivingLicense: 'driving_licence',
+  resume: 'resume_cv',
+  cv: 'resume_cv',
+  verificationVideo: 'verification_video',
+};
+
+const DOCUMENT_TYPE_LABELS = {
+  passport: 'Passport',
+  driving_licence: 'Driving Licence',
+  resume_cv: 'Resume / CV',
+  certificates: 'Certificates',
+  verification_video: 'Verification Video',
+};
+
+const normalizeDocumentType = (value) => {
+  const raw = String(value || '').trim();
+  const snake = raw.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`).toLowerCase();
+  return DOCUMENT_TYPE_ALIASES[raw] || DOCUMENT_TYPE_ALIASES[snake] || snake;
+};
+
+const getDocumentTypeLabel = (value) => {
+  const normalized = normalizeDocumentType(value);
+  return DOCUMENT_TYPE_LABELS[normalized] || normalized || '';
+};
+
+const uniqueDisplayItems = (items) => {
+  const seen = new Set();
+  return items.filter((item) => {
+    const value = String(item || '').trim();
+    const key = value.toLowerCase();
+    if (!value || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 const ReviewStep = ({ number, title, text, active, complete }) => (
   <div className="flex gap-4">
     <div
@@ -95,9 +134,30 @@ const ProviderUnderReviewScreen = () => {
     }
   };
 
-  const reuploadItems = Array.isArray(user?.rejectionMeta?.reuploadItems)
-    ? user.rejectionMeta.reuploadItems
-    : [];
+  const reuploadItems = useMemo(() => {
+    const meta = user?.rejectionMeta || {};
+    const explicitItems = Array.isArray(meta.reuploadItems) ? meta.reuploadItems : [];
+    const requestedTypes = [
+      ...(Array.isArray(meta.reuploadDocumentTypes) ? meta.reuploadDocumentTypes : []),
+      ...(Array.isArray(meta.rejectedDocumentTypes) ? meta.rejectedDocumentTypes : []),
+      ...(Array.isArray(meta.documentTypes) ? meta.documentTypes : []),
+    ];
+    const lastDecision = meta.lastDocumentDecision || null;
+
+    if (
+      lastDecision?.documentType &&
+      ['rejected', 'reupload_required'].includes(
+        String(lastDecision.decision || '').toLowerCase(),
+      )
+    ) {
+      requestedTypes.push(lastDecision.documentType);
+    }
+
+    return uniqueDisplayItems([
+      ...explicitItems,
+      ...requestedTypes.map(getDocumentTypeLabel),
+    ]);
+  }, [user?.rejectionMeta]);
   const missingDetails = Array.isArray(user?.rejectionMeta?.missingDetails)
     ? user.rejectionMeta.missingDetails
     : [];

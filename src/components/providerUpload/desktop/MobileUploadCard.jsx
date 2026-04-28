@@ -157,7 +157,10 @@ const MobileUploadCard = ({
     setNotice('');
     setError('');
     await onBeforeCreateSession?.();
-    return createSession(deliveryMethod);
+    return createSession(deliveryMethod, {
+      requestedReuploadTypes: requestedReuploadTypes.join(','),
+      reuploadOnly: requestedReuploadTypes.length > 0 ? 'true' : 'false',
+    });
   };
 
   const handleQr = async () => {
@@ -173,7 +176,10 @@ const MobileUploadCard = ({
     setActiveMode('sms');
     try {
       await onBeforeCreateSession?.();
-      await sendSms(verifiedMobileNumber);
+      await sendSms(verifiedMobileNumber, {
+        requestedReuploadTypes: requestedReuploadTypes.join(','),
+        reuploadOnly: requestedReuploadTypes.length > 0 ? 'true' : 'false',
+      });
       setNotice('Upload link sent by SMS.');
     } catch (smsError) {
       setError(getUserFacingError(smsError, 'Could not send upload SMS.'));

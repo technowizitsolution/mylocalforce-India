@@ -66,6 +66,11 @@ const UploadProgressTracker = ({
   const steps = requirements
     .slice()
     .sort((a, b) => (a.order || 0) - (b.order || 0))
+    .filter(
+      (requirement) =>
+        requestedTypes.size === 0 ||
+        requestedTypes.has(normalizeDocumentType(requirement.id))
+    )
     .flatMap((requirement) =>
       (requirement.sides || ['single']).map((side) => ({
         key: `${normalizeDocumentType(requirement.id)}:${side}`,

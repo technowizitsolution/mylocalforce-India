@@ -100,7 +100,7 @@ export const useUploadSession = ({
   }, [onSummaryChange, summary]);
 
   const createSession = useCallback(
-    async (deliveryMethod = 'qr') => {
+    async (deliveryMethod = 'qr', metadata = {}) => {
       if (!providerId) {
         throw new Error('Provider is required.');
       }
@@ -114,6 +114,7 @@ export const useUploadSession = ({
           registrationStep,
           deliveryMethod,
           mobileNumber: verifiedMobileNumber || '',
+          metadata,
         });
         setSession(result.session || null);
         setMobileUrl(result.mobileUrl || '');
@@ -136,11 +137,11 @@ export const useUploadSession = ({
   );
 
   const sendSms = useCallback(
-    async (mobileNumber = verifiedMobileNumber) => {
+    async (mobileNumber = verifiedMobileNumber, metadata = {}) => {
       let activeSession = session;
 
       if (!activeSession?.id) {
-        const result = await createSession('sms');
+        const result = await createSession('sms', metadata);
         activeSession = result.session;
       }
 

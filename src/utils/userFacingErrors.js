@@ -6,6 +6,11 @@ const codeMessages = [
     message: 'You do not have permission to perform this action.',
   },
   {
+    match: ['storage/unauthorized'],
+    message:
+      'Secure upload is not allowed for this link. Refresh the desktop page, create a new upload link, and try again.',
+  },
+  {
     match: ['unauthenticated', 'auth/requires-recent-login', 'auth/user-token-expired'],
     message: 'Your session expired. Sign in again to continue.',
   },
@@ -63,4 +68,3 @@ export const getUserFacingError = (error, fallback = FALLBACK_ERROR) => {
   const looksTechnical = technicalMessagePatterns.some((pattern) => pattern.test(message));
   return looksTechnical ? fallback : message;
 };
-

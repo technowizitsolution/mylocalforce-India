@@ -171,6 +171,7 @@ const MobileUploadPage = () => {
         session={state.data.session}
         settings={state.data.settings}
         uploadedDocuments={state.data.uploadedDocuments || []}
+        uploadContext={state.data.uploadContext || {}}
       />
     </div>
   );

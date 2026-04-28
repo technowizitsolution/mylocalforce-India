@@ -7,14 +7,18 @@ import { FiCamera, FiUpload, FiVideo } from 'react-icons/fi';
  * @returns {{accept: string, capture: string|undefined, Icon: Function}}
  */
 const getCaptureAttributes = (requirement) => {
+  const allowedTypes = (requirement.allowedMimeTypes || []).filter(Boolean);
+  const allowedExtensions = (requirement.allowedExtensions || []).filter(Boolean);
+  const accept = [...allowedTypes, ...allowedExtensions].join(',');
+
   if (requirement.captureHint === 'camera') {
-    return { accept: 'image/*', capture: 'environment', Icon: FiCamera };
+    return { accept: accept || 'image/*', capture: 'environment', Icon: FiCamera };
   }
   if (requirement.captureHint === 'video') {
-    return { accept: 'video/*', capture: 'user', Icon: FiVideo };
+    return { accept: accept || 'video/*', capture: 'user', Icon: FiVideo };
   }
   return {
-    accept: (requirement.allowedMimeTypes || []).join(','),
+    accept,
     capture: undefined,
     Icon: FiUpload,
   };

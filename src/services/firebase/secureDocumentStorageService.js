@@ -3,6 +3,36 @@ import { v4 as uuidv4 } from 'uuid';
 import { storage } from './firebaseConfig';
 import { recordDocumentUpload } from './documentUploadService';
 
+const MIME_TYPE_ALIASES = {
+  'image/jpg': 'image/jpeg',
+  'image/pjpeg': 'image/jpeg',
+};
+
+const MIME_TYPE_BY_EXTENSION = {
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.mov': 'video/quicktime',
+  '.mp4': 'video/mp4',
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.webm': 'video/webm',
+};
+
+const EXTENSION_BY_MIME_TYPE = Object.entries(MIME_TYPE_BY_EXTENSION).reduce(
+  (lookup, [extension, mimeType]) => ({
+    ...lookup,
+    [mimeType]: extension === '.jpeg' ? '.jpg' : extension,
+  }),
+  {}
+);
+
+const normalizeRawMimeType = (mimeType) => {
+  const rawType = String(mimeType || '').trim().toLowerCase();
+  return MIME_TYPE_ALIASES[rawType] || rawType;
+};
+
 /**
  * Returns a conservative file extension.
  *
@@ -11,7 +41,55 @@ import { recordDocumentUpload } from './documentUploadService';
  */
 const getFileExtension = (file) => {
   const match = /\.([A-Za-z0-9]+)$/.exec(file?.name || '');
-  return match ? `.${match[1].toLowerCase()}` : '';
+
+  if (match) {
+    return `.${match[1].toLowerCase()}`;
+  }
+
+  return EXTENSION_BY_MIME_TYPE[normalizeRawMimeType(file?.type)] || '';
+};
+
+const normalizeFileMimeType = (file, extension) => {
+  const aliasedType = normalizeRawMimeType(file?.type);
+
+  if (aliasedType && aliasedType !== 'application/octet-stream') {
+    return aliasedType;
+  }
+
+  return MIME_TYPE_BY_EXTENSION[extension] || 'application/octet-stream';
+};
+
+const toUploadError = (error) => {
+  const code = String(error?.code || '').toLowerCase();
+  const message = String(error?.message || '');
+
+  if (code.includes('storage/unauthorized')) {
+    const uploadError = new Error(
+      'Secure upload is not allowed for this link. Refresh the desktop page, create a new upload link, and try again.'
+    );
+    uploadError.code = error.code;
+    uploadError.userMessage = uploadError.message;
+    uploadError.cause = error;
+    return uploadError;
+  }
+
+  if (code.includes('storage/retry-limit-exceeded') || code.includes('storage/canceled')) {
+    const uploadError = new Error('Upload was interrupted. Check your connection and retry.');
+    uploadError.code = error.code;
+    uploadError.userMessage = uploadError.message;
+    uploadError.cause = error;
+    return uploadError;
+  }
+
+  if (/storage|firebase/i.test(message)) {
+    const uploadError = new Error('Secure upload failed before the file reached review. Please retry.');
+    uploadError.code = error?.code;
+    uploadError.userMessage = uploadError.message;
+    uploadError.cause = error;
+    return uploadError;
+  }
+
+  return error;
 };
 
 /**
@@ -63,6 +141,7 @@ export const uploadProviderDocumentSecure = ({
   }
 
   const extension = getFileExtension(file);
+  const contentType = normalizeFileMimeType(file, extension);
   const safeFilename = `${uuidv4()}${extension}`;
   const storagePath = buildSecureProviderDocumentPath({
     providerId,
@@ -73,7 +152,7 @@ export const uploadProviderDocumentSecure = ({
   });
   const storageRef = ref(storage, storagePath);
   const uploadTask = uploadBytesResumable(storageRef, file, {
-    contentType: file.type || 'application/octet-stream',
+    contentType,
     customMetadata: {
       providerId,
       sessionId,
@@ -97,7 +176,7 @@ export const uploadProviderDocumentSecure = ({
           });
         }
       },
-      reject,
+      (error) => reject(toUploadError(error)),
       async () => {
         try {
           const result = await recordDocumentUpload({
@@ -107,14 +186,14 @@ export const uploadProviderDocumentSecure = ({
             side,
             originalName: file.name || safeFilename,
             safeFilename,
-            mimeType: file.type || 'application/octet-stream',
+            mimeType: contentType,
             sizeBytes: file.size,
             storagePath,
             source,
           });
           resolve(result.document);
         } catch (error) {
-          reject(error);
+          reject(toUploadError(error));
         }
       },
     );
