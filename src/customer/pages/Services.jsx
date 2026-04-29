@@ -214,7 +214,7 @@ const Services = () => {
               </div>
               {isLoggedIn && (
                 <NotificationBell
-                  onPress={() => { }}
+                  onPress={() => navigate('/customer/notifications')}
                   size={20}
                   color="#5A52E3"
                   role="customer"

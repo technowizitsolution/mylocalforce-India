@@ -87,6 +87,13 @@ export const createCheckoutSession = async ({
   serviceName,
   price,
   description,
+  platformFee,
+  serviceTotal,
+  couponCode,
+  couponDiscount,
+  expectedAmount,
+  successUrl,
+  cancelUrl,
 }) => {
   try {
     console.log('Creating Stripe Checkout session with bookingId:', bookingId);
@@ -105,8 +112,16 @@ export const createCheckoutSession = async ({
         serviceName,
         price,
         description,
-        successUrl: `${window.location.origin}/customer/payment-success?status=success&booking_id=${bookingId}&session_id={CHECKOUT_SESSION_ID}`,
-        cancelUrl: `${window.location.origin}/customer/payment-success?status=cancelled&booking_id=${bookingId}`,
+        platformFee,
+        serviceTotal,
+        couponCode,
+        couponDiscount,
+        expectedAmount,
+        successUrl:
+          successUrl ||
+          `${window.location.origin}/customer/payment-success?status=success&booking_id=${bookingId}&session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl:
+          cancelUrl || `${window.location.origin}/customer/payment-cancelled?booking_id=${bookingId}`,
       }),
     });
 

@@ -1,5 +1,6 @@
 import { firestore } from './firebaseConfig';
 import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, getDoc, updateDoc, onSnapshot, orderBy } from 'firebase/firestore';
+import { notifyProviderNewBooking } from './notificationService';
 
 
 /**
@@ -91,22 +92,28 @@ export async function fetchAllServices() {
 export async function createBooking(userId, bookingData) {
   try {
     if (!userId) throw new Error('User ID is required');
+
+    const initialStatus = bookingData.status || 'upcoming';
     
     const bookingsCol = collection(firestore, 'bookings');
     const bookingDoc = await addDoc(bookingsCol, {
       ...bookingData,
       customerId: userId, // Add customer ID for filtering
-      status: 'upcoming',
+      status: initialStatus,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
     
     console.log('✅ Booking created:', bookingDoc.id);
     
-    // Send push notification to provider about new booking
+    // Send provider notification only for bookings that are actually ready for the provider.
+    // Web checkout creates pending_payment records first, then PaymentSuccess promotes them.
     try {
-      const { notifyProviderNewBooking } = require('./notificationService');
-      if (bookingData.providerId) {
+      const isProviderReadyBooking =
+        bookingData.paymentStatus === 'paid' ||
+        ['upcoming', 'accepted'].includes(initialStatus);
+
+      if (bookingData.providerId && isProviderReadyBooking) {
         await notifyProviderNewBooking(bookingData.providerId, {
           bookingId: bookingDoc.id,
           customerId: userId, // Pass customer ID for multi-role check
@@ -363,13 +370,23 @@ export async function updateBookingStatus(bookingId, newStatus, providerId) {
     }
 
     // Validate status transition
-    const validStatuses = ['upcoming', 'accepted', 'rejected', 'completed', 'cancelled'];
+    const validStatuses = [
+      'pending_payment',
+      'upcoming',
+      'accepted',
+      'arrived',
+      'in_progress',
+      'rejected',
+      'completed',
+      'cancelled',
+    ];
     if (!validStatuses.includes(newStatus)) {
       throw new Error(`Invalid status: ${newStatus}`);
     }
 
     // Define valid status transitions
     const validTransitions = {
+      'pending_payment': ['cancelled'],
       'upcoming': ['accepted', 'rejected', 'cancelled'], // Can accept, reject, or cancel
       'accepted': ['arrived', 'cancelled'], // Can mark as arrived or cancel after accepting
       'arrived': ['in_progress', 'cancelled'], // Can start service (via OTP) or cancel

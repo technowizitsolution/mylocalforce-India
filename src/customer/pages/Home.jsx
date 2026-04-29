@@ -58,8 +58,7 @@ const HomeScreen = () => {
 
   // Notification press handler
   const handleNotificationPress = () => {
-    // TODO: navigate to notifications page when implemented
-    console.log('Notification bell pressed');
+    navigate('/customer/notifications');
   };
 
   // Get image URL for a category (handles Firebase URLs and local fallbacks)

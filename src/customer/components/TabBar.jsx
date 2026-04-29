@@ -14,7 +14,18 @@ const TabBar = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path) => {
+    if (path === '/customer/profile') {
+      return [
+        '/customer/profile',
+        '/customer/edit-profile',
+        '/customer/notifications',
+        '/customer/accepted-leads',
+      ].includes(location.pathname);
+    }
+
+    return location.pathname === path;
+  };
 
   return (
     <div className="bg-white border-t border-gray-200 flex items-center justify-around h-16 pb-[env(safe-area-inset-bottom)]">

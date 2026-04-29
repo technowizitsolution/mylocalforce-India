@@ -7,6 +7,8 @@ import Home from './customer/pages/Home';
 import Services from './customer/pages/Services';
 import Bookings from './customer/pages/Bookings';
 import Profile from './customer/pages/Profile';
+import EditProfile from './customer/pages/EditProfile';
+import Notifications from './customer/pages/Notifications';
 import ServiceDetailsScreen from './customer/pages/ServiceDetailsScreen';
 import AddressScreen from './customer/pages/AddressScreen';
 import ProviderSelectorScreen from './customer/pages/ProviderSelectorScreen';
@@ -20,6 +22,7 @@ import ProviderHomeScreen from './screens/ProviderHomeScreen';
 import ProviderOnboardingScreen from './screens/ProviderOnboardingScreen';
 import ProviderUnderReviewScreen from './screens/ProviderUnderReviewScreen';
 import BookingScreen from './customer/pages/BookingScreen';
+import OrderSummary from './customer/pages/OrderSummary';
 import PaymentSuccess from './customer/pages/PaymentSuccess';
 import MobileUploadPage from './components/providerUpload/mobile/MobileUploadPage';
 /**
@@ -73,12 +76,16 @@ const App = () => {
 
         {/* Booking Screen */}
         <Route path="booking" element={<BookingScreen />} />
+        <Route path="order-summary" element={<OrderSummary />} />
 
         {/* Payment Result (redirect back from Stripe) */}
         <Route path="payment-success" element={<PaymentSuccess />} />
+        <Route path="payment-cancelled" element={<PaymentSuccess />} />
 
         {/* User Profile */}
         <Route path="profile" element={<Profile />} />
+        <Route path="edit-profile" element={<EditProfile />} />
+        <Route path="notifications" element={<Notifications />} />
 
         {/* Catch-all for unknown customer routes */}
         <Route path="*" element={<Navigate to="/customer" replace />} />

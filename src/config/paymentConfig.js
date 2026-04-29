@@ -6,11 +6,14 @@
 export const PaymentConfig = {
   // Platform fees (as decimal, e.g., 0.10 = 10%)
   PLATFORM_FEE_RATE: 0.10, // 10% platform fee
+  PLATFORM_FEE_FIXED: 5,
   
   // Payment gateway charges (Stripe rates for Australia)
   GATEWAY: {
     // Stripe fees: 1.75% + $0.30 AUD for domestic cards
     PERCENTAGE_FEE: 0.0175, // 1.75%
+    STRIPE_DOMESTIC_PERCENTAGE_FEE: 0.017, // 1.7%
+    STRIPE_INTERNATIONAL_PERCENTAGE_FEE: 0.035, // 3.5%
     FIXED_FEE: 0.30, // $0.30 AUD
   },
   

@@ -26,6 +26,7 @@ import NotificationBell from '../components/NotificationBell';
 
 /* ── Icon look-ups ── */
 const STATUS_MAP = {
+  pending_payment: { icon: FiClock, color: 'text-amber-600', bg: 'bg-amber-500/10' },
   upcoming:  { icon: FiClock,       color: 'text-amber-500',  bg: 'bg-amber-500/10' },
   completed: { icon: FiCheckCircle, color: 'text-green-500',  bg: 'bg-green-500/10' },
   cancelled: { icon: FiXCircle,     color: 'text-red-500',    bg: 'bg-red-500/10' },
@@ -45,6 +46,7 @@ const SERVICE_ICONS = {
 const getStatusMeta = (status) => STATUS_MAP[status] || STATUS_MAP.default;
 const getServiceIcon = (category) =>
   SERVICE_ICONS[category?.toLowerCase()] || FiSettings;
+const formatStatus = (status) => (status === 'pending_payment' ? 'Awaiting payment' : status);
 
 /* ══════════════════════════════════════════════════════════ */
 
@@ -162,30 +164,30 @@ const Bookings = () => {
     <div className="min-h-screen bg-linear-to-br from-gray-50 to-slate-100">
 
       {/* Desktop nav - shown on md+ */}
-      <header className="hidden lg:block sticky top-0 z-20 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto">
-          <nav className="flex items-center justify-between px-6 lg:px-8 py-3 gap-6">
+      <header className="hidden lg:block sticky top-0 z-20 border-b border-gray-200 bg-[#F8FAFC]/95 backdrop-blur-sm">
+        <div>
+          <nav className="flex items-center justify-between px-6 lg:px-30 py-3 gap-6">
             {/* Logo */}
             <div onClick={() => navigate('/customer')} className="flex items-center gap-3 cursor-pointer shrink-0">
-              <img src="/images/MLF.jpg" alt="Logo" className="w-12 h-12 object-cover rounded-lg border border-gray-200" />
-              <p className="text-violet-600 text-xl font-bold">MY LOCAL FORCE</p>
+              <img src="/images/MLF.jpg" alt="Logo" className="w-12 h-12 object-cover rounded-lg border border-blue-100" />
+              <p className="text-[#5A52E3] text-2xl font-bold">MY LOCAL FORCE</p>
             </div>
 
             {/* Right section */}
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 w-64">
-                <FiSearch className="text-gray-400 w-5 h-5 shrink-0" />
+              <div className="flex items-center gap-2 px-4 py-2 border border-blue-100 rounded-lg bg-white w-80">
+                <FiSearch className="text-[#5A52E3] w-5 h-5 shrink-0" />
                 <input
                   type="text"
                   placeholder="Search bookings..."
-                  className="flex-1 bg-transparent outline-none text-sm text-gray-800 placeholder-gray-400"
+                  className="flex-1 bg-transparent outline-none text-sm text-slate-800 placeholder-gray-400"
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
                 />
               </div>
               {isLoggedIn && (
                 <NotificationBell
-                  onPress={() => {}}
+                  onPress={() => navigate('/customer/notifications')}
                   size={20}
                   color="#5A52E3"
                   role="customer"
@@ -194,9 +196,9 @@ const Bookings = () => {
               )}
               <button
                 onClick={() => navigate('/customer/profile')}
-                className="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors border border-gray-200 cursor-pointer"
+                className="w-11 h-11 flex items-center justify-center rounded-lg bg-white hover:bg-gray-100 transition-colors border border-blue-100 cursor-pointer"
               >
-                <FiUser className="w-5 h-5 text-violet-600" />
+                <FiUser className="w-5 h-5 text-[#5A52E3]" />
               </button>
             </div>
           </nav>
@@ -327,7 +329,7 @@ const Bookings = () => {
                         className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] lg:text-xs font-bold uppercase shrink-0 ${bg} ${color}`}
                       >
                         <StatusIcon className="w-3.5 h-3.5" />
-                        {item.status}
+                        {formatStatus(item.status)}
                       </span>
                     </div>
 

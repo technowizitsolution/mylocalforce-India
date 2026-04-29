@@ -8,6 +8,7 @@ import {
 import { getBookingById, updateBookingStatus } from '../../services/firebase/serviceService';
 import { fetchUserProfile } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { startCheckoutForBooking } from '../../utils/bookingPayments';
 import { notify, getUserFacingError } from '../../utils/toast';
 
 const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) => {
@@ -34,6 +35,7 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
 
   const getStatusColor = (status) => {
     switch (status) {
+      case 'pending_payment': return '#F59E0B';
       case 'pending': return '#FFB800';
       case 'accepted':
       case 'upcoming': return '#00A8FF';
@@ -46,6 +48,7 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
 
   const getStatusTailwind = (status) => {
     switch (status) {
+      case 'pending_payment': return 'bg-amber-100 text-amber-700';
       case 'pending': return 'bg-amber-100 text-amber-600';
       case 'accepted':
       case 'upcoming': return 'bg-sky-100 text-sky-600';
@@ -59,6 +62,7 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
   const StatusIcon = ({ status, size = 18 }) => {
     const props = { size, className: 'shrink-0' };
     switch (status) {
+      case 'pending_payment': return <FiClock {...props} />;
       case 'pending': return <FiClock {...props} />;
       case 'accepted':
       case 'upcoming': return <FiCheckCircle {...props} />;
@@ -391,6 +395,30 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
       .catch(() => notify.error('Could not copy address.', { id: 'booking-detail-copy-address' }));
   };
 
+  const formatBookingStatus = (status) => {
+    if (status === 'pending_payment') return 'AWAITING PAYMENT';
+    return status?.toUpperCase() || 'PENDING';
+  };
+
+  const handleRetryPayment = async () => {
+    if (!booking || !bookingId || actionLoading) return;
+
+    const retryToastId = 'booking-detail-payment-retry';
+    notify.loading('Opening secure payment...', { id: retryToastId });
+
+    try {
+      setActionLoading(true);
+      await startCheckoutForBooking(bookingId, booking);
+      notify.success('Redirecting to Stripe...', { id: retryToastId });
+    } catch (error) {
+      console.error('Error retrying payment:', error);
+      notify.error(getUserFacingError(error, 'Could not reopen payment. Please try again.'), {
+        id: retryToastId,
+      });
+      setActionLoading(false);
+    }
+  };
+
   const handleNavigate = () => {
     const addr = booking?.address || booking?.customerAddress || '';
     const lat = booking?.location?.latitude ?? booking?.coords?.lat ?? booking?.latitude ?? null;
@@ -489,7 +517,7 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
               {/* Status Badge */}
               <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-[13px] font-bold tracking-wide ${getStatusTailwind(booking.status)}`}>
                 <StatusIcon status={booking.status} size={18} />
-                {booking.status?.toUpperCase() || 'PENDING'}
+                {formatBookingStatus(booking.status)}
               </span>
 
               {/* Customer OTP Display */}
@@ -812,12 +840,13 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
                   onClose={onClose}
                 />
               ) : (
-                <CustomerActions
-                  booking={booking}
-                  actionLoading={actionLoading}
-                  onCancel={handleCancelBooking}
-                  onClose={onClose}
-                />
+              <CustomerActions
+                booking={booking}
+                actionLoading={actionLoading}
+                onCancel={handleCancelBooking}
+                onRetryPayment={handleRetryPayment}
+                onClose={onClose}
+              />
               )}
             </div>
           )}
@@ -1102,8 +1131,31 @@ const ProviderActions = ({
 
 /* ═══ Customer Action Buttons ══════════════════════════════════════════ */
 
-const CustomerActions = ({ booking, actionLoading, onCancel, onClose }) => {
+const CustomerActions = ({ booking, actionLoading, onCancel, onRetryPayment, onClose }) => {
   const btnBase = 'flex-1 py-4 rounded-xl flex items-center justify-center gap-2 font-semibold transition-colors disabled:opacity-60';
+  const needsPayment = booking.paymentStatus === 'pending' && booking.status !== 'cancelled';
+
+  if (needsPayment) {
+    return (
+      <div className="space-y-3">
+        <button
+          onClick={onRetryPayment}
+          disabled={actionLoading}
+          className={`${btnBase} w-full bg-indigo-500 text-white hover:bg-indigo-600 shadow-md shadow-indigo-500/30`}
+        >
+          <FiShield size={18} /> {actionLoading ? 'Opening Payment...' : 'Complete Payment'}
+        </button>
+        <div className="flex gap-3">
+          <button onClick={onCancel} disabled={actionLoading} className={`${btnBase} bg-white border-2 border-red-500 text-red-500 hover:bg-red-50`}>
+            <FiXCircle size={18} /> Cancel Booking
+          </button>
+          <button onClick={onClose} className="flex-[0.5] py-4 rounded-xl bg-slate-50 border-[1.5px] border-slate-200 font-semibold text-slate-700 hover:bg-slate-100 transition-colors">
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (booking.status === 'pending' || booking.status === 'upcoming' || booking.status === 'accepted') {
     return (

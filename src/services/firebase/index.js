@@ -27,7 +27,16 @@ export {
   findUserByEmail,
   updateApprovalStatus,
   getApprovalStatus,
-  getPendingClientApplications
+  getPendingClientApplications,
+  normalizeRoles,
+  isAccountDeactivated,
+  isRoleDeactivated,
+  hasAnyRoleDeactivated,
+  isSelfDeactivatedAccount,
+  isSelfDeactivatedRole,
+  deactivateCurrentUserAccount,
+  reactivateCurrentUserAccount,
+  deleteCurrentUserAccount
 } from './userService';
 
 // Phone authentication services
@@ -71,9 +80,11 @@ export {
 // Notification services
 export {
   requestNotificationPermission,
+  isAppPushPermissionEnabled,
   getFCMToken,
   saveFCMToken,
   getUserFCMToken,
+  updatePushNotificationPreference,
   sendPushNotification,
   notifyProviderNewBooking,
   notifyCustomerBookingAccepted,

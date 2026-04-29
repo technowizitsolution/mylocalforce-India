@@ -1,37 +1,34 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { FiAlertTriangle, FiCheckCircle, FiXCircle, FiLoader } from 'react-icons/fi';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { firestore } from '../../services/firebase/firebaseConfig';
+import { notifyProviderNewBooking } from '../../services/firebase/notificationService';
+import { resolveBookingCheckoutAmount, startCheckoutForBooking } from '../../utils/bookingPayments';
 import { notify } from '../../utils/toast';
 
 const PaymentSuccess = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
 
   const sessionId = searchParams.get('session_id');
   const bookingId = searchParams.get('booking_id');
   const status = searchParams.get('status'); // 'success' or 'cancelled'
+  const isCancelledReturn = status === 'cancelled' || location.pathname.includes('payment-cancelled');
 
   const [pageState, setPageState] = useState('loading'); // loading | success | sync-warning | cancelled | error
   const [bookingData, setBookingData] = useState(null);
+  const [retryingPayment, setRetryingPayment] = useState(false);
 
   useEffect(() => {
     const handlePaymentResult = async () => {
-      // If user cancelled payment
-      if (status === 'cancelled') {
-        setPageState('cancelled');
-        return;
-      }
-
-      // Payment success flow
       if (!bookingId) {
-        setPageState('error');
+        setPageState(isCancelledReturn ? 'cancelled' : 'error');
         return;
       }
 
       try {
-        // Fetch the booking to show confirmation details
         const bookingRef = doc(firestore, 'bookings', bookingId);
         const bookingSnap = await getDoc(bookingRef);
 
@@ -39,13 +36,81 @@ const PaymentSuccess = () => {
           const data = bookingSnap.data();
           setBookingData(data);
 
-          // Update booking payment status if still pending
-          if (data.paymentStatus === 'pending') {
-            await updateDoc(bookingRef, {
+          if (isCancelledReturn) {
+            setPageState('cancelled');
+            return;
+          }
+
+          const alreadyPaid = data.paymentStatus === 'paid';
+          const amountPaid = resolveBookingCheckoutAmount(data);
+
+          if (!alreadyPaid) {
+            const paymentUpdate = {
               paymentStatus: 'paid',
+              status: 'upcoming',
               stripeSessionId: sessionId || null,
-              paidAt: new Date().toISOString(),
+              totalAmountPaid: amountPaid,
+              paidAt: serverTimestamp(),
+              paymentConfirmedAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            };
+
+            await updateDoc(bookingRef, paymentUpdate);
+            setBookingData({
+              ...data,
+              ...paymentUpdate,
+              paidAt: new Date(),
+              paymentConfirmedAt: new Date(),
             });
+
+            if (data.providerId && !data.providerNotifiedAt) {
+              try {
+                await notifyProviderNewBooking(data.providerId, {
+                  bookingId,
+                  customerId: data.customerId,
+                  customerName: data.customerName || 'A customer',
+                  serviceName: data.serviceName || 'a service',
+                });
+                await updateDoc(bookingRef, {
+                  providerNotifiedAt: serverTimestamp(),
+                  updatedAt: serverTimestamp(),
+                });
+              } catch (notificationError) {
+                console.warn(
+                  'Payment confirmed but provider notification could not be sent:',
+                  notificationError
+                );
+              }
+            }
+          } else if (data.status === 'pending_payment') {
+            await updateDoc(bookingRef, {
+              status: 'upcoming',
+              updatedAt: serverTimestamp(),
+            });
+            setBookingData({
+              ...data,
+              status: 'upcoming',
+            });
+
+            if (data.providerId && !data.providerNotifiedAt) {
+              try {
+                await notifyProviderNewBooking(data.providerId, {
+                  bookingId,
+                  customerId: data.customerId,
+                  customerName: data.customerName || 'A customer',
+                  serviceName: data.serviceName || 'a service',
+                });
+                await updateDoc(bookingRef, {
+                  providerNotifiedAt: serverTimestamp(),
+                  updatedAt: serverTimestamp(),
+                });
+              } catch (notificationError) {
+                console.warn(
+                  'Payment was already marked paid but provider notification could not be sent:',
+                  notificationError
+                );
+              }
+            }
           }
         } else {
           notify.warning('Payment received. Final confirmation may take a moment.', {
@@ -66,7 +131,29 @@ const PaymentSuccess = () => {
     };
 
     handlePaymentResult();
-  }, [bookingId, sessionId, status]);
+  }, [bookingId, isCancelledReturn, sessionId]);
+
+  const handleRetryPayment = async () => {
+    if (!bookingId || !bookingData || retryingPayment) {
+      navigate('/customer/bookings');
+      return;
+    }
+
+    const retryToastId = 'payment-retry-checkout';
+    notify.loading('Reopening secure payment...', { id: retryToastId });
+    setRetryingPayment(true);
+
+    try {
+      await startCheckoutForBooking(bookingId, bookingData);
+      notify.success('Redirecting to Stripe...', { id: retryToastId });
+    } catch (error) {
+      console.error('Could not retry payment:', error);
+      notify.error(error?.message || 'Could not reopen payment. Please try again.', {
+        id: retryToastId,
+      });
+      setRetryingPayment(false);
+    }
+  };
 
   if (pageState === 'loading') {
     return (
@@ -84,14 +171,16 @@ const PaymentSuccess = () => {
           <FiXCircle size={64} className="text-amber-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-slate-800 mb-2">Payment Cancelled</h1>
           <p className="text-sm text-slate-500 mb-6">
-            Your payment was cancelled. Your booking has not been confirmed.
+            Your booking is saved as awaiting payment. Complete the payment to confirm it with
+            the provider.
           </p>
           <div className="flex flex-col gap-3">
             <button
-              onClick={() => navigate(-1)}
+              onClick={handleRetryPayment}
+              disabled={retryingPayment || !bookingData}
               className="w-full py-3 rounded-xl bg-indigo-500 text-white font-semibold hover:bg-indigo-600 transition-colors"
             >
-              Try Again
+              {retryingPayment ? 'Opening Payment...' : 'Complete Payment'}
             </button>
             <button
               onClick={() => navigate('/customer/bookings')}
@@ -176,11 +265,20 @@ const PaymentSuccess = () => {
                 </span>
               </div>
             )}
-            {bookingData.price != null && (
+            {(bookingData.totalAmountPaid != null ||
+              bookingData.amountBeforeStripe != null ||
+              bookingData.totalAmount != null ||
+              bookingData.price != null) && (
               <div className="flex justify-between">
                 <span className="text-sm text-slate-400">Amount Paid</span>
                 <span className="text-sm font-bold text-indigo-500">
-                  ${bookingData.price}
+                  A${Number(
+                    bookingData.totalAmountPaid ??
+                      bookingData.amountBeforeStripe ??
+                      bookingData.totalAmount ??
+                      bookingData.price ??
+                      0
+                  ).toFixed(2)}
                 </span>
               </div>
             )}

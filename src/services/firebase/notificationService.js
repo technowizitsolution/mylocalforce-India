@@ -6,7 +6,21 @@
 import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
 import { firestore } from './firebaseConfig';
 import app from './firebaseConfig';
-import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, orderBy, limit } from 'firebase/firestore';
+import {
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  where,
+  getDocs,
+  deleteDoc,
+  orderBy,
+  limit,
+} from 'firebase/firestore';
 
 // Lazily initialize messaging (only works in browsers that support it)
 let messagingInstance = null;
@@ -45,6 +59,71 @@ export async function requestNotificationPermission() {
   } catch (error) {
     console.error('Error requesting notification permission:', error);
     return false;
+  }
+}
+
+/**
+ * Check if browser notification permissions are enabled
+ * @returns {Promise<boolean>} - True if permission granted
+ */
+export async function isAppPushPermissionEnabled() {
+  if (!('Notification' in window)) {
+    return false;
+  }
+
+  const supported = await isSupported();
+  if (!supported) {
+    return false;
+  }
+
+  return Notification.permission === 'granted';
+}
+
+/**
+ * Update push notification preference for a role
+ * @param {string} userId - User ID
+ * @param {'customer'|'provider'|'client'} role - Role to update
+ * @param {boolean} enabled - Whether push notifications should be enabled
+ */
+export async function updatePushNotificationPreference(userId, role, enabled) {
+  if (!userId) throw new Error('User ID is required');
+
+  const normalizedRole = String(role || '').trim().toLowerCase();
+  if (!['customer', 'provider', 'client'].includes(normalizedRole)) {
+    throw new Error('Role must be either customer or provider');
+  }
+
+  const userRef = doc(firestore, 'users', userId);
+  const nextEnabled = Boolean(enabled);
+
+  try {
+    await updateDoc(userRef, {
+      'notificationSettings.providerPushEnabled': nextEnabled,
+      'notificationSettings.customerPushEnabled': nextEnabled,
+      'notificationSettings.pushEnabled': nextEnabled,
+      'notificationSettings.updatedAt': serverTimestamp(),
+      pushNotificationsEnabled: nextEnabled,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    await setDoc(
+      userRef,
+      {
+        notificationSettings: {
+          providerPushEnabled: nextEnabled,
+          customerPushEnabled: nextEnabled,
+          pushEnabled: nextEnabled,
+          updatedAt: serverTimestamp(),
+        },
+        pushNotificationsEnabled: nextEnabled,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  }
+
+  if (!nextEnabled) {
+    await deleteDoc(doc(firestore, 'fcmTokens', userId));
   }
 }
 
@@ -632,9 +711,11 @@ export async function deleteNotification(notificationId, userId) {
 
 export default {
   requestNotificationPermission,
+  isAppPushPermissionEnabled,
   getFCMToken,
   saveFCMToken,
   getUserFCMToken,
+  updatePushNotificationPreference,
   sendPushNotification,
   notifyProviderNewBooking,
   notifyCustomerBookingAccepted,

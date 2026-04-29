@@ -8,15 +8,12 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiHome,
-  FiInfo,
-  FiCopy,
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
-import { createBooking, fetchUserProfile } from '../../services/firebase';
+import { fetchUserProfile } from '../../services/firebase';
 import app, { auth as firebaseAuth, firestore } from '../../services/firebase/firebaseConfig';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { saveNotificationToFirestore, sendPushNotification } from '../../services/firebase/notificationService';
-import { createCheckoutSession } from '../../services/firebase/stripeService';
 import { notify, getUserFacingError } from '../../utils/toast';
 
 // NOTE: geocoding fallback uses the Google Geocoding API. Ensure this key has Geocoding enabled.
@@ -37,6 +34,12 @@ const generateTimeSlots = () => {
 };
 
 const TIME_SLOTS = generateTimeSlots();
+
+const parsePrice = (value, fallback = 0) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback;
+  const parsed = parseFloat(String(value || '').replace(/[^0-9.]/g, ''));
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
 
 const BookingScreen = () => {
   const navigate = useNavigate();
@@ -627,16 +630,35 @@ const BookingScreen = () => {
         }
       }
 
+      const serviceBasePrice = (() => {
+        if (serviceData?.price != null) return parsePrice(serviceData.price, 50);
+        if (packageData?.price != null) return parsePrice(packageData.price, 50);
+        return 50;
+      })();
+      const serviceName =
+        serviceData?.name || serviceData?.title || serviceData?.serviceName || subcategory || 'Service';
+      const serviceItems = Array.isArray(serviceData?.serviceItems) && serviceData.serviceItems.length > 0
+        ? serviceData.serviceItems
+        : [
+            {
+              id: serviceData?.id || 'service-1',
+              name: serviceName,
+              quantity: 1,
+              price: serviceBasePrice,
+              total: serviceBasePrice,
+            },
+          ];
+
       const bookingData = {
         customerId: user.uid,
-        customerName: user.name || user.email,
-        customerEmail: user.email,
+        customerName: user.fullName || user.displayName || user.name || user.email,
+        customerEmail: customerEmail || user.email || null,
         customerPhone: phoneNumber,
         address: finalAddress,
         phoneNumber,
         specialInstructions,
         serviceId: serviceData?.id || null,
-        serviceName: serviceData?.name || serviceData?.title || serviceData?.serviceName || subcategory,
+        serviceName,
         serviceTitle: serviceData?.title || serviceData?.name || subcategory,
         serviceImage: serviceData?.imageUrl || null,
         serviceDescription: serviceData?.description || null,
@@ -647,43 +669,26 @@ const BookingScreen = () => {
         selectedDate: selectedDate.toISOString().split('T')[0],
         selectedTime,
         duration: serviceData?.duration || packageData?.duration || 'TBD',
-        price: (() => {
-          if (serviceData?.price != null && typeof serviceData.price === 'number') return serviceData.price;
-          if (packageData?.price) {
-            const parsed = parseFloat(String(packageData.price).replace(/[^0-9.]/g, ''));
-            return !isNaN(parsed) && parsed >= 0 ? parsed : 50;
-          }
-          return 50;
-        })(),
+        price: serviceBasePrice,
+        serviceItems,
+        serviceCount: serviceItems.length,
+        stripeCardType: null,
+        stripeCardCountry: null,
+        stripeCharge: null,
+        amountBeforeStripe: serviceBasePrice,
+        totalAmount: serviceBasePrice,
         paymentStatus: 'pending',
         status: 'pending',
       };
 
       if (!isLead) {
-        const paymentToastId = 'booking-payment-session';
-        notify.loading('Creating secure payment session...', { id: paymentToastId });
-
-        const bookingId = await createBooking(user.uid, bookingData);
-        console.log('Booking created with ID:', bookingId);
-
-        const stripeSessionData = {
-          bookingId,
-          customerId: user.uid,
-          customerEmail: user.email,
-          providerId: bookingData.providerId,
-          serviceName: bookingData.serviceName,
-          price: bookingData.price,
-          description: `${bookingData.serviceName} - ${bookingData.selectedDate} at ${selectedTime}`,
-        };
-
-        const checkoutSession = await createCheckoutSession(stripeSessionData);
-        console.log('Checkout session created:', checkoutSession.sessionId);
-
-        notify.success('Redirecting to payment...', { id: paymentToastId });
-
-        // Redirect to Stripe Checkout — Stripe will redirect back to our
-        // payment-success page after completion (success or cancel).
-        window.location.href = checkoutSession.url;
+        navigate('/customer/order-summary', {
+          state: {
+            bookingData,
+            serviceItems: bookingData.serviceItems,
+          },
+        });
+        setIsLoading(false);
         return;
       }
 
@@ -1284,76 +1289,6 @@ const BookingScreen = () => {
           />
         </div>
 
-        {/* Test Payment Card */}
-        <div className="bg-amber-50 rounded-2xl border border-amber-300 p-3 sm:p-4 mb-4 sm:mb-6">
-          <div className="flex items-center justify-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
-            <FiInfo className="w-4 h-4 text-amber-600" />
-            <span className="text-xs sm:text-sm font-bold text-amber-800">
-              Test Mode - No Real Charges
-            </span>
-          </div>
-
-          {/* Credit Card UI */}
-          <div className="bg-[#1e3a5f] rounded-xl p-3 sm:p-4 mb-3 sm:mb-4 shadow-lg max-w-md mx-auto">
-            <div className="flex justify-between items-center mb-4 sm:mb-6">
-              <div className="w-8 h-5 sm:w-10 sm:h-7 bg-yellow-600 rounded" />
-              <span className="text-lg sm:text-xl font-bold text-white italic tracking-widest">
-                VISA
-              </span>
-            </div>
-
-            <button
-              onClick={() => {
-                navigator.clipboard
-                  .writeText('4242424242424242')
-                  .then(() => notify.info('Card number copied.', { id: 'booking-card-copy' }))
-                  .catch(() =>
-                    notify.error('Could not copy card number.', { id: 'booking-card-copy' })
-                  );
-              }}
-              className="w-full flex items-center justify-between bg-white/10 rounded-md py-1.5 sm:py-2 px-2.5 sm:px-3 mb-4 sm:mb-6 hover:bg-white/20 transition-colors"
-            >
-              <span className="text-xs sm:text-[15px] font-semibold text-white tracking-wider font-mono">
-                4242 4242 4242 4242
-              </span>
-              <div className="bg-white/20 rounded p-1 sm:p-1.5">
-                <FiCopy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white" />
-              </div>
-            </button>
-
-            <div className="flex justify-between">
-              <div className="flex-1">
-                <p className="text-[7px] sm:text-[8px] text-slate-400 tracking-widest mb-0.5">
-                  EXPIRY
-                </p>
-                <p className="text-[10px] sm:text-xs text-white font-semibold tracking-wider">
-                  12/28
-                </p>
-              </div>
-              <div className="flex-1">
-                <p className="text-[7px] sm:text-[8px] text-slate-400 tracking-widest mb-0.5">
-                  CVC
-                </p>
-                <p className="text-[10px] sm:text-xs text-white font-semibold tracking-wider">
-                  123
-                </p>
-              </div>
-              <div className="flex-1">
-                <p className="text-[7px] sm:text-[8px] text-slate-400 tracking-widest mb-0.5">
-                  NAME
-                </p>
-                <p className="text-[10px] sm:text-xs text-white font-semibold tracking-wider">
-                  TEST USER
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <p className="text-[10px] sm:text-xs font-semibold text-amber-800 text-center bg-amber-100 py-1.5 sm:py-2 px-3 sm:px-4 rounded-lg">
-            ⚠️ Use the card details above for testing. No real money will be charged.
-          </p>
-        </div>
-
         {/* Book Button */}
         <button
           onClick={handleSubmitBooking}
@@ -1363,7 +1298,7 @@ const BookingScreen = () => {
             ${isLoading ? 'bg-slate-400 cursor-not-allowed' : 'bg-indigo-500 hover:bg-indigo-600 cursor-pointer'}
           `}
         >
-          {isLoading ? 'Processing...' : 'Continue to Payment'}
+          {isLoading ? 'Processing...' : 'Review Cart'}
         </button>
 
         {/* Bottom spacer */}
