@@ -7,13 +7,105 @@ const SEND_EMAIL_OTP_URL =
   'https://us-central1-mylocalforce-295b8.cloudfunctions.net/sendEmailOtp';
 
 export const COUNTRY_OPTIONS = [
-  { label: 'India (+91)', value: '+91', hint: '10 digits' },
   {
     label: 'Australia (+61)',
     value: '+61',
     hint: 'Must start with 04 and contain 10 digits',
+    placeholder: '0412345678',
+    maxLength: 10,
+  },
+  {
+    label: 'New Zealand (+64)',
+    value: '+64',
+    hint: 'Must start with 02 and contain 9 to 11 digits',
+    placeholder: '0211234567',
+    maxLength: 11,
+  },
+  {
+    label: 'Singapore (+65)',
+    value: '+65',
+    hint: 'Must start with 8 or 9 and contain 8 digits',
+    placeholder: '91234567',
+    maxLength: 8,
+  },
+  {
+    label: 'China (+86)',
+    value: '+86',
+    hint: 'Must start with 1 and contain 11 digits',
+    placeholder: '13812345678',
+    maxLength: 11,
+  },
+  { label: 'India (+91)', value: '+91', hint: '10 digits', placeholder: '9876543210', maxLength: 10 },
+  {
+    label: 'United States (+1)',
+    value: '+1',
+    hint: '10 digits',
+    placeholder: '2015550123',
+    maxLength: 10,
+  },
+  {
+    label: 'United Kingdom (+44)',
+    value: '+44',
+    hint: 'Must start with 07 and contain 11 digits',
+    placeholder: '07123456789',
+    maxLength: 11,
   },
 ];
+
+export const DEFAULT_COUNTRY_CODE = '+61';
+
+const PHONE_RULES = {
+  '+61': {
+    countryName: 'Australian',
+    test: (phoneNumber) => phoneNumber.startsWith('04') && phoneNumber.length === 10,
+    message: 'Australian numbers must start with 04 and contain exactly 10 digits.',
+  },
+  '+64': {
+    countryName: 'New Zealand',
+    test: (phoneNumber) =>
+      phoneNumber.startsWith('02') &&
+      phoneNumber.length >= 9 &&
+      phoneNumber.length <= 11,
+    message: 'New Zealand numbers must start with 02 and contain 9 to 11 digits.',
+  },
+  '+65': {
+    countryName: 'Singapore',
+    test: (phoneNumber) => /^[89]\d{7}$/.test(phoneNumber),
+    message: 'Singapore numbers must start with 8 or 9 and contain exactly 8 digits.',
+  },
+  '+86': {
+    countryName: 'Chinese',
+    test: (phoneNumber) => /^1\d{10}$/.test(phoneNumber),
+    message: 'Chinese numbers must start with 1 and contain exactly 11 digits.',
+  },
+  '+91': {
+    countryName: 'Indian',
+    test: (phoneNumber) => phoneNumber.length === 10,
+    message: 'Indian numbers must contain exactly 10 digits.',
+  },
+  '+44': {
+    countryName: 'UK',
+    test: (phoneNumber) => phoneNumber.startsWith('07') && phoneNumber.length === 11,
+    message: 'UK numbers must start with 07 and contain exactly 11 digits.',
+  },
+  '+1': {
+    countryName: 'US',
+    test: (phoneNumber) => phoneNumber.length === 10,
+    message: 'US numbers must contain exactly 10 digits.',
+  },
+};
+
+export const getCountryOption = (countryCode) =>
+  COUNTRY_OPTIONS.find((option) => option.value === countryCode);
+
+export const getPhoneHint = (countryCode) =>
+  getCountryOption(countryCode)?.hint || 'Enter a valid mobile number.';
+
+export const getPhonePlaceholder = (countryCode) =>
+  getCountryOption(countryCode)?.placeholder || 'Phone number';
+
+export const getPhoneMaxLength = (countryCode) =>
+  getCountryOption(countryCode)?.maxLength || 11;
 
 export const GENDER_OPTIONS = [
   { label: 'Male', value: 'male' },
@@ -66,36 +158,17 @@ export const validatePhoneNumber = (countryCode, rawPhoneNumber) => {
     return { valid: false, message: 'Please enter your phone number.' };
   }
 
-  if (countryCode === '+61') {
-    if (!phoneNumber.startsWith('04')) {
-      return {
-        valid: false,
-        message: 'Australian numbers must start with 04.',
-      };
-    }
+  const rule = PHONE_RULES[countryCode];
 
-    if (phoneNumber.length !== 10) {
-      return {
-        valid: false,
-        message: 'Australian numbers must be exactly 10 digits.',
-      };
-    }
-
-    return { valid: true };
+  if (!rule) {
+    return { valid: false, message: 'Invalid phone number.' };
   }
 
-  if (countryCode === '+91') {
-    if (phoneNumber.length !== 10) {
-      return {
-        valid: false,
-        message: 'Indian numbers must be exactly 10 digits.',
-      };
-    }
-
-    return { valid: true };
+  if (!rule.test(phoneNumber)) {
+    return { valid: false, message: rule.message };
   }
 
-  return { valid: false, message: 'Invalid phone number.' };
+  return { valid: true };
 };
 
 export const formatPhoneNumber = (countryCode, rawPhoneNumber) => {
@@ -124,7 +197,9 @@ export const buildPhoneCandidates = (countryCode, rawPhoneNumber) => {
       e164NoPlus,
       localNoLeadingZeros,
       digitsOnly,
-      ...(countryCode === '+61' ? [`0${localNoLeadingZeros}`] : []),
+      ...(['+61', '+64', '+44'].includes(countryCode)
+        ? [`0${localNoLeadingZeros}`]
+        : []),
     ]),
   ).slice(0, 10);
 };

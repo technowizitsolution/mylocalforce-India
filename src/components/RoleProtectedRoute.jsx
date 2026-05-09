@@ -21,7 +21,7 @@ const RoleProtectedRoute = ({ children, requiredRole }) => {
     const roleMap = {
       customer: '/customer',
       client: '/provider',
-      admin: '/admin',
+      admin: '/',
     };
     
     // Determine where to redirect based on user's actual roles

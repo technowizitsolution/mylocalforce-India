@@ -1,5 +1,4 @@
 export const roleHomePathMap = {
-  admin: '/admin',
   client: '/provider',
   customer: '/customer',
 };
@@ -74,10 +73,6 @@ export const getSignedInHomePath = ({
 
   if (resolvedRoles.customer) {
     return '/customer';
-  }
-
-  if (resolvedRoles.admin) {
-    return '/admin';
   }
 
   return '/';

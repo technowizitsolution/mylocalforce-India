@@ -10,6 +10,13 @@ import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { getSignedInHomePath } from '../utils/providerFlow';
 import { notify, getUserFacingError } from '../utils/toast';
 import {
+  COUNTRY_OPTIONS,
+  DEFAULT_COUNTRY_CODE,
+  getPhoneMaxLength,
+  getPhonePlaceholder,
+  validatePhoneNumber,
+} from './signup/signupShared';
+import {
   FiArrowRight,
   FiHome,
   FiLock,
@@ -53,14 +60,15 @@ const LoginScreen = () => {
       return;
     }
 
-    navigate(
-      getSignedInHomePath({
-        user,
-        roles: userRoles?.roles,
-        activeRole,
-      }),
-      { replace: true },
-    );
+    const signedInHomePath = getSignedInHomePath({
+      user,
+      roles: userRoles?.roles,
+      activeRole,
+    });
+
+    if (signedInHomePath !== '/') {
+      navigate(signedInHomePath, { replace: true });
+    }
   }, [
     authLoading,
     isAuthenticated,
@@ -83,11 +91,7 @@ const LoginScreen = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [phoneCooldown, setPhoneCooldown] = useState(0);
 
-  const [selectedCountry, setSelectedCountry] = useState('+91'); // Default India
-  const countryOptions = [
-    { label: '🇮🇳 India (+91)', value: '+91' },
-    { label: '🇦🇺 Australia (+61)', value: '+61' },
-  ];
+  const [selectedCountry, setSelectedCountry] = useState(DEFAULT_COUNTRY_CODE);
 
   useEffect(() => {
     if (location.state?.prefillEmail) {
@@ -279,6 +283,12 @@ const LoginScreen = () => {
 
     // If OTP not yet sent, format and send
     if (!otpSent) {
+      const validation = validatePhoneNumber(selectedCountry, phoneInput);
+      if (!validation.valid) {
+        notify.error(validation.message, { id: 'login-validation' });
+        return;
+      }
+
       // Normalize and format phone to E.164 format using selected country code
       let phoneE164 = phoneInput.trim().replace(/[^0-9]/g, ''); // Remove non-digits
       // Remove leading zeros
@@ -295,7 +305,6 @@ const LoginScreen = () => {
         try {
           const cleanedInput = phoneInput.trim().replace(/[^0-9]/g, '');
           const localNoLeadingZeros = cleanedInput.replace(/^0+/, '');
-          const countryDigits = selectedCountry.replace('+', '');
           const e164 = selectedCountry + localNoLeadingZeros;
           const e164NoPlus = e164.replace('+', '');
           const candidates = Array.from(
@@ -304,7 +313,9 @@ const LoginScreen = () => {
               e164NoPlus,
               localNoLeadingZeros,
               cleanedInput,
-              ...(selectedCountry === '+61' ? ['0' + localNoLeadingZeros] : []),
+              ...(['+61', '+64', '+44'].includes(selectedCountry)
+                ? ['0' + localNoLeadingZeros]
+                : []),
             ]),
           ).slice(0, 10);
 
@@ -397,7 +408,9 @@ const LoginScreen = () => {
               formattedPhone,
               digitsOnly,
               localNoCountry,
-              ...(selectedCountry === '+61' ? ['0' + localNoCountry] : []),
+              ...(['+61', '+64', '+44'].includes(selectedCountry)
+                ? ['0' + localNoCountry]
+                : []),
             ]),
           ).slice(0, 10);
 
@@ -647,11 +660,9 @@ const LoginScreen = () => {
                             disabled={otpSent}
                             className={inputClass}
                           >
-                            {countryOptions.map((option) => (
+                            {COUNTRY_OPTIONS.map((option) => (
                               <option key={option.value} value={option.value}>
-                                {option.value === '+91'
-                                  ? 'India (+91)'
-                                  : 'Australia (+61)'}
+                                {option.label}
                               </option>
                             ))}
                           </select>
@@ -660,18 +671,14 @@ const LoginScreen = () => {
                             <FiSmartphone className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                             <input
                               type="tel"
-                              placeholder={
-                                selectedCountry === '+61'
-                                  ? '412345678'
-                                  : '9876543210'
-                              }
+                              placeholder={getPhonePlaceholder(selectedCountry)}
                               value={phoneInput}
                               onChange={(event) =>
                                 setPhoneInput(
                                   event.target.value.replace(/[^0-9]/g, ''),
                                 )
                               }
-                              maxLength="10"
+                              maxLength={getPhoneMaxLength(selectedCountry)}
                               disabled={otpSent}
                               className={iconInputClass}
                             />

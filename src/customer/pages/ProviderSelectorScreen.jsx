@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FiArrowLeft, FiStar, FiMapPin, FiMail, FiUser, FiAward, FiThumbsUp, FiUserPlus, FiMessageCircle, FiX, FiChevronRight } from 'react-icons/fi';
+import { FiArrowLeft, FiStar, FiMapPin, FiMail, FiUser, FiAward, FiThumbsUp, FiUserPlus, FiMessageCircle, FiX, FiChevronRight, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { fetchUserProfile } from '../../services/firebase';
 import { fetchServicesByProvider } from '../../services/firebase/serviceService';
@@ -32,6 +32,7 @@ const ProviderSelectorScreen = () => {
   const [profileModalVisible, setProfileModalVisible] = useState(false);
   const [providerServices, setProviderServices] = useState([]);
   const [providerServicesLoading, setProviderServicesLoading] = useState(false);
+  const [showAllProviderServices, setShowAllProviderServices] = useState(false);
 
   const extractCoordsFromProfile = useCallback(profile => {
     if (!profile) return null;
@@ -469,6 +470,7 @@ const ProviderSelectorScreen = () => {
 
   const handleViewProfile = async provider => {
     setSelectedProviderProfile(provider);
+    setShowAllProviderServices(false);
     setProfileModalVisible(true);
     try {
       setProviderServicesLoading(true);
@@ -489,9 +491,31 @@ const ProviderSelectorScreen = () => {
   const handleSelectFromProfile = () => {
     if (selectedProviderProfile) {
       setProfileModalVisible(false);
+      setShowAllProviderServices(false);
       handleSelect(selectedProviderProfile);
     }
   };
+
+  const profileServices = useMemo(() => {
+    if (providerServicesLoading) return [];
+
+    if (Array.isArray(providerServices) && providerServices.length > 0) {
+      return providerServices;
+    }
+
+    const fallbackServices =
+      selectedProviderProfile?.profile?.services ||
+      selectedProviderProfile?.profile?.servicesOffered ||
+      [];
+
+    return Array.isArray(fallbackServices) ? fallbackServices : [];
+  }, [providerServices, providerServicesLoading, selectedProviderProfile]);
+
+  const visibleProfileServices = showAllProviderServices
+    ? profileServices
+    : profileServices.slice(0, 3);
+
+  const hasMoreProfileServices = profileServices.length > 3;
 
   return (
     <div className="h-screen bg-slate-50 flex flex-col">
@@ -585,7 +609,10 @@ const ProviderSelectorScreen = () => {
             {/* Modal Header */}
             <div className="flex items-center justify-between px-4 py-4 border-b border-slate-200 bg-white rounded-t-3xl sm:rounded-t-2xl shrink-0">
               <button
-                onClick={() => setProfileModalVisible(false)}
+                onClick={() => {
+                  setShowAllProviderServices(false);
+                  setProfileModalVisible(false);
+                }}
                 className="w-11 h-11 flex items-center justify-center rounded-full bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-colors"
               >
                 <FiX size={24} className="text-slate-700" />
@@ -670,40 +697,43 @@ const ProviderSelectorScreen = () => {
                   </div>
 
                   {/* Services Offered */}
-                  {(providerServicesLoading ||
-                    (providerServices && providerServices.length > 0) ||
-                    selectedProviderProfile.profile?.services ||
-                    selectedProviderProfile.profile?.servicesOffered) && (
+                  {(providerServicesLoading || profileServices.length > 0) && (
                     <div className="mb-6">
-                      <h4 className="text-base font-bold text-slate-800 mb-4">Services Offered</h4>
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <h4 className="text-base font-bold text-slate-800">Services Offered</h4>
+                        {!providerServicesLoading && hasMoreProfileServices && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllProviderServices(prev => !prev)}
+                            className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-700"
+                          >
+                            <span>{showAllProviderServices ? 'View less' : 'View more'}</span>
+                            {showAllProviderServices ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
+                          </button>
+                        )}
+                      </div>
                       <div className="flex flex-wrap gap-2">
                         {providerServicesLoading && (
                           <p className="text-sm text-slate-500">Loading services...</p>
                         )}
 
-                        {!providerServicesLoading && providerServices && providerServices.length > 0 &&
-                          providerServices.map((svc) => (
+                        {!providerServicesLoading && visibleProfileServices.length > 0 &&
+                          visibleProfileServices.map((svc, idx) => (
                             <div
-                              key={svc.id || svc._id || svc.name}
+                              key={
+                                typeof svc === 'string'
+                                  ? `service-${idx}`
+                                  : (svc.id || svc._id || svc.name || `service-${idx}`)
+                              }
                               className="px-3 py-1.5 bg-indigo-100 text-indigo-600 rounded-lg"
                             >
                               <p className="text-sm font-semibold">
-                                {svc.title || svc.name || svc.serviceName || svc.displayName || 'Service'}
+                                {typeof svc === 'string'
+                                  ? svc
+                                  : (svc.title || svc.name || svc.serviceName || svc.displayName || 'Service')}
                               </p>
                             </div>
                           ))}
-
-                        {!providerServicesLoading && (!providerServices || providerServices.length === 0) && (
-                          (selectedProviderProfile.profile?.services || selectedProviderProfile.profile?.servicesOffered || []).map(
-                            (service, idx) => (
-                              <div key={idx} className="px-3 py-1.5 bg-indigo-100 text-indigo-600 rounded-lg">
-                                <p className="text-sm font-semibold">
-                                  {typeof service === 'string' ? service : service.name || service.title}
-                                </p>
-                              </div>
-                            )
-                          )
-                        )}
                       </div>
                     </div>
                   )}

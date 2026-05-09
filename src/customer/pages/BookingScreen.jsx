@@ -19,14 +19,13 @@ import { notify, getUserFacingError } from '../../utils/toast';
 // NOTE: geocoding fallback uses the Google Geocoding API. Ensure this key has Geocoding enabled.
 const GOOGLE_GEOCODING_API_KEY = 'AIzaSyBfeBvLPaPSEyHpwuqcUXCa-YJnZ3iJu1Q';
 
-// Generate time slots in 15-minute intervals
 const generateTimeSlots = () => {
   const slots = [];
-  for (let h = 0; h < 24; h++) {
+  for (let h = 6; h <= 23; h++) {
     for (let m = 0; m < 60; m += 15) {
       const hours12 = h % 12 || 12;
       const ampm = h >= 12 ? 'PM' : 'AM';
-      const minutesStr = m < 10 ? '0' + m : m;
+      const minutesStr = m < 10 ? `0${m}` : `${m}`;
       slots.push(`${hours12}:${minutesStr} ${ampm}`);
     }
   }
@@ -74,8 +73,8 @@ const BookingScreen = () => {
   // Date and Time states
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState('');
-  const [showTimePicker, setShowTimePicker] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [showTimeModal, setShowTimeModal] = useState(false);
 
   // Address states
   const incomingAddr = incomingSelectedAddress || incomingAddress || null;
@@ -520,14 +519,17 @@ const BookingScreen = () => {
   };
 
   const handleTimeSelect = (time) => {
+    if (!time) return;
+
     if (selectedDate && !isBookingTimeValid(selectedDate, time)) {
       notify.warning('Bookings must be made at least 8 hours in advance.', {
         id: 'booking-time-window',
       });
       return;
     }
+
     setSelectedTime(time);
-    setShowTimePicker(false);
+    setShowTimeModal(false);
   };
 
   // ── Submit booking ──
@@ -1192,36 +1194,52 @@ const BookingScreen = () => {
           <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">Select Time</h3>
 
           <button
-            onClick={() => setShowTimePicker(!showTimePicker)}
+            type="button"
+            onClick={() => setShowTimeModal(true)}
             className="w-full flex items-center gap-2.5 sm:gap-3 bg-white rounded-xl border border-slate-200 p-3 sm:p-4 hover:border-slate-300 transition-colors"
           >
             <FiClock className="w-5 h-5 text-indigo-500" />
             <span className={`flex-1 text-left text-sm sm:text-base ${selectedTime ? 'text-slate-800' : 'text-slate-400'}`}>
               {selectedTime || 'Choose a time'}
             </span>
-            <FiChevronDown
-              className={`w-5 h-5 text-slate-400 transition-transform ${showTimePicker ? 'rotate-180' : ''}`}
-            />
+            <FiChevronDown className="w-5 h-5 text-slate-400" />
           </button>
 
-          {showTimePicker && (
-            <div className="mt-2 bg-white rounded-xl border border-slate-200 shadow-lg max-h-52 sm:max-h-60 overflow-y-auto">
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6">
-                {TIME_SLOTS.map((time) => {
-                  const isActive = selectedTime === time;
-                  return (
-                    <button
-                      key={time}
-                      onClick={() => handleTimeSelect(time)}
-                      className={`
-                        text-center px-2 sm:px-3 py-2 sm:py-2.5 text-xs sm:text-sm transition-colors border-b border-r border-slate-100
-                        ${isActive ? 'bg-indigo-500 text-white font-semibold' : 'text-slate-700 hover:bg-indigo-50'}
-                      `}
-                    >
-                      {time}
-                    </button>
-                  );
-                })}
+          {showTimeModal && (
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
+              <div className="w-full sm:max-w-2xl bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden">
+                <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-200">
+                  <h4 className="text-base sm:text-lg font-bold text-slate-800">Select Time</h4>
+                  <button
+                    type="button"
+                    onClick={() => setShowTimeModal(false)}
+                    className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors"
+                  >
+                    <FiChevronDown className="w-5 h-5 text-slate-700 rotate-180" />
+                  </button>
+                </div>
+
+                <div className="max-h-[60vh] overflow-y-auto p-4 sm:p-6">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+                    {TIME_SLOTS.map((time) => {
+                      const isActive = selectedTime === time;
+                      return (
+                        <button
+                          key={time}
+                          type="button"
+                          onClick={() => handleTimeSelect(time)}
+                          className={`rounded-lg border px-2 py-3 text-sm font-semibold transition-colors ${
+                            isActive
+                              ? 'bg-indigo-500 border-indigo-500 text-white'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200'
+                          }`}
+                        >
+                          {time}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
           )}

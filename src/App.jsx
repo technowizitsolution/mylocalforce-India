@@ -25,6 +25,10 @@ import BookingScreen from './customer/pages/BookingScreen';
 import OrderSummary from './customer/pages/OrderSummary';
 import PaymentSuccess from './customer/pages/PaymentSuccess';
 import MobileUploadPage from './components/providerUpload/mobile/MobileUploadPage';
+import LegalPolicyPage from './components/LegalPolicyPage';
+import UnknownRouteRedirect from './components/UnknownRouteRedirect';
+import CareersPage from './components/CareersPage';
+import ContactPage from './components/ContactPage';
 /**
  * App component - Main routing configuration
  * Handles all route definitions and protects routes based on user roles
@@ -36,6 +40,14 @@ const App = () => {
       <Route path="/" element={<Welcome />} />
       <Route path="/about" element={<AboutUs />} />
       <Route path="/about-us" element={<Navigate to="/about" replace />} />
+      <Route path="/privacy-policy" element={<LegalPolicyPage type="privacy" />} />
+      <Route path="/terms-and-conditions" element={<Navigate to="/terms-and-conditions/customer" replace />} />
+      <Route path="/terms-and-conditions/customer" element={<LegalPolicyPage type="terms" />} />
+      <Route path="/terms-and-conditions/provider" element={<LegalPolicyPage type="terms" />} />
+      <Route path="/terms-customer" element={<Navigate to="/terms-and-conditions/customer" replace />} />
+      <Route path="/terms-provider" element={<Navigate to="/terms-and-conditions/provider" replace />} />
+      <Route path="/careers" element={<CareersPage />} />
+      <Route path="/contact" element={<ContactPage />} />
 
       <Route path="/login" element={<LoginScreen />} />
 
@@ -136,7 +148,7 @@ const App = () => {
      
 
       {/* Catch-all for unknown routes */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<UnknownRouteRedirect />} />
     </Routes>
   );
 };

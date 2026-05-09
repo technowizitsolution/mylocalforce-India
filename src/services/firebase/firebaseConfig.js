@@ -8,12 +8,14 @@ import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: 'AIzaSyDThYj_yf0UKGsnK-KIPD9bX6NTzorI1sE',
+  apiKey: 'AIzaSyBpuEH9_-erRrEdUKQ46Fkec4IgW9RqhiQ',
   authDomain: 'mylocalforce-295b8.firebaseapp.com',
   projectId: 'mylocalforce-295b8',
   storageBucket: 'mylocalforce-295b8.firebasestorage.app',
   messagingSenderId: '1081005319135',
-  appId: '1:1081005319135:android:4deec0a1cffdc0fd019a6a',
+  appId: '1:1081005319135:web:7f2e7a0a54d120ff019a6a',
+  measurementId: 'G-T0QRB4GM95',
+  databaseURL: 'https://mylocalforce-295b8-default-rtdb.firebaseio.com',
 };
 
 const app = initializeApp(firebaseConfig);

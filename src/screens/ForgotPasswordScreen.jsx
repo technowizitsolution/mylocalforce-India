@@ -17,6 +17,14 @@ import { collection, getDocs, limit, query, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { firestore, functions } from '../services/firebase/firebaseConfig';
 import { notify, getUserFacingError } from '../utils/toast';
+import {
+  COUNTRY_OPTIONS,
+  DEFAULT_COUNTRY_CODE,
+  getPhoneHint,
+  getPhoneMaxLength,
+  getPhonePlaceholder,
+  validatePhoneNumber as validatePhoneNumberForCountry,
+} from './signup/signupShared';
 
 const SEND_EMAIL_OTP_URL =
   'https://us-central1-mylocalforce-295b8.cloudfunctions.net/sendEmailOtp';
@@ -24,11 +32,6 @@ const RESET_PASSWORD_URL =
   'https://us-central1-mylocalforce-295b8.cloudfunctions.net/resetpassword';
 const UPDATE_PASSWORD_WITH_UID_URL =
   'https://us-central1-mylocalforce-295b8.cloudfunctions.net/updatePasswordWithUid';
-
-const COUNTRY_OPTIONS = [
-  { label: 'India (+91)', value: '+91' },
-  { label: 'Australia (+61)', value: '+61' },
-];
 
 const inputClass =
   'h-14 w-full rounded-lg border border-gray-300 bg-white px-5 text-gray-900 placeholder-gray-500 shadow-[0_8px_22px_rgba(15,23,42,0.04)] transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100';
@@ -71,7 +74,7 @@ const ForgotPasswordScreen = () => {
   const [resetMethod, setResetMethod] = useState('email');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [selectedCountry, setSelectedCountry] = useState('+91');
+  const [selectedCountry, setSelectedCountry] = useState(DEFAULT_COUNTRY_CODE);
 
   const [emailOtp, setEmailOtp] = useState(initialFlowState.emailOtp);
   const [phoneOtp, setPhoneOtp] = useState(initialFlowState.phoneOtp);
@@ -205,40 +208,8 @@ const ForgotPasswordScreen = () => {
 
   const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
-  const validatePhoneNumber = (value) => {
-    const cleanPhone = value.replace(/\s/g, '');
-
-    if (selectedCountry === '+61') {
-      if (!cleanPhone.startsWith('04')) {
-        return {
-          valid: false,
-          message: 'Australian number must start with 04',
-        };
-      }
-
-      if (cleanPhone.length !== 10) {
-        return {
-          valid: false,
-          message: 'Australian number must be exactly 10 digits',
-        };
-      }
-
-      return { valid: true };
-    }
-
-    if (selectedCountry === '+91') {
-      if (cleanPhone.length !== 10) {
-        return {
-          valid: false,
-          message: 'Indian number must be exactly 10 digits',
-        };
-      }
-
-      return { valid: true };
-    }
-
-    return { valid: false, message: 'Invalid phone number' };
-  };
+  const validatePhoneNumber = (value) =>
+    validatePhoneNumberForCountry(selectedCountry, value);
 
   const formatPhoneNumber = () => {
     const cleaned = phone.trim().replace(/\s/g, '');
@@ -380,7 +351,9 @@ const ForgotPasswordScreen = () => {
           e164NoPlus,
           localNoLeadingZeros,
           cleanedInput,
-          ...(selectedCountry === '+61' ? [`0${localNoLeadingZeros}`] : []),
+          ...(['+61', '+64', '+44'].includes(selectedCountry)
+            ? [`0${localNoLeadingZeros}`]
+            : []),
         ]),
       ).slice(0, 10);
 
@@ -867,9 +840,7 @@ const ForgotPasswordScreen = () => {
                   ))}
                 </select>
                 <p className="mt-2 text-xs text-gray-500">
-                  {selectedCountry === '+61'
-                    ? 'Number must start with 04 and contain exactly 10 digits.'
-                    : 'Enter a 10 digit mobile number.'}
+                  {getPhoneHint(selectedCountry)}
                 </p>
               </div>
 
@@ -882,12 +853,14 @@ const ForgotPasswordScreen = () => {
                     <FiSmartphone className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                     <input
                       type="tel"
-                      placeholder={
-                        selectedCountry === '+61' ? '0412345678' : '9876543210'
-                      }
+                      placeholder={getPhonePlaceholder(selectedCountry)}
                       value={phone}
                       onChange={(event) => {
-                        setPhone(event.target.value.replace(/[^0-9]/g, '').slice(0, 10));
+                        setPhone(
+                          event.target.value
+                            .replace(/[^0-9]/g, '')
+                            .slice(0, getPhoneMaxLength(selectedCountry)),
+                        );
                         clearMessages({ includeValidation: true });
                       }}
                       disabled={phoneOtpVerified}

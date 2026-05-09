@@ -29,6 +29,7 @@ import AddressAutocompleteField from '../../components/AddressAutocompleteField'
 import { useAuth } from '../../context/AuthContext';
 import {
   COUNTRY_OPTIONS,
+  DEFAULT_COUNTRY_CODE,
   DAYS,
   GENDER_OPTIONS,
   MONTHS,
@@ -39,6 +40,8 @@ import {
   formatPhoneNumber,
   getDobValidation,
   getPasswordValidation,
+  getPhoneMaxLength,
+  getPhonePlaceholder,
   getRoleConflictMessage,
   getRoleDisplayName,
   sendEmailOtp,
@@ -49,7 +52,6 @@ import {
 import { getProviderFlowPath } from '../../utils/providerFlow';
 import { notify, getUserFacingError } from '../../utils/toast';
 
-const TERMS_URL = 'https://mylocalforce.app/terms';
 const SIGNUP_TOAST_DURATION = 12000;
 const SIGNUP_SUCCESS_TOAST_DURATION = 15000;
 
@@ -85,6 +87,9 @@ const SignupFormScreen = ({ mode }) => {
   const targetRole = isProvider ? 'client' : 'customer';
   const signupRole = isProvider ? 'provider' : 'customer';
   const roleLabel = isProvider ? 'Service Provider' : 'Customer';
+  const termsUrl = isProvider
+    ? '/terms-and-conditions/provider'
+    : '/terms-and-conditions/customer';
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -103,7 +108,7 @@ const SignupFormScreen = ({ mode }) => {
     formattedAddress: '',
     address_place_id: '',
   });
-  const [selectedCountry, setSelectedCountry] = useState('');
+  const [selectedCountry, setSelectedCountry] = useState(DEFAULT_COUNTRY_CODE);
   const [profileImageFile, setProfileImageFile] = useState(null);
   const [profileImagePreview, setProfileImagePreview] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -200,7 +205,10 @@ const SignupFormScreen = ({ mode }) => {
   };
 
   const handlePhoneChange = (value) => {
-    updateFormData('phoneNumber', value.replace(/[^0-9]/g, '').slice(0, 10));
+    updateFormData(
+      'phoneNumber',
+      value.replace(/[^0-9]/g, '').slice(0, getPhoneMaxLength(selectedCountry)),
+    );
 
     if (phoneVerification.isVerifying || phoneVerification.isPhoneVerified) {
       setPhoneVerification({
@@ -969,7 +977,6 @@ const SignupFormScreen = ({ mode }) => {
                         }
                         className={selectClass}
                       >
-                        <option value="">Select</option>
                         {COUNTRY_OPTIONS.map((option) => (
                           <option key={option.value} value={option.value}>
                             {option.label}
@@ -991,11 +998,8 @@ const SignupFormScreen = ({ mode }) => {
                             handlePhoneChange(event.target.value)
                           }
                           className={iconInputClass}
-                          placeholder={
-                            selectedCountry === '+61'
-                              ? '0412345678'
-                              : '9876543210'
-                          }
+                          placeholder={getPhonePlaceholder(selectedCountry)}
+                          maxLength={getPhoneMaxLength(selectedCountry)}
                         />
                       </div>
                     </div>
@@ -1307,7 +1311,7 @@ const SignupFormScreen = ({ mode }) => {
                     <span className="text-sm text-gray-600">
                       I agree to the{' '}
                       <a
-                        href={TERMS_URL}
+                        href={termsUrl}
                         target="_blank"
                         rel="noreferrer"
                         className="font-semibold text-blue-600 hover:text-blue-700"

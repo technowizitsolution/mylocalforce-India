@@ -15,14 +15,16 @@ const Welcome = () => {
     return <Loading fullScreen />;
   }
 
-  if (isAuthenticated) {
+  const signedInHomePath = getSignedInHomePath({
+    user,
+    roles: userRoles?.roles,
+    activeRole,
+  });
+
+  if (isAuthenticated && signedInHomePath !== '/') {
     return (
       <Navigate
-        to={getSignedInHomePath({
-          user,
-          roles: userRoles?.roles,
-          activeRole,
-        })}
+        to={signedInHomePath}
         replace
       />
     );
