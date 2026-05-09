@@ -30,7 +30,7 @@ const Footer = () => {
     },
   ];
   return (
-    <footer className="bg-gray-100 px-4 sm:px-6 md:px-8 py-8 sm:py-12 md:py-16">
+    <footer className="bg-gray-100 px-4 sm:px-6 md:px-8 pt-8 pb-2 sm:pt-12 sm:pb-4 md:pt-16 md:pb-8">
       <div className="mx-auto max-w-7xl">
         {/* Logo Section */}
         <div className="mb-6 sm:mb-8 md:mb-12 flex items-center gap-2 sm:gap-3">
