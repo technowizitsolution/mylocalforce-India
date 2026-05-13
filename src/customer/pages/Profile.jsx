@@ -33,7 +33,9 @@ import NotificationBell from '../components/NotificationBell';
 
 const isToggleExplicitlyDisabled = (value) => {
   if (value === false) return true;
-  const normalized = String(value ?? '').trim().toLowerCase();
+  const normalized = String(value ?? '')
+    .trim()
+    .toLowerCase();
   return ['false', '0', 'no', 'off', 'disabled'].includes(normalized);
 };
 
@@ -95,8 +97,7 @@ const Profile = () => {
         const ratedBookings = completedBookings.filter((b) => b.rating);
         const avgRating =
           ratedBookings.length > 0
-            ? ratedBookings.reduce((sum, b) => sum + b.rating, 0) /
-            ratedBookings.length
+            ? ratedBookings.reduce((sum, b) => sum + b.rating, 0) / ratedBookings.length
             : 0;
 
         setStats({ totalBookings, totalSpent, avgRating });
@@ -115,11 +116,10 @@ const Profile = () => {
       const { roles } = await fetchUserRoles(user.uid);
       const availableRoles = Object.keys(roles || {}).filter((r) => roles[r]);
 
-      if (availableRoles.includes('client') || availableRoles.includes('provider')) {
-        notify.success('Switching to provider mode.', { id: 'profile-switch-role' });
-        navigate('/provider');
+      if (availableRoles.length > 1) {
+        navigate('/role-selection');
       } else {
-        notify.warning('Provider mode is not available for this account.', {
+        notify.warning('No other role is available for this account.', {
           id: 'profile-switch-role',
         });
       }
@@ -194,9 +194,7 @@ const Profile = () => {
 
   const handleDeactivateAccount = () => {
     if (accountActionLoading) return;
-    const confirmed = window.confirm(
-      'This will deactivate only your customer profile. Continue?'
-    );
+    const confirmed = window.confirm('This will deactivate only your customer profile. Continue?');
     if (!confirmed) return;
     runDeactivateAccount();
   };
@@ -212,10 +210,9 @@ const Profile = () => {
         await refreshUserData?.();
         const rolesData = await fetchUserRoles(user?.uid);
         const roles = rolesData?.roles || {};
-        notify.success(
-          'Your customer role has been deleted. Redirecting to your remaining role.',
-          { id: 'profile-delete' }
-        );
+        notify.success('Your customer role has been deleted. Redirecting to your remaining role.', {
+          id: 'profile-delete',
+        });
         if (roles.client) {
           navigate('/provider');
         } else if (roles.customer) {
@@ -226,7 +223,7 @@ const Profile = () => {
         return;
       }
 
-      await logout().catch(() => { });
+      await logout().catch(() => {});
       notify.success('Your account has been permanently deleted.', {
         id: 'profile-delete',
       });
@@ -260,9 +257,7 @@ const Profile = () => {
     if (!user?.uid || pushPreferenceUpdating) return;
 
     const actionText = nextValue ? 'enable' : 'disable';
-    const confirmed = window.confirm(
-      `Do you want to ${actionText} push notifications?`
-    );
+    const confirmed = window.confirm(`Do you want to ${actionText} push notifications?`);
     if (!confirmed) return;
 
     if (nextValue) {
@@ -283,10 +278,9 @@ const Profile = () => {
 
     try {
       await updatePushNotificationPreference(user.uid, 'customer', nextValue);
-      notify.success(
-        `Push notifications ${nextValue ? 'enabled' : 'disabled'}.`,
-        { id: 'profile-push' }
-      );
+      notify.success(`Push notifications ${nextValue ? 'enabled' : 'disabled'}.`, {
+        id: 'profile-push',
+      });
     } catch (error) {
       setCustomerPushEnabled(previousValue);
       notify.error(
@@ -348,6 +342,7 @@ const Profile = () => {
   const menuItems = [
     { icon: FiCalendar, label: 'My Bookings', path: '/customer/bookings' },
     { icon: FiEdit3, label: 'Edit Profile', path: '/customer/edit-profile' },
+    { icon: FiRefreshCw, label: 'Switch Role', onPress: handleSwitchRole },
     { icon: FiGift, label: 'Accepted Offers', path: '/customer/accepted-leads' },
     { icon: FiBell, label: 'Notifications', path: '/customer/notifications' },
   ];
@@ -376,8 +371,7 @@ const Profile = () => {
   ];
 
   const profileCompletion = Math.round(
-    (profileChecklist.filter((item) => item.done).length / profileChecklist.length) *
-    100
+    (profileChecklist.filter((item) => item.done).length / profileChecklist.length) * 100
   );
 
   const nextProfileStep = profileChecklist.find((item) => !item.done);
@@ -385,8 +379,7 @@ const Profile = () => {
     ? `Next step: ${nextProfileStep.label.toLowerCase()}.`
     : 'Profile is fully completed.';
 
-  const bookingsBadge =
-    !loadingStats && stats.totalBookings > 0 ? stats.totalBookings : null;
+  const bookingsBadge = !loadingStats && stats.totalBookings > 0 ? stats.totalBookings : null;
 
   const accountNavItems = [
     { icon: FiUser, label: 'My Profile', path: '/customer/profile' },
@@ -436,6 +429,16 @@ const Profile = () => {
       iconColor: 'text-[#6C63FF]',
     },
     {
+      icon: FiRefreshCw,
+      label: 'Switch Role',
+      description: 'Choose Customer or Service Provider mode for this session.',
+      onPress: handleSwitchRole,
+      badge: 'Choose role',
+      badgeClass: 'bg-blue-50 text-blue-700',
+      iconBg: 'bg-blue-50',
+      iconColor: 'text-blue-600',
+    },
+    {
       icon: FiBell,
       label: 'Notifications',
       description: 'Stay on top of booking reminders and updates.',
@@ -464,11 +467,7 @@ const Profile = () => {
             {/* Avatar */}
             <div className="w-12 h-12 lg:w-20 lg:h-20 rounded-full bg-linear-to-br from-[#6C63FF] to-[#4ECDC4] flex items-center justify-center overflow-hidden ring-4 ring-indigo-100 shrink-0">
               {user?.photoURL ? (
-                <img
-                  src={user.photoURL}
-                  alt="avatar"
-                  className="w-full h-full object-cover"
-                />
+                <img src={user.photoURL} alt="avatar" className="w-full h-full object-cover" />
               ) : (
                 <FiUser className="text-white" size={24} />
               )}
@@ -526,15 +525,12 @@ const Profile = () => {
                 ].map(({ value, label }, i) => (
                   <div
                     key={label}
-                    className={`flex-1 flex flex-col items-center ${i < 2 ? 'border-r border-slate-100' : ''
-                      }`}
+                    className={`flex-1 flex flex-col items-center ${
+                      i < 2 ? 'border-r border-slate-100' : ''
+                    }`}
                   >
-                    <span className="text-lg lg:text-2xl font-bold text-[#6C63FF]">
-                      {value}
-                    </span>
-                    <span className="text-xs lg:text-sm text-slate-500 mt-1">
-                      {label}
-                    </span>
+                    <span className="text-lg lg:text-2xl font-bold text-[#6C63FF]">{value}</span>
+                    <span className="text-xs lg:text-sm text-slate-500 mt-1">{label}</span>
                   </div>
                 ))}
               </>
@@ -543,12 +539,13 @@ const Profile = () => {
 
           {/* ── Menu Options ───────────────────────────────── */}
           <div className="bg-white mb-6 shadow-sm lg:rounded-2xl lg:shadow-md lg:mb-6 overflow-hidden transition-shadow hover:shadow-lg">
-            {menuItems.map(({ icon: MenuIcon, label, path }, i) => (
+            {menuItems.map(({ icon: MenuIcon, label, path, onPress }, i) => (
               <button
                 key={label}
-                onClick={() => navigate(path)}
-                className={`w-full flex items-center p-4 lg:px-8 lg:py-5 hover:bg-slate-50 active:bg-slate-100 transition-colors ${i < menuItems.length - 1 ? 'border-b border-slate-100' : ''
-                  }`}
+                onClick={() => (onPress ? onPress() : navigate(path))}
+                className={`w-full flex items-center p-4 lg:px-8 lg:py-5 hover:bg-slate-50 active:bg-slate-100 transition-colors ${
+                  i < menuItems.length - 1 ? 'border-b border-slate-100' : ''
+                }`}
                 type="button"
               >
                 <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
@@ -574,13 +571,15 @@ const Profile = () => {
                 <button
                   type="button"
                   onClick={() => handlePushPreferenceToggle(!customerPushEnabled)}
-                  className={`relative h-6 w-11 rounded-full transition-colors ${customerPushEnabled ? 'bg-[#6C63FF]' : 'bg-slate-200'
-                    }`}
+                  className={`relative h-6 w-11 rounded-full transition-colors ${
+                    customerPushEnabled ? 'bg-[#6C63FF]' : 'bg-slate-200'
+                  }`}
                   aria-pressed={customerPushEnabled}
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${customerPushEnabled ? 'translate-x-5' : 'translate-x-0'
-                      }`}
+                    className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                      customerPushEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
                   />
                 </button>
               )}
@@ -602,8 +601,9 @@ const Profile = () => {
 
             <button
               onClick={handleDeactivateAccount}
-              className={`w-full flex items-center p-4 lg:px-8 lg:py-5 hover:bg-amber-50 active:bg-amber-100 transition-colors border-b border-slate-100 ${accountActionLoading ? 'opacity-60 cursor-not-allowed' : ''
-                }`}
+              className={`w-full flex items-center p-4 lg:px-8 lg:py-5 hover:bg-amber-50 active:bg-amber-100 transition-colors border-b border-slate-100 ${
+                accountActionLoading ? 'opacity-60 cursor-not-allowed' : ''
+              }`}
               type="button"
               disabled={accountActionLoading}
             >
@@ -617,8 +617,9 @@ const Profile = () => {
 
             <button
               onClick={handleDeleteAccount}
-              className={`w-full flex items-center p-4 lg:px-8 lg:py-5 hover:bg-red-50 active:bg-red-100 transition-colors ${accountActionLoading ? 'opacity-60 cursor-not-allowed' : ''
-                }`}
+              className={`w-full flex items-center p-4 lg:px-8 lg:py-5 hover:bg-red-50 active:bg-red-100 transition-colors ${
+                accountActionLoading ? 'opacity-60 cursor-not-allowed' : ''
+              }`}
               type="button"
               disabled={accountActionLoading}
             >
@@ -668,22 +669,15 @@ const Profile = () => {
                 alt="My Local Force logo"
                 className="w-11 h-11 object-cover rounded-lg border border-slate-200 shadow-sm"
               />
-              <span className="text-lg font-bold tracking-wide text-slate-900">
-                MY LOCAL FORCE
-              </span>
+              <span className="text-lg font-bold tracking-wide text-slate-900">MY LOCAL FORCE</span>
             </button>
           </div>
-
 
           <div className="px-6 py-6 border-b border-slate-200">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-linear-to-br from-[#6C63FF] to-[#4ECDC4] flex items-center justify-center overflow-hidden">
                 {user?.photoURL ? (
-                  <img
-                    src={user.photoURL}
-                    alt="avatar"
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={user.photoURL} alt="avatar" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-sm font-semibold text-white">{initials}</span>
                 )}
@@ -702,9 +696,7 @@ const Profile = () => {
 
           <nav className="flex-1 min-h-0 px-3 py-4 space-y-6 overflow-y-auto">
             <div>
-              <p className="px-3 text-xs uppercase tracking-widest text-slate-500 mb-2">
-                Account
-              </p>
+              <p className="px-3 text-xs uppercase tracking-widest text-slate-500 mb-2">Account</p>
               <div className="space-y-1">
                 {accountNavItems.map(({ icon: Icon, label, path, badge }) => {
                   const isActive = pathname === path;
@@ -712,17 +704,19 @@ const Profile = () => {
                     <button
                       key={label}
                       onClick={() => navigate(path)}
-                      className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isActive
+                      className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                        isActive
                           ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
                           : 'text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm'
-                        }`}
+                      }`}
                       type="button"
                     >
                       <span
-                        className={`w-9 h-9 rounded-lg flex items-center justify-center ${isActive
+                        className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                          isActive
                             ? 'bg-[#6C63FF]/10 text-[#5A52E3]'
                             : 'bg-slate-100 text-slate-500 group-hover:bg-[#6C63FF]/10 group-hover:text-[#5A52E3]'
-                          }`}
+                        }`}
                       >
                         <Icon size={18} />
                       </span>
@@ -739,9 +733,7 @@ const Profile = () => {
             </div>
 
             <div>
-              <p className="px-3 text-xs uppercase tracking-widest text-slate-500 mb-2">
-                Settings
-              </p>
+              <p className="px-3 text-xs uppercase tracking-widest text-slate-500 mb-2">Settings</p>
               <div className="space-y-1">
                 {settingsNavItems.map(({ icon: Icon, label, path }) => {
                   const isActive = pathname === path;
@@ -749,17 +741,19 @@ const Profile = () => {
                     <button
                       key={label}
                       onClick={() => navigate(path)}
-                      className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isActive
+                      className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                        isActive
                           ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
                           : 'text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm'
-                        }`}
+                      }`}
                       type="button"
                     >
                       <span
-                        className={`w-9 h-9 rounded-lg flex items-center justify-center ${isActive
+                        className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                          isActive
                             ? 'bg-[#6C63FF]/10 text-[#5A52E3]'
                             : 'bg-slate-100 text-slate-500 group-hover:bg-[#6C63FF]/10 group-hover:text-[#5A52E3]'
-                          }`}
+                        }`}
                       >
                         <Icon size={18} />
                       </span>
@@ -811,7 +805,7 @@ const Profile = () => {
 
                 <button
                   onClick={() => navigate('/customer/profile')}
-                  className="relative w-11 h-11 flex items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm hover:border-[#6C63FF]/40 hover:bg-indigo-50 active:bg-indigo-100 transition-colors"
+                  className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm transition-colors hover:border-[#6C63FF]/40 hover:bg-indigo-50 active:bg-indigo-100 cursor-pointer"
                   type="button"
                   aria-label="Open profile"
                 >
@@ -861,9 +855,7 @@ const Profile = () => {
                         <p className="text-4xl font-bold text-slate-950 mt-4">
                           ${stats.totalSpent.toFixed(0)}
                         </p>
-                        <p className="text-sm text-slate-500 mt-2">
-                          Lifetime spend on services
-                        </p>
+                        <p className="text-sm text-slate-500 mt-2">Lifetime spend on services</p>
                       </div>
                       <span className="w-12 h-12 rounded-2xl bg-[#4ECDC4]/15 text-[#1E9E94] flex items-center justify-center">
                         <FiGift size={22} />
@@ -879,9 +871,7 @@ const Profile = () => {
                         <p className="text-4xl font-bold text-slate-950 mt-4">
                           {stats.avgRating > 0 ? stats.avgRating.toFixed(1) : 'N/A'}
                         </p>
-                        <p className="text-sm text-slate-500 mt-2">
-                          Average rating you have given
-                        </p>
+                        <p className="text-sm text-slate-500 mt-2">Average rating you have given</p>
                       </div>
                       <span className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center">
                         <FiCheck size={22} />
@@ -899,7 +889,7 @@ const Profile = () => {
                   return (
                     <button
                       key={action.label}
-                      onClick={() => navigate(action.path)}
+                      onClick={() => (action.onPress ? action.onPress() : navigate(action.path))}
                       className="group min-h-[190px] rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition-all hover:-translate-y-1 hover:border-[#6C63FF]/30 hover:shadow-lg"
                       type="button"
                     >
@@ -914,9 +904,7 @@ const Profile = () => {
                           size={18}
                         />
                       </div>
-                      <p className="mt-8 text-base font-semibold text-slate-900">
-                        {action.label}
-                      </p>
+                      <p className="mt-8 text-base font-semibold text-slate-900">{action.label}</p>
                       <p className="mt-1 text-sm text-slate-500">{action.description}</p>
                       <span
                         className={`mt-4 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${action.badgeClass}`}
@@ -931,9 +919,7 @@ const Profile = () => {
               <div className="space-y-4">
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-base font-semibold text-slate-800">
-                      Profile Strength
-                    </h2>
+                    <h2 className="text-base font-semibold text-slate-800">Profile Strength</h2>
                     <span className="text-sm font-semibold text-[#6C63FF]">
                       {profileCompletion}%
                     </span>
@@ -944,18 +930,17 @@ const Profile = () => {
                       style={{ width: `${profileCompletion}%` }}
                     />
                   </div>
-                  <p className="mt-3 text-xs text-slate-500">
-                    {profileCompletionMessage}
-                  </p>
+                  <p className="mt-3 text-xs text-slate-500">{profileCompletionMessage}</p>
 
                   <div className="mt-5 space-y-3">
                     {profileChecklist.map((item) => (
                       <div key={item.label} className="flex items-center gap-3">
                         <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center ${item.done
+                          className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                            item.done
                               ? 'bg-[#4ECDC4]/15 text-[#4ECDC4]'
                               : 'bg-slate-100 text-slate-400'
-                            }`}
+                          }`}
                         >
                           {item.done ? (
                             <FiCheck size={16} />
@@ -964,8 +949,7 @@ const Profile = () => {
                           )}
                         </div>
                         <span
-                          className={`text-sm ${item.done ? 'text-slate-700' : 'text-slate-400'
-                            }`}
+                          className={`text-sm ${item.done ? 'text-slate-700' : 'text-slate-400'}`}
                         >
                           {item.label}
                         </span>
@@ -975,17 +959,13 @@ const Profile = () => {
 
                   <div className="mt-5 pt-5 border-t border-slate-200 space-y-3">
                     <div>
-                      <p className="text-xs uppercase tracking-widest text-slate-400">
-                        Email
-                      </p>
+                      <p className="text-xs uppercase tracking-widest text-slate-400">Email</p>
                       <p className="text-sm text-slate-700 truncate">
                         {user?.email || 'user@example.com'}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs uppercase tracking-widest text-slate-400">
-                        Phone
-                      </p>
+                      <p className="text-xs uppercase tracking-widest text-slate-400">Phone</p>
                       <p className="text-sm text-slate-700 truncate">
                         {user?.phone || '+1234567890'}
                       </p>
@@ -1002,20 +982,14 @@ const Profile = () => {
 
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-base font-semibold text-slate-800">
-                      Account Controls
-                    </h2>
+                    <h2 className="text-base font-semibold text-slate-800">Account Controls</h2>
                     <FiBell className="text-slate-400" size={18} />
                   </div>
 
                   <div className="mt-4 flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-slate-700">
-                        Push Notifications
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        Manage browser alerts for bookings.
-                      </p>
+                      <p className="text-sm font-semibold text-slate-700">Push Notifications</p>
+                      <p className="text-xs text-slate-500">Manage browser alerts for bookings.</p>
                     </div>
                     {pushPreferenceUpdating ? (
                       <div className="w-5 h-5 border-2 border-[#6C63FF] border-t-transparent rounded-full animate-spin" />
@@ -1023,13 +997,15 @@ const Profile = () => {
                       <button
                         type="button"
                         onClick={() => handlePushPreferenceToggle(!customerPushEnabled)}
-                        className={`relative h-6 w-11 rounded-full transition-colors ${customerPushEnabled ? 'bg-[#6C63FF]' : 'bg-slate-200'
-                          }`}
+                        className={`relative h-6 w-11 rounded-full transition-colors ${
+                          customerPushEnabled ? 'bg-[#6C63FF]' : 'bg-slate-200'
+                        }`}
                         aria-pressed={customerPushEnabled}
                       >
                         <span
-                          className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${customerPushEnabled ? 'translate-x-5' : 'translate-x-0'
-                            }`}
+                          className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                            customerPushEnabled ? 'translate-x-5' : 'translate-x-0'
+                          }`}
                         />
                       </button>
                     )}
@@ -1050,8 +1026,9 @@ const Profile = () => {
                   <div className="mt-4 space-y-2">
                     <button
                       onClick={handleDeactivateAccount}
-                      className={`w-full flex items-center justify-between rounded-xl border border-amber-200 px-4 py-3 text-sm font-semibold text-amber-600 hover:border-amber-300 hover:bg-amber-50 transition-colors ${accountActionLoading ? 'opacity-60 cursor-not-allowed' : ''
-                        }`}
+                      className={`w-full flex items-center justify-between rounded-xl border border-amber-200 px-4 py-3 text-sm font-semibold text-amber-600 hover:border-amber-300 hover:bg-amber-50 transition-colors ${
+                        accountActionLoading ? 'opacity-60 cursor-not-allowed' : ''
+                      }`}
                       type="button"
                       disabled={accountActionLoading}
                     >
@@ -1062,8 +1039,9 @@ const Profile = () => {
                     </button>
                     <button
                       onClick={handleDeleteAccount}
-                      className={`w-full flex items-center justify-between rounded-xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-500 hover:border-red-300 hover:bg-red-50 transition-colors ${accountActionLoading ? 'opacity-60 cursor-not-allowed' : ''
-                        }`}
+                      className={`w-full flex items-center justify-between rounded-xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-500 hover:border-red-300 hover:bg-red-50 transition-colors ${
+                        accountActionLoading ? 'opacity-60 cursor-not-allowed' : ''
+                      }`}
                       type="button"
                       disabled={accountActionLoading}
                     >
@@ -1084,12 +1062,8 @@ const Profile = () => {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-base font-semibold text-slate-800">
-                    Recent Activity
-                  </h3>
-                  <p className="text-sm text-slate-500">
-                    Your latest bookings and updates.
-                  </p>
+                  <h3 className="text-base font-semibold text-slate-800">Recent Activity</h3>
+                  <p className="text-sm text-slate-500">Your latest bookings and updates.</p>
                 </div>
                 <button
                   onClick={() => navigate('/customer/bookings')}

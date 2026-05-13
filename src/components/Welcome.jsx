@@ -1,12 +1,13 @@
-import Hero from "./Hero"
-import Content from "./Content"
-import Mid from "./Mid"
-import Latest from "./Latest"
-import Footer from "./Footer"
-import { Navigate } from "react-router-dom"
-import { useAuth } from "../context/AuthContext"
-import { Loading } from "./StateComponents"
-import { getSignedInHomePath } from "../utils/providerFlow"
+import Hero from './Hero';
+import Content from './Content';
+import Mid from './Mid';
+import Latest from './Latest';
+import Footer from './Footer';
+import PublicNavbar from './PublicNavbar';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { Loading } from './StateComponents';
+import { getSignedInHomePath } from '../utils/providerFlow';
 
 const Welcome = () => {
   const { isAuthenticated, user, userRoles, activeRole, isLoading } = useAuth();
@@ -22,23 +23,19 @@ const Welcome = () => {
   });
 
   if (isAuthenticated && signedInHomePath !== '/') {
-    return (
-      <Navigate
-        to={signedInHomePath}
-        replace
-      />
-    );
+    return <Navigate to={signedInHomePath} replace />;
   }
 
   return (
-    <div>
-        <Hero />
-        <Content />
-        <Mid />
-        <Latest />
-        <Footer />
+    <div className="relative">
+      <PublicNavbar variant="transparent" overlay />
+      <Hero />
+      <Content />
+      <Mid />
+      <Latest />
+      <Footer />
     </div>
-  )
-}
+  );
+};
 
-export default Welcome
+export default Welcome;

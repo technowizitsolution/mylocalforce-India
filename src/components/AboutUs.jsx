@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   FiArrowRight,
   FiCheckCircle,
@@ -13,6 +13,7 @@ import {
   FiZap,
 } from 'react-icons/fi';
 import Footer from './Footer';
+import PublicNavbar from './PublicNavbar';
 
 const customerFlow = [
   {
@@ -98,17 +99,20 @@ const serviceCategories = [
 
 const SectionHeading = ({ eyebrow, title, summary }) => (
   <div className="max-w-3xl">
-    <p className="text-xs sm:text-sm font-bold tracking-[0.22em] uppercase text-blue-600">{eyebrow}</p>
-    <h2 className="mt-3 text-3xl sm:text-4xl lg:text-5xl font-black leading-tight text-slate-950">{title}</h2>
+    <p className="text-xs sm:text-sm font-bold tracking-[0.22em] uppercase text-blue-600">
+      {eyebrow}
+    </p>
+    <h2 className="mt-3 text-3xl sm:text-4xl lg:text-5xl font-black leading-tight text-slate-950">
+      {title}
+    </h2>
     <p className="mt-4 text-base sm:text-lg leading-7 text-slate-600">{summary}</p>
   </div>
 );
 
 const AboutUs = () => {
-  const navigate = useNavigate();
-
   return (
     <div className="bg-slate-50 text-slate-900">
+      <PublicNavbar variant="transparent" overlay />
       <section className="relative isolate min-h-[80vh] overflow-hidden">
         <img
           src="/images/SSaloon.jpg"
@@ -118,40 +122,19 @@ const AboutUs = () => {
         <div className="absolute inset-0 bg-linear-to-r from-slate-950/40 via-slate-900/35 to-blue-900/20" />
 
         <div className="relative h-full min-h-[80vh] flex flex-col">
-          <nav className="flex flex-col sm:flex-row items-center justify-between px-4 sm:px-6 md:px-8 lg:px-12 py-4 sm:py-6 gap-4 sm:gap-0">
-            <Link to="/" className="flex items-center gap-3">
-              <img src="/images/MLF.jpg" alt="My Local Force logo" className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded" />
-              <span className="text-white text-lg sm:text-xl md:text-2xl font-bold">MY LOCAL FORCE</span>
-            </Link>
-
-            <div className="flex flex-row items-center gap-4 p-5">
-              <button
-                onClick={() => navigate('/login')}
-                className="rounded-full border border-white/60 px-5 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
-              >
-                Login
-              </button>
-              <a
-                href="https://play.google.com/store/apps/details?id=com.mylocalforceapp&pcampaignid=web_share"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
-              >
-                Get the App
-              </a>
-            </div>
-          </nav>
-
-          <div className="flex-1 flex items-center px-4 sm:px-6 md:px-8 lg:px-12">
+          <div className="flex-1 flex items-center px-4 pt-20 sm:px-6 md:px-8 lg:px-12">
             <div className="max-w-2xl py-10 sm:py-14 lg:py-20 text-white">
-              <p className="text-gray-200 font-bold text-xs sm:text-sm mb-2 sm:mb-4 tracking-widest">About My Local Force</p>
+              <p className="text-gray-200 font-bold text-xs sm:text-sm mb-2 sm:mb-4 tracking-widest">
+                About My Local Force
+              </p>
               <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-tight mb-4 sm:mb-6">
                 A smarter way to find <br /> trusted local professionals.
               </h1>
               <p className="text-gray-200 text-sm sm:text-base md:text-lg mb-6 sm:mb-10 max-w-xl">
-                My Local Force is an on-demand service marketplace built to remove the stress from finding reliable,
-                fairly priced local help. From quick repairs to full projects, customers and professionals connect faster
-                with confidence, transparency, and control.
+                My Local Force is an on-demand service marketplace built to remove the stress from
+                finding reliable, fairly priced local help. From quick repairs to full projects,
+                customers and professionals connect faster with confidence, transparency, and
+                control.
               </p>
 
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-8">
@@ -175,7 +158,13 @@ const AboutUs = () => {
       </section>
 
       <section className="relative overflow-hidden px-4 py-14 sm:px-6 md:px-8 lg:py-20">
-        <div className="absolute inset-0 opacity-50" style={{ backgroundImage: 'radial-gradient(circle at 20% 15%, #dbeafe 0, transparent 35%), radial-gradient(circle at 80% 85%, #bfdbfe 0, transparent 35%)' }} />
+        <div
+          className="absolute inset-0 opacity-50"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 20% 15%, #dbeafe 0, transparent 35%), radial-gradient(circle at 80% 85%, #bfdbfe 0, transparent 35%)',
+          }}
+        />
         <div className="relative mx-auto max-w-7xl">
           <SectionHeading
             eyebrow="Why We Built It"
@@ -190,9 +179,10 @@ const AboutUs = () => {
               </div>
               <h3 className="text-2xl font-black text-slate-950">For Customers</h3>
               <p className="mt-4 text-sm sm:text-base leading-7 text-slate-600">
-                Customers stay in control at every step. Post a job in minutes, receive responses from qualified local
-                providers, compare verified reviews and transparent quotes, and schedule work inside one secure platform.
-                Every responding provider has completed platform verification before accessing customer jobs.
+                Customers stay in control at every step. Post a job in minutes, receive responses
+                from qualified local providers, compare verified reviews and transparent quotes, and
+                schedule work inside one secure platform. Every responding provider has completed
+                platform verification before accessing customer jobs.
               </p>
             </article>
 
@@ -202,9 +192,10 @@ const AboutUs = () => {
               </div>
               <h3 className="text-2xl font-black text-slate-950">For Professionals</h3>
               <p className="mt-4 text-sm sm:text-base leading-7 text-slate-600">
-                Tradespeople and specialists gain direct access to nearby customers actively looking to hire. Providers
-                can focus on the jobs that fit their trade and schedule, without paying for broad advertising that does
-                not convert. Local jobs, local demand, and real opportunities to grow.
+                Tradespeople and specialists gain direct access to nearby customers actively looking
+                to hire. Providers can focus on the jobs that fit their trade and schedule, without
+                paying for broad advertising that does not convert. Local jobs, local demand, and
+                real opportunities to grow.
               </p>
             </article>
           </div>
@@ -223,12 +214,19 @@ const AboutUs = () => {
             <div className="rounded-3xl border-l-4 border-blue-600 bg-white p-7 shadow-lg">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-1 w-12 bg-blue-600 rounded-full"></div>
-                <p className="text-sm font-bold uppercase tracking-[0.18em] text-blue-600">Customer Journey</p>
+                <p className="text-sm font-bold uppercase tracking-[0.18em] text-blue-600">
+                  Customer Journey
+                </p>
               </div>
               <div className="space-y-5">
                 {customerFlow.map((item, index) => (
-                  <div key={item.title} className="rounded-2xl border-l-4 border-blue-400 bg-blue-50 p-5">
-                    <p className="text-xs font-bold tracking-[0.16em] text-blue-600">Step {index + 1}</p>
+                  <div
+                    key={item.title}
+                    className="rounded-2xl border-l-4 border-blue-400 bg-blue-50 p-5"
+                  >
+                    <p className="text-xs font-bold tracking-[0.16em] text-blue-600">
+                      Step {index + 1}
+                    </p>
                     <h3 className="mt-2 text-lg font-bold text-slate-900">{item.title}</h3>
                     <p className="mt-2 text-sm leading-6 text-slate-700">{item.description}</p>
                   </div>
@@ -239,12 +237,19 @@ const AboutUs = () => {
             <div className="rounded-3xl border-l-4 border-emerald-600 bg-white p-7 shadow-lg">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-1 w-12 bg-emerald-600 rounded-full"></div>
-                <p className="text-sm font-bold uppercase tracking-[0.18em] text-emerald-600">Professional Journey</p>
+                <p className="text-sm font-bold uppercase tracking-[0.18em] text-emerald-600">
+                  Professional Journey
+                </p>
               </div>
               <div className="space-y-5">
                 {professionalFlow.map((item, index) => (
-                  <div key={item.title} className="rounded-2xl border-l-4 border-emerald-400 bg-emerald-50 p-5">
-                    <p className="text-xs font-bold tracking-[0.16em] text-emerald-600">Stage {index + 1}</p>
+                  <div
+                    key={item.title}
+                    className="rounded-2xl border-l-4 border-emerald-400 bg-emerald-50 p-5"
+                  >
+                    <p className="text-xs font-bold tracking-[0.16em] text-emerald-600">
+                      Stage {index + 1}
+                    </p>
                     <h3 className="mt-2 text-lg font-bold text-slate-900">{item.title}</h3>
                     <p className="mt-2 text-sm leading-6 text-slate-700">{item.description}</p>
                   </div>
@@ -276,7 +281,9 @@ const AboutUs = () => {
                     <Icon className="h-5 w-5" />
                   </div>
                   <h3 className="mt-4 text-xl font-black text-slate-950">{pillar.title}</h3>
-                  <p className="mt-3 text-sm sm:text-base leading-7 text-slate-600">{pillar.detail}</p>
+                  <p className="mt-3 text-sm sm:text-base leading-7 text-slate-600">
+                    {pillar.detail}
+                  </p>
                 </article>
               );
             })}
@@ -295,7 +302,10 @@ const AboutUs = () => {
 
             <div className="mt-8 space-y-3">
               {trustHighlights.map((highlight) => (
-                <div key={highlight} className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div
+                  key={highlight}
+                  className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                >
                   <FiCheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
                   <p className="text-sm sm:text-base text-slate-700">{highlight}</p>
                 </div>
@@ -312,9 +322,18 @@ const AboutUs = () => {
             <div className="space-y-5 p-6">
               <h3 className="text-2xl font-black">What this means in practice</h3>
               <div className="space-y-3 text-sm leading-7 text-slate-200">
-                <p className="flex gap-3"><FiDollarSign className="mt-1 h-4 w-4 shrink-0 text-blue-300" />No hidden fees after booking confirmation.</p>
-                <p className="flex gap-3"><FiClock className="mt-1 h-4 w-4 shrink-0 text-blue-300" />Faster hiring cycles with fewer dead-end enquiries.</p>
-                <p className="flex gap-3"><FiShield className="mt-1 h-4 w-4 shrink-0 text-blue-300" />A safer, verified environment that builds accountability.</p>
+                <p className="flex gap-3">
+                  <FiDollarSign className="mt-1 h-4 w-4 shrink-0 text-blue-300" />
+                  No hidden fees after booking confirmation.
+                </p>
+                <p className="flex gap-3">
+                  <FiClock className="mt-1 h-4 w-4 shrink-0 text-blue-300" />
+                  Faster hiring cycles with fewer dead-end enquiries.
+                </p>
+                <p className="flex gap-3">
+                  <FiShield className="mt-1 h-4 w-4 shrink-0 text-blue-300" />A safer, verified
+                  environment that builds accountability.
+                </p>
               </div>
             </div>
           </div>
@@ -331,7 +350,10 @@ const AboutUs = () => {
 
           <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {serviceCategories.map((category) => (
-              <article key={category.name} className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-md hover:shadow-lg transition-shadow">
+              <article
+                key={category.name}
+                className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-md hover:shadow-lg transition-shadow"
+              >
                 <div className="h-40 overflow-hidden bg-slate-100">
                   <img
                     src={category.image}
@@ -351,11 +373,16 @@ const AboutUs = () => {
       <section className="bg-slate-50 px-4 py-14 sm:px-6 md:px-8">
         <div className="mx-auto grid max-w-7xl gap-8 rounded-3xl border-l-4 border-blue-600 bg-white p-7 shadow-lg sm:p-10 lg:grid-cols-[1.4fr_0.6fr] lg:items-center">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600">Support & Onboarding</p>
-            <h2 className="mt-3 text-3xl sm:text-4xl font-black text-slate-950">Need help getting started?</h2>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600">
+              Support & Onboarding
+            </p>
+            <h2 className="mt-3 text-3xl sm:text-4xl font-black text-slate-950">
+              Need help getting started?
+            </h2>
             <p className="mt-4 text-base leading-7 text-slate-600">
-              Our team supports both customers and professionals from day one. For platform support, onboarding help,
-              or general enquiries, contact us directly and we will guide you through the next step.
+              Our team supports both customers and professionals from day one. For platform support,
+              onboarding help, or general enquiries, contact us directly and we will guide you
+              through the next step.
             </p>
             <a
               href="mailto:support@mylocalforce.com.au"
@@ -367,9 +394,12 @@ const AboutUs = () => {
           </div>
 
           <div className="rounded-2xl border-t-4 border-emerald-600 bg-emerald-50 p-5">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-600">Core Promise</p>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-600">
+              Core Promise
+            </p>
             <p className="mt-3 text-lg font-bold leading-8 text-slate-900">
-              Trusted professionals, transparent pricing, and local jobs matched faster for everyone.
+              Trusted professionals, transparent pricing, and local jobs matched faster for
+              everyone.
             </p>
           </div>
         </div>

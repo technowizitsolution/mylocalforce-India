@@ -93,9 +93,7 @@ const AccountLayout = ({ title, subtitle, children }) => {
               alt="My Local Force logo"
               className="w-11 h-11 object-cover rounded-lg border border-slate-200 shadow-sm"
             />
-            <span className="text-lg font-bold tracking-wide text-slate-900">
-              MY LOCAL FORCE
-            </span>
+            <span className="text-lg font-bold tracking-wide text-slate-900">MY LOCAL FORCE</span>
           </button>
         </div>
 
@@ -103,22 +101,14 @@ const AccountLayout = ({ title, subtitle, children }) => {
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-linear-to-br from-[#6C63FF] to-[#4ECDC4] flex items-center justify-center overflow-hidden">
               {user?.photoURL ? (
-                <img
-                  src={user.photoURL}
-                  alt="avatar"
-                  className="w-full h-full object-cover"
-                />
+                <img src={user.photoURL} alt="avatar" className="w-full h-full object-cover" />
               ) : (
                 <span className="text-sm font-semibold text-white">{initials}</span>
               )}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-900 truncate">
-                {displayName}
-              </p>
-              <p className="text-xs text-slate-500 truncate">
-                {user?.email || 'user@example.com'}
-              </p>
+              <p className="text-sm font-semibold text-slate-900 truncate">{displayName}</p>
+              <p className="text-xs text-slate-500 truncate">{user?.email || 'user@example.com'}</p>
             </div>
           </div>
           <div className="mt-4 inline-flex items-center gap-2 text-[11px] font-semibold tracking-wider uppercase text-[#5A52E3] bg-[#6C63FF]/10 border border-[#6C63FF]/20 rounded-full px-3 py-1">
@@ -128,16 +118,12 @@ const AccountLayout = ({ title, subtitle, children }) => {
 
         <nav className="flex-1 min-h-0 px-3 py-4 space-y-6 overflow-y-auto">
           <div>
-            <p className="px-3 text-xs uppercase tracking-widest text-slate-500 mb-2">
-              Account
-            </p>
+            <p className="px-3 text-xs uppercase tracking-widest text-slate-500 mb-2">Account</p>
             <div className="space-y-1">{accountNavItems.map(renderNavItem)}</div>
           </div>
 
           <div>
-            <p className="px-3 text-xs uppercase tracking-widest text-slate-500 mb-2">
-              Settings
-            </p>
+            <p className="px-3 text-xs uppercase tracking-widest text-slate-500 mb-2">Settings</p>
             <div className="space-y-1">{settingsNavItems.map(renderNavItem)}</div>
           </div>
         </nav>
@@ -181,9 +167,7 @@ const AccountLayout = ({ title, subtitle, children }) => {
                 Account
               </p>
               <h1 className="mt-1 text-2xl font-bold text-slate-950">{title}</h1>
-              {subtitle ? (
-                <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-              ) : null}
+              {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
             </div>
           </div>
         </header>
@@ -195,9 +179,7 @@ const AccountLayout = ({ title, subtitle, children }) => {
                 {todayLabel}
               </p>
               <h1 className="mt-1 text-2xl font-bold text-slate-950">{title}</h1>
-              {subtitle ? (
-                <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-              ) : null}
+              {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
             </div>
 
             <div className="flex items-center gap-3">
@@ -210,7 +192,7 @@ const AccountLayout = ({ title, subtitle, children }) => {
               />
               <button
                 onClick={() => navigate('/customer/profile')}
-                className="relative w-11 h-11 flex items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm hover:border-[#6C63FF]/40 hover:bg-indigo-50 active:bg-indigo-100 transition-colors"
+                className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm transition-colors hover:border-[#6C63FF]/40 hover:bg-indigo-50 active:bg-indigo-100 cursor-pointer"
                 type="button"
                 aria-label="Open profile"
               >

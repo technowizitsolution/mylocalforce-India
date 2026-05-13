@@ -12,8 +12,42 @@ import { httpsCallable } from 'firebase/functions';
 import { fetchProviderCommissionRate } from './serviceService';
 import { calculatePaymentBreakdown, calculateSettlement, PaymentConfig } from '../../config/paymentConfig';
 
-// Stripe test keys (Replace with your actual keys)
-export const STRIPE_PUBLISHABLE_KEY = 'pk_test_51R92yQAXJUehG7joQMfEdnpJR4aeOpr5o4j5QDH9IWJN6VikSGq3VbuScuuMPjMnFBJURctybNVi6BvkroaeDXwa00Q67gWp8F';
+// Stripe publishable keys. Secret keys stay only in Cloud Functions.
+export const STRIPE_TEST_PUBLISHABLE_KEY = 'pk_test_51R92yQAXJUehG7joQMfEdnpJR4aeOpr5o4j5QDH9IWJN6VikSGq3VbuScuuMPjMnFBJURctybNVi6BvkroaeDXwa00Q67gWp8F';
+export const STRIPE_LIVE_PUBLISHABLE_KEY = 'pk_live_51R92yQAXJUehG7joIGt9kgsF4vHgSuUksQ92reK6eOpNcdE4ci8L8JeBjArG6wn1L9Mwc1GBcDXH7RbObqTJwscv00iVsy3gbG';
+export const STRIPE_PUBLISHABLE_KEY = STRIPE_TEST_PUBLISHABLE_KEY;
+
+const STRIPE_CONFIG_ENDPOINT = 'https://us-central1-mylocalforce-295b8.cloudfunctions.net/getStripeConfig';
+
+export const isStripePublishableKeyForMode = (key, mode) => (
+  typeof key === 'string' && key.startsWith(`pk_${mode}_`)
+);
+
+export const getStripeConfigFromFunctions = async () => {
+  const response = await fetch(STRIPE_CONFIG_ENDPOINT, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result?.error || 'Failed to load Stripe config');
+  }
+
+  const mode = String(result?.mode || 'test').trim().toLowerCase() === 'live' ? 'live' : 'test';
+  const publishableKey = result?.publishableKey;
+
+  if (!isStripePublishableKeyForMode(publishableKey, mode)) {
+    throw new Error(`Stripe ${mode} publishable key is invalid.`);
+  }
+
+  return {
+    mode,
+    publishableKey,
+  };
+};
 
 // Commission rate (10%)
 export const COMMISSION_RATE = 0.10;
@@ -147,20 +181,62 @@ export const createCheckoutSession = async ({
  */
 export const createPaymentIntent = async (bookingData) => {
   try {
-    const createPaymentIntentFn = httpsCallable(functions, 'createPaymentIntent');
-    
-    const result = await createPaymentIntentFn({
-      amount: bookingData.amount,
-      currency: 'aud', // Australian Dollar
-      bookingId: bookingData.bookingId,
-      customerId: bookingData.customerId,
-      providerId: bookingData.providerId,
-      description: bookingData.description,
+    const response = await fetch('https://us-central1-mylocalforce-295b8.cloudfunctions.net/createPaymentIntent', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        bookingId: bookingData.bookingId,
+        paymentMethodId: bookingData.paymentMethodId,
+        currency: bookingData.currency || 'aud',
+        customerEmail: bookingData.customerEmail || null,
+        customerId: bookingData.customerId || null,
+        providerId: bookingData.providerId || null,
+        description: bookingData.description || null,
+        idempotencyKey: bookingData.idempotencyKey || null,
+      }),
     });
 
-    return result.data;
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result?.error || 'Failed to create payment intent');
+    }
+
+    return result;
   } catch (error) {
     console.error('Error creating payment intent:', error);
+    throw error;
+  }
+};
+
+/**
+ * Preview final payment amount for a specific card before confirming payment
+ * @param {object} bookingData - Booking information and created payment method
+ * @returns {Promise<object>} - Final payable amount and detected card metadata
+ */
+export const previewPaymentAmount = async (bookingData) => {
+  try {
+    const response = await fetch('https://us-central1-mylocalforce-295b8.cloudfunctions.net/previewPaymentAmount', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        bookingId: bookingData.bookingId || null,
+        bookingData: bookingData.bookingData || null,
+        paymentMethodId: bookingData.paymentMethodId,
+      }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result?.error || 'Failed to preview payment amount');
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error previewing payment amount:', error);
     throw error;
   }
 };
@@ -465,6 +541,8 @@ export default {
   createProviderStripeAccount,
   getProviderStripeAccount,
   createPaymentIntent,
+  previewPaymentAmount,
+  getStripeConfigFromFunctions,
   recordTransaction,
   getProviderTransactions,
   getProviderWalletSummary,
@@ -475,5 +553,7 @@ export default {
   getAllPayouts,
   calculateCommission,
   STRIPE_PUBLISHABLE_KEY,
+  STRIPE_TEST_PUBLISHABLE_KEY,
+  STRIPE_LIVE_PUBLISHABLE_KEY,
   COMMISSION_RATE,
 };

@@ -588,11 +588,20 @@ const ProviderSelectorScreen = () => {
             })}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-64 gap-6">
-            <p className="text-lg text-slate-800 font-medium">No providers available in your area.</p>
+          <div className="flex flex-col items-center justify-center h-64 gap-6 px-4 text-center">
+            <p className="text-lg text-slate-800 font-medium">
+              Currently, no service provider is available in your area. We will notify you as soon as a provider becomes available for this service.
+            </p>
             <button
-              onClick={() => navigate('/customer/bookings', {
-                state: { serviceData, category, packageData, isLead: true }
+              onClick={() => navigate('/customer/booking', {
+                state: {
+                  serviceData,
+                  category,
+                  packageData,
+                  selectedAddress,
+                  address: selectedAddress,
+                  isLead: true,
+                },
               })}
               className="px-6 py-3 bg-white border border-slate-200 rounded-xl text-slate-700 font-semibold hover:bg-slate-50 transition-colors"
             >

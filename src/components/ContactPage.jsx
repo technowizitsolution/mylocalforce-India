@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { httpsCallable } from 'firebase/functions';
-import { Mail, Phone, Send } from 'lucide-react';
+import { Phone, Send } from 'lucide-react';
 import Footer from './Footer';
+import PublicNavbar from './PublicNavbar';
 import { functions } from '../services/firebase/firebaseConfig';
 
 const initialForm = {
@@ -68,35 +68,17 @@ const ContactPage = () => {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="border-b border-gray-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <Link to="/" className="flex items-center gap-3">
-            <img src="/images/MLF.jpg" alt="My Local Force" className="h-10 w-10 rounded" />
-            <span className="text-sm font-extrabold text-gray-950 sm:text-base">
-              MY LOCAL FORCE
-            </span>
-          </Link>
-          <Link
-            to="/"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:border-gray-400 hover:text-gray-950"
-          >
-            Home
-          </Link>
-        </div>
-      </header>
+      <PublicNavbar />
 
       <main className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:py-16">
         <section className="flex flex-col justify-center">
-          <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
-            Contact us
-          </p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">Contact us</p>
           <h1 className="mt-3 text-3xl font-bold text-gray-950 sm:text-4xl">
             Send a message to My Local Force support.
           </h1>
           <p className="mt-4 text-base leading-7 text-gray-600">
-            Fill out the form and our support team will receive your message by
-            email. You will also receive an automatic confirmation email from
-            noreply.
+            Fill out the form and our support team will receive your message by email. You will also
+            receive an automatic confirmation email from noreply.
           </p>
 
           <div className="mt-8 space-y-4">
@@ -118,7 +100,10 @@ const ContactPage = () => {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="grid gap-5 sm:grid-cols-2">
               <div>
-                <label htmlFor="contact-name" className="mb-2 block text-sm font-semibold text-gray-900">
+                <label
+                  htmlFor="contact-name"
+                  className="mb-2 block text-sm font-semibold text-gray-900"
+                >
                   Name
                 </label>
                 <input
@@ -132,7 +117,10 @@ const ContactPage = () => {
               </div>
 
               <div>
-                <label htmlFor="contact-email" className="mb-2 block text-sm font-semibold text-gray-900">
+                <label
+                  htmlFor="contact-email"
+                  className="mb-2 block text-sm font-semibold text-gray-900"
+                >
                   Email
                 </label>
                 <input
@@ -149,7 +137,10 @@ const ContactPage = () => {
 
             <div className="grid gap-5 sm:grid-cols-2">
               <div>
-                <label htmlFor="contact-phone" className="mb-2 block text-sm font-semibold text-gray-900">
+                <label
+                  htmlFor="contact-phone"
+                  className="mb-2 block text-sm font-semibold text-gray-900"
+                >
                   Phone
                 </label>
                 <input
@@ -163,7 +154,10 @@ const ContactPage = () => {
               </div>
 
               <div>
-                <label htmlFor="contact-subject" className="mb-2 block text-sm font-semibold text-gray-900">
+                <label
+                  htmlFor="contact-subject"
+                  className="mb-2 block text-sm font-semibold text-gray-900"
+                >
                   Subject
                 </label>
                 <input
@@ -178,7 +172,10 @@ const ContactPage = () => {
             </div>
 
             <div>
-              <label htmlFor="contact-message" className="mb-2 block text-sm font-semibold text-gray-900">
+              <label
+                htmlFor="contact-message"
+                className="mb-2 block text-sm font-semibold text-gray-900"
+              >
                 Message
               </label>
               <textarea

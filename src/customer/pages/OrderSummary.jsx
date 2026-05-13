@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   FiArrowLeft,
@@ -15,10 +15,17 @@ import {
   FiUser,
   FiX,
 } from 'react-icons/fi';
-import { doc, getDoc } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { firestore } from '../../services/firebase/firebaseConfig';
 import { createBooking } from '../../services/firebase';
 import { validateCouponCode } from '../../services/firebase/couponService';
+import { notifyProviderNewBooking } from '../../services/firebase/notificationService';
+import {
+  createPaymentIntent,
+  getStripeConfigFromFunctions,
+  previewPaymentAmount,
+  STRIPE_PUBLISHABLE_KEY,
+} from '../../services/firebase/stripeService';
 import { useAuth } from '../../context/AuthContext';
 import {
   calculateCartQuote,
@@ -27,10 +34,38 @@ import {
   normalizeServiceItems,
   STRIPE_CARD_OPTIONS,
 } from '../../utils/cartPricing';
-import { startCheckoutForBooking } from '../../utils/bookingPayments';
 import { notify, getUserFacingError } from '../../utils/toast';
 
 const MIN_BOOKING_AMOUNT = 50;
+const STRIPE_JS_URL = 'https://js.stripe.com/v3/';
+const isPermissionDeniedError = (error) =>
+  error?.code === 'permission-denied' ||
+  String(error?.message || error || '')
+    .toLowerCase()
+    .includes('missing or insufficient permissions');
+
+let stripeJsPromise;
+
+const loadStripeJs = () => {
+  if (window.Stripe) return Promise.resolve(window.Stripe);
+  if (stripeJsPromise) return stripeJsPromise;
+
+  stripeJsPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = STRIPE_JS_URL;
+    script.async = true;
+    script.onload = () => resolve(window.Stripe);
+    script.onerror = () => reject(new Error('Unable to load Stripe payment form.'));
+    document.body.appendChild(script);
+  });
+
+  return stripeJsPromise;
+};
+
+const toNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 const DetailPill = ({ icon: Icon, label, value }) => (
   <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
@@ -71,6 +106,9 @@ const OrderSummary = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const cardContainerRef = useRef(null);
+  const stripeRef = useRef(null);
+  const cardElementRef = useRef(null);
 
   const {
     bookingData = null,
@@ -89,6 +127,89 @@ const OrderSummary = () => {
   const [resolvedPlatformSettings, setResolvedPlatformSettings] = useState(platformSettings);
   const [createdBookingId, setCreatedBookingId] = useState(null);
   const [createdBookingData, setCreatedBookingData] = useState(null);
+  const [stripeReady, setStripeReady] = useState(false);
+  const [stripeMode, setStripeMode] = useState(null);
+  const [cardComplete, setCardComplete] = useState(false);
+  const [cardError, setCardError] = useState('');
+  const [actualPaymentDetails, setActualPaymentDetails] = useState(null);
+
+  useEffect(() => {
+    if (!bookingData) return undefined;
+
+    let disposed = false;
+
+    const setupStripeCard = async () => {
+      try {
+        const Stripe = await loadStripeJs();
+        if (disposed || !cardContainerRef.current) return;
+
+        let publishableKey = STRIPE_PUBLISHABLE_KEY;
+        let activeMode = null;
+
+        try {
+          const stripeConfig = await getStripeConfigFromFunctions();
+          publishableKey = stripeConfig.publishableKey;
+          activeMode = stripeConfig.mode;
+        } catch (configError) {
+          console.warn(
+            'Could not load Stripe config from functions, using bundled fallback key:',
+            configError?.message || configError
+          );
+        }
+
+        if (disposed || !cardContainerRef.current) return;
+
+        const stripe = Stripe(publishableKey);
+        const elements = stripe.elements();
+        const card = elements.create('card', {
+          hidePostalCode: true,
+          style: {
+            base: {
+              color: '#0f172a',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontSize: '16px',
+              '::placeholder': {
+                color: '#94a3b8',
+              },
+            },
+            invalid: {
+              color: '#dc2626',
+            },
+          },
+        });
+
+        card.mount(cardContainerRef.current);
+        card.on('change', (event) => {
+          setCardComplete(Boolean(event.complete));
+          setCardError(event.error?.message || '');
+          setActualPaymentDetails(null);
+        });
+
+        stripeRef.current = stripe;
+        cardElementRef.current = card;
+        setStripeMode(activeMode);
+        setStripeReady(true);
+      } catch (error) {
+        console.error('Could not load Stripe card form:', error);
+        setCardError(error?.message || 'Unable to load Stripe payment form.');
+      }
+    };
+
+    setupStripeCard();
+
+    return () => {
+      disposed = true;
+      if (cardElementRef.current) {
+        cardElementRef.current.destroy();
+        cardElementRef.current = null;
+      }
+      stripeRef.current = null;
+      setStripeReady(false);
+      setStripeMode(null);
+      setCardComplete(false);
+      setActualPaymentDetails(null);
+    };
+  }, [bookingData]);
 
   useEffect(() => {
     let mounted = true;
@@ -104,7 +225,9 @@ const OrderSummary = () => {
           setResolvedPlatformSettings(latest);
         }
       } catch (error) {
-        console.warn('Could not load platform settings in cart:', error?.message || error);
+        if (!isPermissionDeniedError(error)) {
+          console.warn('Could not load platform settings in cart:', error?.message || error);
+        }
       }
     };
 
@@ -143,7 +266,9 @@ const OrderSummary = () => {
   const handleApplyCoupon = async () => {
     if (couponLoading || checkoutLocked) return;
 
-    const normalizedCode = String(couponCode || '').trim().toUpperCase();
+    const normalizedCode = String(couponCode || '')
+      .trim()
+      .toUpperCase();
     if (!normalizedCode) {
       setCouponError('Please enter a coupon code.');
       setCouponMessage('');
@@ -220,7 +345,7 @@ const OrderSummary = () => {
     paymentStatus: 'pending',
     status: 'pending_payment',
     paymentDescription: checkoutDescription,
-    paymentFlow: 'stripe_checkout',
+    paymentFlow: 'stripe_payment_intent',
     paymentProvider: 'stripe',
     createdFrom: 'web',
     leadId: leadId || bookingData?.leadId || null,
@@ -250,25 +375,167 @@ const OrderSummary = () => {
       return;
     }
 
+    if (!stripeRef.current || !cardElementRef.current || !stripeReady) {
+      notify.error('Payment form is still loading. Please try again in a moment.', {
+        id: 'order-summary-stripe-loading',
+      });
+      return;
+    }
+
+    if (!cardComplete) {
+      notify.warning('Please enter valid card details before paying.', {
+        id: 'order-summary-card-incomplete',
+      });
+      return;
+    }
+
     const paymentToastId = 'order-summary-payment-session';
-    notify.loading('Creating secure payment session...', { id: paymentToastId });
+    notify.loading('Processing secure payment...', { id: paymentToastId });
     setIsProcessing(true);
+    let bookingCreatedDuringAttempt = null;
 
     try {
       const bookingDataToSave = createdBookingData || buildBookingDataToSave();
       let bookingId = createdBookingId;
+      const stripe = stripeRef.current;
+      const cardElement = cardElementRef.current;
+      const billingDetails = {
+        email: bookingDataToSave.customerEmail || user?.email || undefined,
+        name: bookingDataToSave.customerName || user?.displayName || user?.name || undefined,
+        phone: bookingDataToSave.phoneNumber || bookingDataToSave.customerPhone || undefined,
+      };
+
+      const { error: paymentMethodError, paymentMethod } = await stripe.createPaymentMethod({
+        type: 'card',
+        card: cardElement,
+        billing_details: billingDetails,
+      });
+
+      if (paymentMethodError || !paymentMethod?.id) {
+        throw new Error(paymentMethodError?.message || 'Unable to validate your card.');
+      }
+
+      const preview = await previewPaymentAmount({
+        bookingData: bookingDataToSave,
+        paymentMethodId: paymentMethod.id,
+      });
+
+      const paymentDetails = {
+        paymentIntentId: null,
+        stripeCardType: preview?.stripeCardType === 'international' ? 'international' : 'domestic',
+        stripeCardCountry: preview?.stripeCardCountry || null,
+        stripeCharge: toNumber(preview?.stripeCharge),
+        amountBeforeStripe: toNumber(preview?.amountBeforeStripe),
+        totalAmount: toNumber(preview?.amount),
+      };
+
+      setActualPaymentDetails(paymentDetails);
 
       if (!bookingId) {
         bookingId = await createBooking(user.uid, bookingDataToSave);
+        bookingCreatedDuringAttempt = bookingId;
         setCreatedBookingId(bookingId);
         setCreatedBookingData(bookingDataToSave);
       }
 
-      await startCheckoutForBooking(bookingId, bookingDataToSave);
-      notify.success('Redirecting to Stripe...', { id: paymentToastId });
+      const paymentIntentResult = await createPaymentIntent({
+        bookingId,
+        paymentMethodId: paymentMethod.id,
+        currency: 'aud',
+        customerEmail: bookingDataToSave.customerEmail,
+        customerId: bookingDataToSave.customerId,
+        providerId: bookingDataToSave.providerId,
+        description: checkoutDescription,
+        idempotencyKey: `pi_${bookingId}_${paymentMethod.id}`,
+      });
+
+      const finalPaymentDetails = {
+        ...paymentDetails,
+        paymentIntentId: paymentIntentResult?.paymentIntentId || null,
+        stripeCardType:
+          paymentIntentResult?.stripeCardType === 'international' ? 'international' : 'domestic',
+        stripeCardCountry:
+          paymentIntentResult?.stripeCardCountry || paymentDetails.stripeCardCountry,
+        stripeCharge: toNumber(paymentIntentResult?.stripeCharge || paymentDetails.stripeCharge),
+        amountBeforeStripe: toNumber(
+          paymentIntentResult?.amountBeforeStripe || paymentDetails.amountBeforeStripe
+        ),
+        totalAmount: toNumber(paymentIntentResult?.amount || paymentDetails.totalAmount),
+      };
+
+      setActualPaymentDetails(finalPaymentDetails);
+
+      const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(
+        paymentIntentResult.clientSecret,
+        {
+          payment_method: paymentMethod.id,
+        }
+      );
+
+      if (confirmError) {
+        throw new Error(confirmError.message || 'Unable to process payment. Please try again.');
+      }
+
+      if (!paymentIntent || paymentIntent.status !== 'succeeded') {
+        throw new Error('Payment was not completed.');
+      }
+
+      const confirmedPaymentIntentId = finalPaymentDetails.paymentIntentId || paymentIntent.id;
+      const bookingRef = doc(firestore, 'bookings', bookingId);
+
+      await updateDoc(bookingRef, {
+        paymentStatus: 'paid',
+        status: 'upcoming',
+        paymentIntentId: confirmedPaymentIntentId,
+        stripePaymentIntentId: confirmedPaymentIntentId,
+        stripeCardType: finalPaymentDetails.stripeCardType,
+        stripeCardCountry: finalPaymentDetails.stripeCardCountry,
+        stripeCharge: finalPaymentDetails.stripeCharge,
+        amountBeforeStripe: finalPaymentDetails.amountBeforeStripe,
+        totalAmount: finalPaymentDetails.totalAmount,
+        totalAmountPaid: finalPaymentDetails.totalAmount,
+        paidAt: serverTimestamp(),
+        paymentConfirmedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      if (bookingDataToSave.providerId) {
+        try {
+          await notifyProviderNewBooking(bookingDataToSave.providerId, {
+            bookingId,
+            customerId: bookingDataToSave.customerId,
+            customerName: bookingDataToSave.customerName || 'A customer',
+            serviceName: bookingDataToSave.serviceName || 'a service',
+          });
+          await updateDoc(bookingRef, {
+            providerNotifiedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        } catch (notificationError) {
+          console.warn(
+            'Payment confirmed but provider notification could not be sent:',
+            notificationError?.message || notificationError
+          );
+        }
+      }
+
+      notify.success('Payment successful.', { id: paymentToastId });
+      navigate(`/customer/payment-success?status=success&booking_id=${bookingId}`);
     } catch (error) {
-      console.error('Error preparing checkout:', error);
-      notify.error(getUserFacingError(error, 'Could not start payment. Please try again.'), {
+      console.error('Error processing payment:', error);
+      if (bookingCreatedDuringAttempt) {
+        try {
+          await deleteDoc(doc(firestore, 'bookings', bookingCreatedDuringAttempt));
+          setCreatedBookingId(null);
+          setCreatedBookingData(null);
+        } catch (cleanupError) {
+          console.warn(
+            'Could not remove unpaid booking after payment failure:',
+            cleanupError?.message || cleanupError
+          );
+        }
+      }
+      notify.error(getUserFacingError(error, 'Could not complete payment. Please try again.'), {
         id: paymentToastId,
       });
     } finally {
@@ -334,12 +601,10 @@ const OrderSummary = () => {
                   <p className="text-xs uppercase tracking-[0.18em] text-[#5A52E3]">
                     Booked Services
                   </p>
-                  <h2 className="mt-2 text-2xl font-bold text-slate-950">
-                    {serviceDisplayName}
-                  </h2>
+                  <h2 className="mt-2 text-2xl font-bold text-slate-950">{serviceDisplayName}</h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                    Review your service details, coupon, fees, and GST before opening the
-                    secure Stripe payment page.
+                    Review your service details, coupon, fees, GST, and card charge before
+                    confirming payment securely.
                   </p>
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-600">
@@ -365,26 +630,10 @@ const OrderSummary = () => {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <DetailPill
-              icon={FiCalendar}
-              label="Date"
-              value={bookingData.selectedDate}
-            />
-            <DetailPill
-              icon={FiClock}
-              label="Time"
-              value={bookingData.selectedTime}
-            />
-            <DetailPill
-              icon={FiUser}
-              label="Provider"
-              value={bookingData.providerName}
-            />
-            <DetailPill
-              icon={FiMapPin}
-              label="Service Area"
-              value={bookingData.address}
-            />
+            <DetailPill icon={FiCalendar} label="Date" value={bookingData.selectedDate} />
+            <DetailPill icon={FiClock} label="Time" value={bookingData.selectedTime} />
+            <DetailPill icon={FiUser} label="Provider" value={bookingData.providerName} />
+            <DetailPill icon={FiMapPin} label="Service Area" value={bookingData.address} />
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -437,7 +686,9 @@ const OrderSummary = () => {
               </button>
             ) : null}
 
-            {couponError ? <p className="mt-3 text-sm font-medium text-red-500">{couponError}</p> : null}
+            {couponError ? (
+              <p className="mt-3 text-sm font-medium text-red-500">{couponError}</p>
+            ) : null}
             {couponMessage ? (
               <p className="mt-3 text-sm font-medium text-emerald-600">{couponMessage}</p>
             ) : null}
@@ -451,8 +702,8 @@ const OrderSummary = () => {
               <div>
                 <h2 className="text-base font-bold text-slate-950">Stripe Card Charge</h2>
                 <p className="mt-1 text-sm leading-6 text-slate-500">
-                  The app calculates the final card-country Stripe charge during card entry.
-                  On the website, Stripe Checkout will confirm the final charge securely.
+                  The final card-country Stripe charge is calculated securely before the booking is
+                  confirmed.
                 </p>
               </div>
             </div>
@@ -461,7 +712,10 @@ const OrderSummary = () => {
                 const charge =
                   option.key === 'international' ? quote.stripeInternational : quote.stripeDomestic;
                 return (
-                  <div key={option.key} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div
+                    key={option.key}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                  >
                     <p className="text-sm font-semibold text-slate-900">{option.label}</p>
                     <p className="mt-1 text-xs text-slate-400">{option.feeLabel}</p>
                     <p className="mt-3 text-sm font-bold text-slate-950">
@@ -471,6 +725,65 @@ const OrderSummary = () => {
                 );
               })}
             </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-white">
+                <FiCreditCard size={20} />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-950">Payment Method</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  Enter card details to pay now. Booking is confirmed only after payment succeeds.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div ref={cardContainerRef} className="min-h-6" />
+            </div>
+
+            {!stripeReady ? (
+              <p className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-slate-500">
+                <FiLoader className="animate-spin" />
+                Loading secure card form...
+              </p>
+            ) : null}
+            {stripeReady && stripeMode ? (
+              <p className="mt-3 text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
+                Stripe {stripeMode} mode
+              </p>
+            ) : null}
+            {cardError ? (
+              <p className="mt-3 text-sm font-medium text-red-500">{cardError}</p>
+            ) : null}
+
+            {actualPaymentDetails ? (
+              <div className="mt-5 grid gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 sm:grid-cols-2">
+                <PriceRow
+                  label="Detected card"
+                  value={
+                    actualPaymentDetails.stripeCardType === 'international'
+                      ? 'International'
+                      : 'Domestic'
+                  }
+                />
+                <PriceRow
+                  label="Stripe charge"
+                  value={formatAUD(actualPaymentDetails.stripeCharge)}
+                />
+                <PriceRow
+                  label="Before Stripe"
+                  value={formatAUD(actualPaymentDetails.amountBeforeStripe)}
+                />
+                <PriceRow
+                  label="Final amount"
+                  value={formatAUD(actualPaymentDetails.totalAmount)}
+                  strong
+                />
+              </div>
+            ) : null}
           </div>
         </section>
 
@@ -495,7 +808,9 @@ const OrderSummary = () => {
               <PriceRow label="Subtotal" value={formatAUD(quote.subtotal)} />
               <PriceRow
                 label="Coupon discount"
-                value={quote.couponDiscount > 0 ? `-${formatAUD(quote.couponDiscount)}` : formatAUD(0)}
+                value={
+                  quote.couponDiscount > 0 ? `-${formatAUD(quote.couponDiscount)}` : formatAUD(0)
+                }
                 discount={quote.couponDiscount > 0}
               />
               <div className="border-t border-slate-200 pt-4">
@@ -511,7 +826,7 @@ const OrderSummary = () => {
                   <span className="text-2xl font-bold">{formatAUD(quote.totalBeforeStripe)}</span>
                 </div>
                 <p className="mt-2 text-xs leading-5 text-slate-300">
-                  Stripe may add the applicable card fee on the secure payment page.
+                  Card charge is calculated when you press Pay.
                 </p>
               </div>
             </div>
@@ -525,18 +840,24 @@ const OrderSummary = () => {
             <button
               type="button"
               onClick={handleProceedToPayment}
-              disabled={isProcessing || quote.totalBeforeStripe < MIN_BOOKING_AMOUNT}
+              disabled={
+                isProcessing ||
+                !stripeReady ||
+                !cardComplete ||
+                Boolean(cardError) ||
+                quote.totalBeforeStripe < MIN_BOOKING_AMOUNT
+              }
               className="mt-6 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-linear-to-r from-[#5A52E3] to-[#4ECDC4] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-200 transition hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isProcessing ? (
                 <>
                   <FiLoader className="animate-spin" />
-                  Preparing Payment
+                  Processing Payment
                 </>
               ) : (
                 <>
                   <FiShield />
-                  Continue to Payment
+                  Pay Now
                 </>
               )}
             </button>
@@ -544,8 +865,8 @@ const OrderSummary = () => {
             <div className="mt-4 flex items-start gap-2 rounded-2xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">
               <FiHome className="mt-0.5 shrink-0 text-slate-400" />
               <span>
-                Booking is created as awaiting payment first, and becomes upcoming only after
-                payment succeeds.
+                Booking is created during payment processing and removed automatically if payment
+                does not complete.
               </span>
             </div>
           </div>

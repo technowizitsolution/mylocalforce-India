@@ -2,12 +2,12 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, firestore } from '../services/firebase/firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { 
-  loginWithEmail, 
-  signUpWithEmailPassword, 
+import {
+  loginWithEmail,
+  signUpWithEmailPassword,
   signOutUser,
   fetchUserRoles,
-  fetchUserProfile
+  fetchUserProfile,
 } from '../services/firebase';
 
 const AuthContext = createContext();
@@ -21,14 +21,14 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     let userDocUnsubscribe = null;
-    
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
           // Fetch user profile and roles initially
           const [profile, rolesData] = await Promise.all([
             fetchUserProfile(firebaseUser.uid).catch(() => null),
-            fetchUserRoles(firebaseUser.uid).catch(() => ({ roles: {}, activeRole: null }))
+            fetchUserRoles(firebaseUser.uid).catch(() => ({ roles: {}, activeRole: null })),
           ]);
 
           const userData = {
@@ -36,11 +36,10 @@ export const AuthProvider = ({ children }) => {
             email: firebaseUser.email,
             emailVerified: firebaseUser.emailVerified,
             phoneNumber: firebaseUser.phoneNumber,
-            ...(profile || {})
+            ...(profile || {}),
           };
 
-          const resolvedActiveRole =
-            rolesData.activeRole || profile?.activeRole || null;
+          const resolvedActiveRole = rolesData.activeRole || profile?.activeRole || null;
 
           setUser(userData);
           setUserRoles({
@@ -57,8 +56,7 @@ export const AuthProvider = ({ children }) => {
             (docSnapshot) => {
               if (docSnapshot.exists()) {
                 const updatedData = docSnapshot.data();
-                console.log('👤 User document updated in real-time:', updatedData);
-                
+
                 const nextRoles = updatedData.roles || {};
                 const nextActiveRole =
                   updatedData.activeRole ||
@@ -66,17 +64,14 @@ export const AuthProvider = ({ children }) => {
                   null;
 
                 // Update user and role state with new data.
-                setUser(prevUser => ({
+                setUser((prevUser) => ({
                   ...prevUser,
                   ...updatedData,
                 }));
 
                 setUserRoles((prevRoles) => ({
                   ...(prevRoles || {}),
-                  roles:
-                    Object.keys(nextRoles).length > 0
-                      ? nextRoles
-                      : prevRoles?.roles || {},
+                  roles: Object.keys(nextRoles).length > 0 ? nextRoles : prevRoles?.roles || {},
                   activeRole: nextActiveRole || prevRoles?.activeRole || null,
                 }));
 
@@ -89,7 +84,6 @@ export const AuthProvider = ({ children }) => {
               console.error('Error listening to user document:', error);
             }
           );
-
         } catch (error) {
           console.error('Error fetching user data:', error);
           const userData = {
@@ -108,7 +102,7 @@ export const AuthProvider = ({ children }) => {
         setUserRoles(null);
         setActiveRole(null);
         setIsLoggedIn(false);
-        
+
         // Clean up user document listener
         if (userDocUnsubscribe) {
           userDocUnsubscribe();
@@ -134,16 +128,13 @@ export const AuthProvider = ({ children }) => {
         // Check approval status for the user
         const profile = await fetchUserProfile(result.uid).catch(() => null);
         const rolesData = await fetchUserRoles(result.uid).catch(() => ({ roles: {} }));
-        
+
         const approvalStatus = profile?.approvalStatus || 'approved';
         const hasClientRole = rolesData?.roles?.client === true;
 
         // Rejected/pending provider applications still need authenticated access
         // so providers can see review feedback and re-upload requested documents.
-        if (
-          hasClientRole &&
-          (approvalStatus === 'pending' || approvalStatus === 'rejected')
-        ) {
+        if (hasClientRole && (approvalStatus === 'pending' || approvalStatus === 'rejected')) {
           return { success: true, approvalStatus };
         }
 
@@ -154,7 +145,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Login error:', error);
       let errorMessage = 'Login failed';
-      
+
       // Handle specific Firebase auth errors
       if (error.code === 'auth/user-not-found') {
         errorMessage = 'No account found with this email';
@@ -165,7 +156,7 @@ export const AuthProvider = ({ children }) => {
       } else if (error.code === 'auth/too-many-requests') {
         errorMessage = 'Too many failed attempts. Please try again later';
       }
-      
+
       return { success: false, error: errorMessage };
     }
   };
@@ -184,15 +175,16 @@ export const AuthProvider = ({ children }) => {
     try {
       // Determine the primary role from selectedRoles
       const selectedRoles = userData.selectedRoles || { customer: true };
-      const primaryRole = Object.keys(selectedRoles).find(role => selectedRoles[role]) || 'customer';
-      
+      const primaryRole =
+        Object.keys(selectedRoles).find((role) => selectedRoles[role]) || 'customer';
+
       const result = await signUpWithEmailPassword(
         userData.email,
         userData.password,
         userData.profile || {},
         primaryRole
       );
-      
+
       if (result.success) {
         return { success: true };
       } else if (result.existing) {
@@ -203,7 +195,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Registration error:', error);
       let errorMessage = 'Registration failed';
-      
+
       // Handle specific Firebase auth errors
       if (error.code === 'auth/email-already-in-use') {
         errorMessage = 'An account with this email already exists';
@@ -212,7 +204,7 @@ export const AuthProvider = ({ children }) => {
       } else if (error.code === 'auth/invalid-email') {
         errorMessage = 'Invalid email address';
       }
-      
+
       return { success: false, error: errorMessage };
     }
   };
@@ -222,11 +214,10 @@ export const AuthProvider = ({ children }) => {
       try {
         const [profile, rolesData] = await Promise.all([
           fetchUserProfile(user.uid),
-          fetchUserRoles(user.uid)
+          fetchUserRoles(user.uid),
         ]);
 
-        const resolvedActiveRole =
-          rolesData.activeRole || profile?.activeRole || null;
+        const resolvedActiveRole = rolesData.activeRole || profile?.activeRole || null;
 
         setUser({ ...user, ...profile });
         setUserRoles({
@@ -259,11 +250,10 @@ export const AuthProvider = ({ children }) => {
         email: userData.email,
         phoneNumber: userData.phone || userData.phoneNumber,
         emailVerified: true,
-        ...userData
+        ...userData,
       };
 
-      const resolvedActiveRole =
-        rolesData.activeRole || userData.activeRole || null;
+      const resolvedActiveRole = rolesData.activeRole || userData.activeRole || null;
 
       setUser(userObj);
       setUserRoles({
@@ -282,17 +272,21 @@ export const AuthProvider = ({ children }) => {
 
   const getNavigationDestination = (rolesData) => {
     if (!rolesData || !rolesData.roles) return 'Login';
-    
+
     const roles = rolesData.roles;
     const trueRoles = Object.keys(roles).filter((r) => roles[r]);
-    
+
     if (trueRoles.length === 1) {
       const role = trueRoles[0];
-      return role === 'client' ? 'ClientDashboard' : 
-             role === 'customer' ? 'MainTabs' : // Route customers to MainTabs (Home) instead of CustomerDashboard
-             role === 'admin' ? 'AdminDashboard' : 'RoleSelection';
+      return role === 'client'
+        ? 'ClientDashboard'
+        : role === 'customer'
+          ? 'MainTabs' // Route customers to MainTabs (Home) instead of CustomerDashboard
+          : role === 'admin'
+            ? 'AdminDashboard'
+            : 'RoleSelection';
     }
-    
+
     if (trueRoles.length === 0) return 'RoleSelection';
     return 'RoleSelection';
   };
@@ -312,11 +306,7 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated: Boolean(auth.currentUser && user),
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

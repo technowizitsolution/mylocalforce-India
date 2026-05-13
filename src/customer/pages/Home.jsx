@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiUser, FiChevronDown } from 'react-icons/fi';
+import { FiRefreshCw, FiUser, FiChevronDown } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { fetchAllServices, fetchUserRoles } from '../../services/firebase';
 import useCategories from '../../hooks/useCategories';
@@ -12,6 +12,7 @@ import BannerCarousel from '../components/BannerCarousel';
 import HorizontalServiceCards from '../components/HorizontalServiceCards';
 import HorizontalCategoryScroll from '../components/HorizontalCategoryScroll';
 import NotificationBell from '../components/NotificationBell';
+import Footer from '../../components/Footer';
 import {
   categories as localCategories,
   salonSubCategoriesWomen,
@@ -19,16 +20,26 @@ import {
 } from '../../data/services';
 import { notify, getUserFacingError } from '../../utils/toast';
 
+const customerNavItems = [
+  { label: 'Home', path: '/customer' },
+  { label: 'About us', path: '/about' },
+  { label: 'Careers', path: '/careers' },
+  { label: 'Contact us', path: '/contact' },
+];
+
 const HomeScreen = () => {
   const navigate = useNavigate();
-  const { isLoggedIn, user } = useAuth();
+  const { isLoggedIn, user, userRoles } = useAuth();
   const { categories: dbCategories, loading: loadingCategories } = useCategories();
   const [searchText, setSearchText] = useState('');
   const [isSearchSticky, setIsSearchSticky] = useState(false);
+  const [isCustomerNavScrolled, setIsCustomerNavScrolled] = useState(false);
   const [mostBookedServices, setMostBookedServices] = useState([]);
 
   // Use database categories if loaded, otherwise use local fallback for instant display
   const categories = dbCategories.length > 0 ? dbCategories : localCategories;
+  const roles = userRoles?.roles || user?.roles || {};
+  const canSwitchRole = Boolean(roles.customer && roles.client);
 
   // Fetch services from Firebase
   useEffect(() => {
@@ -38,10 +49,7 @@ const HomeScreen = () => {
         const formattedServices = services.slice(0, 10).map((service) => ({
           id: service.id,
           name: service.name,
-          price:
-            typeof service.price === 'number'
-              ? service.price.toFixed(2)
-              : service.price,
+          price: typeof service.price === 'number' ? service.price.toFixed(2) : service.price,
           rating: service.rating || '4.5',
           reviews: service.reviews || '0',
           image: service.imageUrl || '/images/womenSalon.png',
@@ -56,6 +64,22 @@ const HomeScreen = () => {
     loadServices();
   }, []);
 
+  useEffect(() => {
+    const scrollRoot = document.getElementById('customer-scroll-root');
+    if (!scrollRoot) return undefined;
+
+    const updateNavState = () => {
+      setIsCustomerNavScrolled(scrollRoot.scrollTop > 8);
+    };
+
+    updateNavState();
+    scrollRoot.addEventListener('scroll', updateNavState, { passive: true });
+
+    return () => {
+      scrollRoot.removeEventListener('scroll', updateNavState);
+    };
+  }, []);
+
   // Notification press handler
   const handleNotificationPress = () => {
     navigate('/customer/notifications');
@@ -63,14 +87,8 @@ const HomeScreen = () => {
 
   // Get image URL for a category (handles Firebase URLs and local fallbacks)
   const getCategoryImage = (categoryNameOrObject) => {
-    if (
-      typeof categoryNameOrObject === 'object' &&
-      categoryNameOrObject !== null
-    ) {
-      if (
-        categoryNameOrObject.image &&
-        typeof categoryNameOrObject.image === 'string'
-      ) {
+    if (typeof categoryNameOrObject === 'object' && categoryNameOrObject !== null) {
+      if (categoryNameOrObject.image && typeof categoryNameOrObject.image === 'string') {
         return categoryNameOrObject.image;
       }
       if (categoryNameOrObject.imageUrl) {
@@ -94,8 +112,8 @@ const HomeScreen = () => {
 
   // Banner images
   const banners = [
-    {image:'/images/beardBanner.jpeg', name:"men's"},
-    {image:'/images/facialBanner.jpeg', name:'women'}
+    { image: '/images/beardBanner.jpeg', name: "men's" },
+    { image: '/images/facialBanner.jpeg', name: 'women' },
   ];
 
   // Navigation handlers
@@ -114,10 +132,9 @@ const HomeScreen = () => {
           id: serviceData.id,
           title: serviceData.name,
           description: serviceData.description,
-          price: `$${typeof serviceData.price === 'number'
-            ? serviceData.price.toFixed(2)
-            : serviceData.price
-            }`,
+          price: `$${
+            typeof serviceData.price === 'number' ? serviceData.price.toFixed(2) : serviceData.price
+          }`,
           duration: serviceData.duration,
           category: serviceData.category,
           categoryId: serviceData.category,
@@ -156,7 +173,7 @@ const HomeScreen = () => {
 
   const handleBannerPress = (banner, index) => {
     navigate('/customer/services', {
-      state: { showFilters: true, bannerIndex: index ,searchQuery: banner.name},
+      state: { showFilters: true, bannerIndex: index, searchQuery: banner.name },
     });
   };
 
@@ -164,6 +181,7 @@ const HomeScreen = () => {
   const handleScroll = (e) => {
     const scrollY = e.currentTarget.scrollTop;
     setIsSearchSticky(scrollY > 120);
+    setIsCustomerNavScrolled(scrollY > 8);
   };
 
   const handleSwitchRole = async () => {
@@ -176,11 +194,10 @@ const HomeScreen = () => {
       const { roles } = await fetchUserRoles(user.uid);
       const availableRoles = Object.keys(roles || {}).filter((r) => roles[r]);
 
-      if (availableRoles.includes('client') || availableRoles.includes('provider')) {
-        notify.success('Switching to provider mode.', { id: 'home-switch-role' });
-        navigate('/provider');
+      if (availableRoles.length > 1) {
+        navigate('/role-selection');
       } else {
-        notify.warning('Provider mode is not available for this account.', {
+        notify.warning('No other role is available for this account.', {
           id: 'home-switch-role',
         });
       }
@@ -220,17 +237,62 @@ const HomeScreen = () => {
 
         <div className="relative z-10 h-full flex flex-col">
           {/* Navbar */}
-          <nav className="flex flex-col sm:flex-row items-center justify-between px-4 sm:px-6 md:px-8 lg:px-12 py-4 sm:py-6 gap-4 sm:gap-0">
-            <div className="flex items-center gap-2 sm:gap-3" >
-              <img src="/images/MLF.jpg" alt="Logo" className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded" />
-              <p className="text-white text-lg sm:text-xl md:text-2xl font-bold">
-                MY LOCAL FORCE
-              </p>
+          <nav
+            className={`fixed left-0 right-0 top-0 z-30 hidden items-center justify-between px-4 py-4 transition-colors duration-300 sm:px-6 md:px-8 lg:flex lg:px-12 ${
+              isCustomerNavScrolled
+                ? 'border-b border-gray-200 bg-white text-gray-950 shadow-sm'
+                : 'bg-transparent text-white'
+            }`}
+          >
+            <div className="flex items-center gap-2 sm:gap-3">
+              <img
+                src="/images/MLF.jpg"
+                alt="Logo"
+                className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded"
+              />
+              <p className="text-lg sm:text-xl md:text-2xl font-bold">MY LOCAL FORCE</p>
+            </div>
+
+            <div className="flex items-center gap-1">
+              {customerNavItems.map((item) => {
+                const isActive = item.path === '/customer';
+
+                return (
+                  <button
+                    key={item.path}
+                    type="button"
+                    onClick={() => navigate(item.path)}
+                    className={`rounded-md px-3 py-2 text-sm font-semibold transition ${
+                      isCustomerNavScrolled
+                        ? isActive
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-950'
+                        : isActive
+                          ? 'bg-white/18 text-white'
+                          : 'text-white/86 hover:bg-white/12 hover:text-white'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="flex flex-row items-center gap-4 p-5">
-
-
+              {canSwitchRole && (
+                <button
+                  type="button"
+                  onClick={handleSwitchRole}
+                  className={`inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold shadow-sm transition-colors ${
+                    isCustomerNavScrolled
+                      ? 'border-slate-200 bg-white text-slate-800 hover:border-[#6C63FF]/40 hover:bg-indigo-50'
+                      : 'border-white/60 bg-white/10 text-white hover:bg-white/18'
+                  }`}
+                >
+                  <FiRefreshCw className="h-4 w-4" />
+                  Switch
+                </button>
+              )}
 
               {isLoggedIn && (
                 <NotificationBell
@@ -239,15 +301,15 @@ const HomeScreen = () => {
                   color="#5A52E3"
                   role="customer"
                   bgColor="white"
-                />)}
+                />
+              )}
 
               <button
-                onClick={() => navigate("/customer/profile")}
-                className="relative w-11 h-11 sm:w-10 sm:h-10 flex items-center justify-center rounded-md bg-white hover:bg-indigo-100/40 active:bg-indigo-100/60 transition-colors cursor-pointer"
+                onClick={() => navigate('/customer/profile')}
+                className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm transition-colors hover:border-[#6C63FF]/40 hover:bg-indigo-50 active:bg-indigo-100 cursor-pointer"
               >
-                <FiUser className="w-4 h-4 sm:w-5 sm:h-5 text-[#5A52E3]" />
+                <FiUser className="w-5 h-5 text-[#5A52E3]" />
               </button>
-
             </div>
           </nav>
 
@@ -263,7 +325,8 @@ const HomeScreen = () => {
               </h1>
 
               <p className="text-gray-200 text-sm sm:text-base md:text-lg mb-6 sm:mb-10 max-w-xl">
-                We endeavor to comprehend what they're going through, what they need and what their price tags are.
+                We endeavor to comprehend what they're going through, what they need and what their
+                price tags are.
               </p>
 
               {/* CTA */}
@@ -275,19 +338,13 @@ const HomeScreen = () => {
                   Check All Services →
                 </a>
               </div>
-
             </div>
           </div>
         </div>
       </section>
 
-
-      <div
-        className="overflow-y-auto h-full"
-        onScroll={handleScroll}
-      >
+      <div className="overflow-y-auto h-full" onScroll={handleScroll}>
         <div className="w-full max-w-7xl mx-auto">
-
           {/* Header */}
           <div className="px-4 py-5 sm:px-6 sm:py-6 lg:px-8 bg-white mb-3 sm:mb-4 shadow-sm lg:hidden">
             <div className="flex items-center justify-between mb-2">
@@ -308,9 +365,7 @@ const HomeScreen = () => {
                 <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-800 truncate">
                   Hey{' '}
                   {isLoggedIn
-                    ? user?.name?.split(' ')[0] ||
-                    user?.email?.split('@')[0] ||
-                    'User'
+                    ? user?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'User'
                     : 'Mate!'}
                 </h1>
               </div>
@@ -390,6 +445,8 @@ const HomeScreen = () => {
           {/* Bottom spacing for mobile tab bar */}
           <div className="h-4 sm:h-8" />
         </div>
+
+        <Footer />
       </div>
     </div>
   );

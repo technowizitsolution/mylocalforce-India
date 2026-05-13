@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { FiAlertTriangle, FiCheckCircle, FiXCircle, FiLoader } from 'react-icons/fi';
-import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { firestore } from '../../services/firebase/firebaseConfig';
-import { notifyProviderNewBooking } from '../../services/firebase/notificationService';
-import { resolveBookingCheckoutAmount, startCheckoutForBooking } from '../../utils/bookingPayments';
+import {
+  notifyProviderNewBooking,
+  saveNotificationToFirestore,
+  sendPushNotification,
+} from '../../services/firebase/notificationService';
+import { resolveBookingCheckoutAmount } from '../../utils/bookingPayments';
 import { notify } from '../../utils/toast';
 
 const PaymentSuccess = () => {
@@ -19,9 +23,130 @@ const PaymentSuccess = () => {
 
   const [pageState, setPageState] = useState('loading'); // loading | success | sync-warning | cancelled | error
   const [bookingData, setBookingData] = useState(null);
-  const [retryingPayment, setRetryingPayment] = useState(false);
 
   useEffect(() => {
+    const finalizeLeadAfterPayment = async (data, paidBookingId = bookingId) => {
+      const leadId = data?.leadId;
+      if (!leadId) return;
+
+      try {
+        const leadRef = doc(firestore, 'leads', leadId);
+        const leadSnap = await getDoc(leadRef);
+        if (!leadSnap.exists()) {
+          console.warn('Lead not found after web payment success:', leadId);
+          return;
+        }
+
+        const leadData = leadSnap.data() || {};
+        const providerId =
+          leadData.providerId ||
+          data.leadExpectedProviderId ||
+          data.providerId ||
+          null;
+
+        if (!providerId) {
+          console.warn('Lead has no provider after web payment success:', leadId);
+          return;
+        }
+
+        if (
+          leadData.status === 'accepted' &&
+          String(leadData.bookingId || '') === String(paidBookingId)
+        ) {
+          return;
+        }
+
+        if (
+          data.leadExpectedProviderId &&
+          leadData.providerId &&
+          String(data.leadExpectedProviderId) !== String(leadData.providerId)
+        ) {
+          console.warn(
+            'Lead provider changed before web payment confirmation',
+            leadId,
+            data.leadExpectedProviderId,
+            leadData.providerId
+          );
+        }
+
+        await updateDoc(leadRef, {
+          status: 'accepted',
+          bookingId: paidBookingId,
+          paymentStatus: 'paid',
+          acceptedAt: serverTimestamp(),
+          acceptedByCustomerId: data.customerId || leadData.customerId || null,
+          acceptedProviderId: providerId,
+          updatedAt: serverTimestamp(),
+        });
+
+        const providerAcceptNotification = {
+          title: 'Lead Accepted',
+          body: `${data.customerName || leadData.customerName || 'A customer'} accepted your offer for ${data.serviceName || leadData.serviceName || 'this service'}.`,
+          data: {
+            type: 'LEAD_ACCEPTED',
+            leadId,
+            bookingId: paidBookingId,
+            role: 'provider',
+          },
+        };
+
+        try {
+          await saveNotificationToFirestore(providerId, providerAcceptNotification);
+          await sendPushNotification(providerId, providerAcceptNotification, {
+            saveToFirestore: false,
+          });
+        } catch (notificationError) {
+          console.warn(
+            'Failed to notify accepted provider after web payment:',
+            notificationError?.message || notificationError
+          );
+        }
+
+        const providerSet = new Set();
+        if (Array.isArray(leadData.notifiedProviderIds)) {
+          leadData.notifiedProviderIds.forEach((pid) => {
+            if (pid) providerSet.add(pid);
+          });
+        }
+        if (Array.isArray(leadData.offers)) {
+          leadData.offers.forEach((offer) => {
+            if (offer?.providerId) providerSet.add(offer.providerId);
+          });
+        }
+        providerSet.add(providerId);
+
+        const finalizedNotification = {
+          title: 'Lead Finalized',
+          body: `${data.providerName || leadData.providerName || 'A provider'} was accepted for this lead. No further offers will be accepted.`,
+          data: {
+            type: 'LEAD_FINALIZED',
+            leadId,
+            bookingId: paidBookingId,
+            acceptedProviderId: providerId,
+            role: 'provider',
+          },
+        };
+
+        for (const pid of providerSet) {
+          if (String(pid) === String(providerId)) continue;
+          try {
+            await saveNotificationToFirestore(pid, finalizedNotification);
+            await sendPushNotification(pid, finalizedNotification, {
+              saveToFirestore: false,
+            });
+          } catch (notifyError) {
+            console.warn(
+              'Failed to send web lead finalized notification:',
+              pid,
+              notifyError?.message || notifyError
+            );
+          }
+        }
+      } catch (error) {
+        console.error('Error finalizing web lead after payment:', error);
+      }
+    };
+
     const handlePaymentResult = async () => {
       if (!bookingId) {
         setPageState(isCancelledReturn ? 'cancelled' : 'error');
@@ -37,6 +162,18 @@ const PaymentSuccess = () => {
           setBookingData(data);
 
           if (isCancelledReturn) {
+            if (data.paymentStatus !== 'paid' && data.status === 'pending_payment') {
+              try {
+                await deleteDoc(bookingRef);
+                setBookingData(null);
+              } catch (deleteError) {
+                console.warn(
+                  'Payment cancelled but pending booking could not be removed:',
+                  deleteError?.message || deleteError
+                );
+              }
+            }
+
             setPageState('cancelled');
             return;
           }
@@ -82,6 +219,8 @@ const PaymentSuccess = () => {
                 );
               }
             }
+
+            await finalizeLeadAfterPayment(data);
           } else if (data.status === 'pending_payment') {
             await updateDoc(bookingRef, {
               status: 'upcoming',
@@ -111,8 +250,17 @@ const PaymentSuccess = () => {
                 );
               }
             }
+
+            await finalizeLeadAfterPayment(data);
+          } else {
+            await finalizeLeadAfterPayment(data);
           }
         } else {
+          if (isCancelledReturn) {
+            setPageState('cancelled');
+            return;
+          }
+
           notify.warning('Payment received. Final confirmation may take a moment.', {
             id: 'payment-sync-warning',
           });
@@ -133,28 +281,6 @@ const PaymentSuccess = () => {
     handlePaymentResult();
   }, [bookingId, isCancelledReturn, sessionId]);
 
-  const handleRetryPayment = async () => {
-    if (!bookingId || !bookingData || retryingPayment) {
-      navigate('/customer/bookings');
-      return;
-    }
-
-    const retryToastId = 'payment-retry-checkout';
-    notify.loading('Reopening secure payment...', { id: retryToastId });
-    setRetryingPayment(true);
-
-    try {
-      await startCheckoutForBooking(bookingId, bookingData);
-      notify.success('Redirecting to Stripe...', { id: retryToastId });
-    } catch (error) {
-      console.error('Could not retry payment:', error);
-      notify.error(error?.message || 'Could not reopen payment. Please try again.', {
-        id: retryToastId,
-      });
-      setRetryingPayment(false);
-    }
-  };
-
   if (pageState === 'loading') {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 px-4">
@@ -171,16 +297,15 @@ const PaymentSuccess = () => {
           <FiXCircle size={64} className="text-amber-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-slate-800 mb-2">Payment Cancelled</h1>
           <p className="text-sm text-slate-500 mb-6">
-            Your booking is saved as awaiting payment. Complete the payment to confirm it with
-            the provider.
+            Your booking has not been confirmed. Start again when you are ready to complete
+            payment.
           </p>
           <div className="flex flex-col gap-3">
             <button
-              onClick={handleRetryPayment}
-              disabled={retryingPayment || !bookingData}
+              onClick={() => navigate('/customer/services')}
               className="w-full py-3 rounded-xl bg-indigo-500 text-white font-semibold hover:bg-indigo-600 transition-colors"
             >
-              {retryingPayment ? 'Opening Payment...' : 'Complete Payment'}
+              Book Again
             </button>
             <button
               onClick={() => navigate('/customer/bookings')}

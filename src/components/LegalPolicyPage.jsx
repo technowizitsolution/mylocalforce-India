@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, FileText, ShieldCheck } from 'lucide-react';
 import Footer from './Footer';
+import PublicNavbar from './PublicNavbar';
 import { getDefaultPolicy, getPolicy } from '../services/firebase/policyService';
 
 const TERMS_TABS = [
@@ -154,17 +155,17 @@ const LegalPolicyPage = ({ type = 'privacy' }) => {
       if (showLoading) setLoading(true);
 
       getPolicy(policyId)
-      .then((nextPolicy) => {
-        if (!isCurrent) return;
-        setPolicy(nextPolicy);
-        setLoading(false);
-      })
-      .catch((error) => {
-        console.warn(`Unable to load ${policyId}`, error);
-        if (!isCurrent) return;
-        setPolicy(getDefaultPolicy(policyId));
-        setLoading(false);
-      });
+        .then((nextPolicy) => {
+          if (!isCurrent) return;
+          setPolicy(nextPolicy);
+          setLoading(false);
+        })
+        .catch((error) => {
+          console.warn(`Unable to load ${policyId}`, error);
+          if (!isCurrent) return;
+          setPolicy(getDefaultPolicy(policyId));
+          setLoading(false);
+        });
     };
 
     loadPolicy(true);
@@ -178,22 +179,7 @@ const LegalPolicyPage = ({ type = 'privacy' }) => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <Link to="/" className="flex items-center gap-3">
-            <img src="/images/MLF.jpg" alt="My Local Force" className="h-10 w-10 rounded" />
-            <span className="text-sm font-extrabold tracking-normal text-slate-950 sm:text-base">
-              MY LOCAL FORCE
-            </span>
-          </Link>
-          <Link
-            to="/"
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
-          >
-            Home
-          </Link>
-        </div>
-      </header>
+      <PublicNavbar />
 
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
         <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5 sm:p-8">
@@ -207,9 +193,7 @@ const LegalPolicyPage = ({ type = 'privacy' }) => {
                 )}
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl">
-                  {pageTitle}
-                </h1>
+                <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl">{pageTitle}</h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
                   {policy?.description || pageDescription}
                 </p>

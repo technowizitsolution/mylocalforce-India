@@ -15,6 +15,7 @@ import ProviderSelectorScreen from './customer/pages/ProviderSelectorScreen';
 import LoginScreen from './screens/LoginScreen';
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
 import SignupSelectionScreen from './screens/SignupSelectionScreen';
+import RoleSelectionScreen from './screens/RoleSelectionScreen';
 import CustomerSignupScreen from './screens/CustomerSignupScreen';
 import ProviderSignupScreen from './screens/ProviderSignupScreen';
 import ProviderEntryScreen from './screens/ProviderEntryScreen';
@@ -29,6 +30,14 @@ import LegalPolicyPage from './components/LegalPolicyPage';
 import UnknownRouteRedirect from './components/UnknownRouteRedirect';
 import CareersPage from './components/CareersPage';
 import ContactPage from './components/ContactPage';
+import PublicNavbar from './components/PublicNavbar';
+
+const withPublicNavbar = (children, navbarProps) => (
+  <>
+    <PublicNavbar {...navbarProps} />
+    {children}
+  </>
+);
 /**
  * App component - Main routing configuration
  * Handles all route definitions and protects routes based on user roles
@@ -41,11 +50,20 @@ const App = () => {
       <Route path="/about" element={<AboutUs />} />
       <Route path="/about-us" element={<Navigate to="/about" replace />} />
       <Route path="/privacy-policy" element={<LegalPolicyPage type="privacy" />} />
-      <Route path="/terms-and-conditions" element={<Navigate to="/terms-and-conditions/customer" replace />} />
+      <Route
+        path="/terms-and-conditions"
+        element={<Navigate to="/terms-and-conditions/customer" replace />}
+      />
       <Route path="/terms-and-conditions/customer" element={<LegalPolicyPage type="terms" />} />
       <Route path="/terms-and-conditions/provider" element={<LegalPolicyPage type="terms" />} />
-      <Route path="/terms-customer" element={<Navigate to="/terms-and-conditions/customer" replace />} />
-      <Route path="/terms-provider" element={<Navigate to="/terms-and-conditions/provider" replace />} />
+      <Route
+        path="/terms-customer"
+        element={<Navigate to="/terms-and-conditions/customer" replace />}
+      />
+      <Route
+        path="/terms-provider"
+        element={<Navigate to="/terms-and-conditions/provider" replace />}
+      />
       <Route path="/careers" element={<CareersPage />} />
       <Route path="/contact" element={<ContactPage />} />
 
@@ -56,6 +74,14 @@ const App = () => {
       <Route path="/signup/customer" element={<CustomerSignupScreen />} />
       <Route path="/signup/provider" element={<ProviderSignupScreen />} />
       <Route path="/forgot-password" element={<ForgotPasswordScreen />} />
+      <Route
+        path="/role-selection"
+        element={
+          <RoleProtectedRoute>
+            <RoleSelectionScreen />
+          </RoleProtectedRoute>
+        }
+      />
       <Route path="/main-tabs" element={<Navigate to="/customer" replace />} />
       <Route path="/mobile-upload/:token" element={<MobileUploadPage />} />
 
@@ -106,46 +132,45 @@ const App = () => {
       {/* Service Provider Routes */}
       <Route
         path="/provider"
-        element={
+        element={withPublicNavbar(
           <RoleProtectedRoute requiredRole="client">
             <ProviderEntryScreen />
           </RoleProtectedRoute>
-        }
+        )}
       />
       <Route
         path="/provider/dashboard"
-        element={
+        element={withPublicNavbar(
           <RoleProtectedRoute requiredRole="client">
             <ProviderEntryScreen />
           </RoleProtectedRoute>
-        }
+        )}
       />
       <Route
         path="/provider/home"
-        element={
+        element={withPublicNavbar(
           <RoleProtectedRoute requiredRole="client">
             <ProviderHomeScreen />
-          </RoleProtectedRoute>
-        }
+          </RoleProtectedRoute>,
+          { variant: 'transparent', overlay: true }
+        )}
       />
       <Route
         path="/provider/onboarding"
-        element={
+        element={withPublicNavbar(
           <RoleProtectedRoute requiredRole="client">
             <ProviderOnboardingScreen />
           </RoleProtectedRoute>
-        }
+        )}
       />
       <Route
         path="/provider/under-review"
-        element={
+        element={withPublicNavbar(
           <RoleProtectedRoute requiredRole="client">
             <ProviderUnderReviewScreen />
           </RoleProtectedRoute>
-        }
+        )}
       />
-
-     
 
       {/* Catch-all for unknown routes */}
       <Route path="*" element={<UnknownRouteRedirect />} />

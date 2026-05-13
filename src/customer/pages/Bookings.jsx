@@ -27,25 +27,24 @@ import NotificationBell from '../components/NotificationBell';
 /* ── Icon look-ups ── */
 const STATUS_MAP = {
   pending_payment: { icon: FiClock, color: 'text-amber-600', bg: 'bg-amber-500/10' },
-  upcoming:  { icon: FiClock,       color: 'text-amber-500',  bg: 'bg-amber-500/10' },
-  completed: { icon: FiCheckCircle, color: 'text-green-500',  bg: 'bg-green-500/10' },
-  cancelled: { icon: FiXCircle,     color: 'text-red-500',    bg: 'bg-red-500/10' },
-  default:   { icon: FiInfo,        color: 'text-gray-400',   bg: 'bg-gray-400/10' },
+  upcoming: { icon: FiClock, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+  completed: { icon: FiCheckCircle, color: 'text-green-500', bg: 'bg-green-500/10' },
+  cancelled: { icon: FiXCircle, color: 'text-red-500', bg: 'bg-red-500/10' },
+  default: { icon: FiInfo, color: 'text-gray-400', bg: 'bg-gray-400/10' },
 };
 
 const SERVICE_ICONS = {
-  'woman salon':                        FiScissors,
-  'beauty therapy':                     FiHome,
-  'massage':                            FiWind,
+  'woman salon': FiScissors,
+  'beauty therapy': FiHome,
+  massage: FiWind,
   'electrician plumber and carpenters': FiZap,
-  'beard trim':                         FiLock,
-  'native water':                       FiDroplet,
-  'massage for man':                    FiUser,
+  'beard trim': FiLock,
+  'native water': FiDroplet,
+  'massage for man': FiUser,
 };
 
 const getStatusMeta = (status) => STATUS_MAP[status] || STATUS_MAP.default;
-const getServiceIcon = (category) =>
-  SERVICE_ICONS[category?.toLowerCase()] || FiSettings;
+const getServiceIcon = (category) => SERVICE_ICONS[category?.toLowerCase()] || FiSettings;
 const formatStatus = (status) => (status === 'pending_payment' ? 'Awaiting payment' : status);
 
 /* ══════════════════════════════════════════════════════════ */
@@ -124,9 +123,7 @@ const Bookings = () => {
           <div className="w-20 h-20 lg:w-24 lg:h-24 rounded-full bg-violet-100 flex items-center justify-center mb-6">
             <FiCalendar className="w-10 h-10 lg:w-12 lg:h-12 text-violet-600" />
           </div>
-          <h2 className="text-xl lg:text-2xl font-bold text-gray-800 mb-2">
-            Track Your Bookings
-          </h2>
+          <h2 className="text-xl lg:text-2xl font-bold text-gray-800 mb-2">Track Your Bookings</h2>
           <p className="text-gray-500 text-sm lg:text-base mb-8 max-w-xs lg:max-w-sm">
             Login to view and manage your service bookings
           </p>
@@ -141,11 +138,14 @@ const Bookings = () => {
           <div className="w-full border-t border-gray-100 pt-6">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
               {[
-                { Icon: FiClock,    text: 'Track booking status' },
+                { Icon: FiClock, text: 'Track booking status' },
                 { Icon: FiCalendar, text: 'Reschedule appointments' },
-                { Icon: FiStar,     text: 'Rate & review services' },
+                { Icon: FiStar, text: 'Rate & review services' },
               ].map(({ Icon, text }) => (
-                <div key={text} className="flex sm:flex-col items-center sm:text-center gap-3 sm:gap-2">
+                <div
+                  key={text}
+                  className="flex sm:flex-col items-center sm:text-center gap-3 sm:gap-2"
+                >
                   <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
                     <Icon className="w-5 h-5 lg:w-6 lg:h-6 text-violet-600" />
                   </div>
@@ -162,14 +162,20 @@ const Bookings = () => {
   /* ── Logged-in view ── */
   return (
     <div className="min-h-screen bg-linear-to-br from-gray-50 to-slate-100">
-
       {/* Desktop nav - shown on md+ */}
       <header className="hidden lg:block sticky top-0 z-20 border-b border-gray-200 bg-[#F8FAFC]/95 backdrop-blur-sm">
         <div>
           <nav className="flex items-center justify-between px-6 lg:px-30 py-3 gap-6">
             {/* Logo */}
-            <div onClick={() => navigate('/customer')} className="flex items-center gap-3 cursor-pointer shrink-0">
-              <img src="/images/MLF.jpg" alt="Logo" className="w-12 h-12 object-cover rounded-lg border border-blue-100" />
+            <div
+              onClick={() => navigate('/customer')}
+              className="flex items-center gap-3 cursor-pointer shrink-0"
+            >
+              <img
+                src="/images/MLF.jpg"
+                alt="Logo"
+                className="w-12 h-12 object-cover rounded-lg border border-blue-100"
+              />
               <p className="text-[#5A52E3] text-2xl font-bold">MY LOCAL FORCE</p>
             </div>
 
@@ -196,7 +202,7 @@ const Bookings = () => {
               )}
               <button
                 onClick={() => navigate('/customer/profile')}
-                className="w-11 h-11 flex items-center justify-center rounded-lg bg-white hover:bg-gray-100 transition-colors border border-blue-100 cursor-pointer"
+                className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm transition-colors hover:border-[#6C63FF]/40 hover:bg-indigo-50 active:bg-indigo-100 cursor-pointer"
               >
                 <FiUser className="w-5 h-5 text-[#5A52E3]" />
               </button>
@@ -266,9 +272,7 @@ const Bookings = () => {
           <div className="w-24 h-24 lg:w-28 lg:h-28 rounded-full bg-gray-100 flex items-center justify-center">
             <FiCalendar className="w-12 h-12 lg:w-14 lg:h-14 text-gray-300" />
           </div>
-          <h3 className="text-lg lg:text-xl font-bold text-gray-800 mt-6 mb-2">
-            No bookings yet
-          </h3>
+          <h3 className="text-lg lg:text-xl font-bold text-gray-800 mt-6 mb-2">No bookings yet</h3>
           <p className="text-gray-400 leading-relaxed mb-8 max-w-xs lg:max-w-sm text-sm lg:text-base">
             Your service bookings will appear here once you make your first booking.
           </p>
@@ -282,69 +286,67 @@ const Bookings = () => {
       ) : (
         /* ── Booking list ── */
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5 lg:py-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-5">
-              {bookings.map((item) => {
-                const { icon: StatusIcon, color, bg } = getStatusMeta(item.status);
-                const ServiceIcon = getServiceIcon(item.category);
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-5">
+            {bookings.map((item) => {
+              const { icon: StatusIcon, color, bg } = getStatusMeta(item.status);
+              const ServiceIcon = getServiceIcon(item.category);
 
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      setSelectedBookingId(item.id);
-                      setBookingDetailVisible(true);
-                    }}
-                    className="w-full text-left bg-white rounded-2xl p-4 lg:p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 border border-gray-100 transition-all duration-200 cursor-pointer group"
-                  >
-                    {/* Card header */}
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        {item.serviceImage ? (
-                          <img
-                            src={item.serviceImage}
-                            alt=""
-                            className="w-14 h-14 lg:w-16 lg:h-16 rounded-xl object-cover bg-gray-100 shrink-0"
-                          />
-                        ) : (
-                          <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
-                            <ServiceIcon className="w-6 h-6 lg:w-7 lg:h-7 text-violet-600" />
-                          </div>
-                        )}
-                        <div className="min-w-0 pt-0.5">
-                          <p className="font-bold text-gray-800 truncate text-sm lg:text-base">
-                            {item.serviceName ||
-                              item.serviceTitle ||
-                              item.subcategory ||
-                              item.category ||
-                              'Service Booking'}
-                          </p>
-                          <p className="text-xs lg:text-sm text-gray-400 truncate mt-0.5">
-                            {item.category || 'MyLocalForce Service'}
-                          </p>
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setSelectedBookingId(item.id);
+                    setBookingDetailVisible(true);
+                  }}
+                  className="w-full text-left bg-white rounded-2xl p-4 lg:p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 border border-gray-100 transition-all duration-200 cursor-pointer group"
+                >
+                  {/* Card header */}
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      {item.serviceImage ? (
+                        <img
+                          src={item.serviceImage}
+                          alt=""
+                          className="w-14 h-14 lg:w-16 lg:h-16 rounded-xl object-cover bg-gray-100 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+                          <ServiceIcon className="w-6 h-6 lg:w-7 lg:h-7 text-violet-600" />
                         </div>
+                      )}
+                      <div className="min-w-0 pt-0.5">
+                        <p className="font-bold text-gray-800 truncate text-sm lg:text-base">
+                          {item.serviceName ||
+                            item.serviceTitle ||
+                            item.subcategory ||
+                            item.category ||
+                            'Service Booking'}
+                        </p>
+                        <p className="text-xs lg:text-sm text-gray-400 truncate mt-0.5">
+                          {item.category || 'MyLocalForce Service'}
+                        </p>
                       </div>
-
-                      {/* Status badge */}
-                      <span
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] lg:text-xs font-bold uppercase shrink-0 ${bg} ${color}`}
-                      >
-                        <StatusIcon className="w-3.5 h-3.5" />
-                        {formatStatus(item.status)}
-                      </span>
                     </div>
 
-                    {/* View details bar */}
-                    <div className="flex items-center justify-center gap-1 bg-violet-50 group-hover:bg-violet-100 rounded-xl py-2.5 mt-2 transition-colors">
-                      <span className="text-sm font-semibold text-violet-600">
-                        View Details
-                      </span>
-                      <FiChevronRight className="w-4 h-4 text-violet-600 group-hover:translate-x-0.5 transition-transform" />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+                    {/* Status badge */}
+                    <span
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] lg:text-xs font-bold uppercase shrink-0 ${bg} ${color}`}
+                    >
+                      <StatusIcon className="w-3.5 h-3.5" />
+                      {formatStatus(item.status)}
+                    </span>
+                  </div>
+
+                  {/* View details bar */}
+                  <div className="flex items-center justify-center gap-1 bg-violet-50 group-hover:bg-violet-100 rounded-xl py-2.5 mt-2 transition-colors">
+                    <span className="text-sm font-semibold text-violet-600">View Details</span>
+                    <FiChevronRight className="w-4 h-4 text-violet-600 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </button>
+              );
+            })}
           </div>
+        </div>
       )}
 
       {/* Booking Detail Modal */}

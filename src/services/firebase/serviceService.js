@@ -1,17 +1,64 @@
 import { firestore } from './firebaseConfig';
-import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, getDoc, updateDoc, onSnapshot, orderBy } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  serverTimestamp,
+  doc,
+  getDoc,
+  updateDoc,
+  onSnapshot,
+  orderBy,
+  setDoc,
+} from 'firebase/firestore';
 import { notifyProviderNewBooking } from './notificationService';
 
+function formatOrderDate(date = new Date()) {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = String(date.getFullYear());
+  return `${day}${month}${year}`;
+}
+
+function resolveServiceCode(bookingData = {}) {
+  const source = String(
+    bookingData.serviceName || bookingData.subcategory || bookingData.category || 'Service'
+  ).trim();
+
+  const words = source
+    .split(/[^A-Za-z]+/)
+    .filter(Boolean)
+    .map((word) => word.toUpperCase());
+
+  if (words.length >= 2) {
+    return `${words[0][0]}${words[1][0]}`;
+  }
+
+  if (words.length === 1) {
+    const word = words[0];
+    if (word.length >= 2) return word.slice(0, 2);
+    return `${word}X`;
+  }
+
+  return 'SV';
+}
+
+async function generateUniqueOrderNumber(bookingData = {}) {
+  const datePart = formatOrderDate(new Date());
+  const serviceCode = resolveServiceCode(bookingData);
+  const randomThreeDigits = String(Math.floor(100 + Math.random() * 900));
+  return `MLF${datePart}${serviceCode}${randomThreeDigits}`;
+}
 
 /**
  * Fetch provider's commission rate from users collection
  */
 
-
 export async function fetchProviderCommissionRate(providerId) {
   try {
     if (!providerId) return 0; // Default 0% commission if no provider
-    
+
     const userDoc = await getDoc(doc(firestore, 'users', providerId));
     if (userDoc.exists()) {
       const userData = userDoc.data();
@@ -19,7 +66,7 @@ export async function fetchProviderCommissionRate(providerId) {
       console.log(`Provider ${providerId} commission rate:`, commissionRate);
       return commissionRate;
     }
-    
+
     console.log(`No commission rate found for provider ${providerId}, using 0%`);
     return 0; // Default 0% if no commission rate set
   } catch (error) {
@@ -38,12 +85,12 @@ function calculateCommissionDeduction(amount, commissionRate) {
   const originalAmount = parseFloat(amount) || 0;
   const commission = (originalAmount * commissionRate) / 100;
   const providerEarnings = originalAmount - commission;
-  
+
   return {
     originalAmount,
     commission,
     providerEarnings,
-    commissionRate
+    commissionRate,
   };
 }
 
@@ -54,15 +101,15 @@ export async function fetchServicesByCategory(category) {
   try {
     const servicesCol = collection(firestore, 'services');
     const q = query(
-      servicesCol, 
+      servicesCol,
       where('category', '==', category),
       where('status', '==', 'active')
     );
     const querySnapshot = await getDocs(q);
     // Only return services that have at least one provider or an explicit owner
     return querySnapshot.docs
-      .map(docSnap => ({ id: docSnap.id, ...docSnap.data() }))
-      .filter(s => (Array.isArray(s.providers) && s.providers.length > 0) || !!s.ownerId);
+      .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+      .filter((s) => (Array.isArray(s.providers) && s.providers.length > 0) || !!s.ownerId);
   } catch (error) {
     console.error('Error fetching services by category:', error);
     throw error;
@@ -78,8 +125,8 @@ export async function fetchAllServices() {
     const q = query(servicesCol, where('status', '==', 'active'));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs
-      .map(docSnap => ({ id: docSnap.id, ...docSnap.data() }))
-      .filter(s => (Array.isArray(s.providers) && s.providers.length > 0) || !!s.ownerId);
+      .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+      .filter((s) => (Array.isArray(s.providers) && s.providers.length > 0) || !!s.ownerId);
   } catch (error) {
     console.error('Error fetching all services:', error);
     throw error;
@@ -94,28 +141,50 @@ export async function createBooking(userId, bookingData) {
     if (!userId) throw new Error('User ID is required');
 
     const initialStatus = bookingData.status || 'upcoming';
-    
-    const bookingsCol = collection(firestore, 'bookings');
-    const bookingDoc = await addDoc(bookingsCol, {
-      ...bookingData,
-      customerId: userId, // Add customer ID for filtering
-      status: initialStatus,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
-    
-    console.log('✅ Booking created:', bookingDoc.id);
-    
+
+    let bookingRef = null;
+    let orderNumber = null;
+    let lastError = null;
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      orderNumber = await generateUniqueOrderNumber(bookingData);
+      bookingRef = doc(firestore, 'bookings', orderNumber);
+
+      try {
+        await setDoc(bookingRef, {
+          ...bookingData,
+          orderNumber,
+          customerId: userId, // Add customer ID for filtering
+          status: initialStatus,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+
+        lastError = null;
+        break;
+      } catch (writeError) {
+        lastError = writeError;
+        if (attempt === 9) {
+          throw writeError;
+        }
+      }
+    }
+
+    if (lastError) {
+      throw lastError;
+    }
+
+    console.log('✅ Booking created:', bookingRef.id);
+
     // Send provider notification only for bookings that are actually ready for the provider.
     // Web checkout creates pending_payment records first, then PaymentSuccess promotes them.
     try {
       const isProviderReadyBooking =
-        bookingData.paymentStatus === 'paid' ||
-        ['upcoming', 'accepted'].includes(initialStatus);
+        bookingData.paymentStatus === 'paid' || ['upcoming', 'accepted'].includes(initialStatus);
 
       if (bookingData.providerId && isProviderReadyBooking) {
         await notifyProviderNewBooking(bookingData.providerId, {
-          bookingId: bookingDoc.id,
+          bookingId: bookingRef.id,
           customerId: userId, // Pass customer ID for multi-role check
           customerName: bookingData.customerName || 'A customer',
           serviceName: bookingData.serviceName || 'a service',
@@ -127,8 +196,8 @@ export async function createBooking(userId, bookingData) {
       console.error('⚠️ Could not send notification (non-critical):', notifError);
       // Don't fail the booking if notification fails
     }
-    
-    return bookingDoc.id;
+
+    return bookingRef.id;
   } catch (error) {
     console.error('Error creating booking:', error);
     throw error;
@@ -141,21 +210,23 @@ export async function createBooking(userId, bookingData) {
 export async function fetchUserBookings(userId) {
   try {
     if (!userId) throw new Error('User ID is required');
-    
+
     const bookingsCol = collection(firestore, 'bookings');
     const q = query(bookingsCol, where('customerId', '==', userId));
     const querySnapshot = await getDocs(q);
-    
-    return querySnapshot.docs.map(docSnap => ({
-      id: docSnap.id,
-      ...docSnap.data()
-    })).sort((a, b) => {
-      // Sort by createdAt descending (newest first)
-      if (a.createdAt && b.createdAt) {
-        return b.createdAt.toDate() - a.createdAt.toDate();
-      }
-      return 0;
-    });
+
+    return querySnapshot.docs
+      .map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      }))
+      .sort((a, b) => {
+        // Sort by createdAt descending (newest first)
+        if (a.createdAt && b.createdAt) {
+          return b.createdAt.toDate() - a.createdAt.toDate();
+        }
+        return 0;
+      });
   } catch (error) {
     console.error('Error fetching user bookings:', error);
     throw error;
@@ -170,37 +241,33 @@ export function subscribeToUserBookings(userId, callback) {
   try {
     if (!userId) throw new Error('User ID is required');
     if (!callback) throw new Error('Callback function is required');
-    
+
     const bookingsCol = collection(firestore, 'bookings');
-    const q = query(
-      bookingsCol, 
-      where('customerId', '==', userId),
-      orderBy('createdAt', 'desc')
-    );
-    
+    const q = query(bookingsCol, where('customerId', '==', userId), orderBy('createdAt', 'desc'));
+
     // Set up real-time listener
-    const unsubscribe = onSnapshot(q, 
+    const unsubscribe = onSnapshot(
+      q,
       (querySnapshot) => {
-        const bookings = querySnapshot.docs.map(docSnap => ({
+        const bookings = querySnapshot.docs.map((docSnap) => ({
           id: docSnap.id,
-          ...docSnap.data()
+          ...docSnap.data(),
         }));
-        
-        console.log(`Real-time update: ${bookings.length} bookings for user ${userId}`);
+
         callback(bookings);
       },
       (error) => {
         console.error('Error in real-time booking subscription:', error);
         // Fallback to one-time fetch on error
         fetchUserBookings(userId)
-          .then(bookings => callback(bookings))
-          .catch(fallbackError => {
+          .then((bookings) => callback(bookings))
+          .catch((fallbackError) => {
             console.error('Fallback fetch also failed:', fallbackError);
             callback([]); // Return empty array as last resort
           });
       }
     );
-    
+
     return unsubscribe;
   } catch (error) {
     console.error('Error setting up booking subscription:', error);
@@ -215,7 +282,7 @@ export async function getServiceById(serviceId) {
   try {
     const serviceDoc = doc(firestore, 'services', serviceId);
     const serviceSnap = await getDoc(serviceDoc);
-    
+
     if (serviceSnap.exists()) {
       return { id: serviceSnap.id, ...serviceSnap.data() };
     } else {
@@ -233,21 +300,23 @@ export async function getServiceById(serviceId) {
 export async function fetchProviderBookings(providerId) {
   try {
     if (!providerId) throw new Error('Provider ID is required');
-    
+
     const bookingsCol = collection(firestore, 'bookings');
     const q = query(bookingsCol, where('providerId', '==', providerId));
     const querySnapshot = await getDocs(q);
-    
-    return querySnapshot.docs.map(docSnap => ({
-      id: docSnap.id,
-      ...docSnap.data()
-    })).sort((a, b) => {
-      // Sort by createdAt descending (newest first)
-      if (a.createdAt && b.createdAt) {
-        return b.createdAt.toDate() - a.createdAt.toDate();
-      }
-      return 0;
-    });
+
+    return querySnapshot.docs
+      .map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      }))
+      .sort((a, b) => {
+        // Sort by createdAt descending (newest first)
+        if (a.createdAt && b.createdAt) {
+          return b.createdAt.toDate() - a.createdAt.toDate();
+        }
+        return 0;
+      });
   } catch (error) {
     console.error('Error fetching provider bookings:', error);
     throw error;
@@ -260,22 +329,24 @@ export async function fetchProviderBookings(providerId) {
 export async function fetchServicesByProvider(providerId) {
   try {
     if (!providerId) throw new Error('Provider ID is required');
-    
+
     const servicesCol = collection(firestore, 'services');
     // Fetch services where provider is the owner
     const qOwner = query(servicesCol, where('ownerId', '==', providerId));
     const ownerSnap = await getDocs(qOwner);
-    const ownerServices = ownerSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const ownerServices = ownerSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
     // Fetch services where provider is assigned in the `providers` array
     const qAssigned = query(servicesCol, where('providers', 'array-contains', providerId));
     const assignedSnap = await getDocs(qAssigned);
-    const assignedServices = assignedSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const assignedServices = assignedSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
     // Merge unique services (by id)
     const map = {};
-    [...ownerServices, ...assignedServices].forEach(s => { map[s.id] = s; });
-    return Object.keys(map).map(id => ({ id, ...map[id] }));
+    [...ownerServices, ...assignedServices].forEach((s) => {
+      map[s.id] = s;
+    });
+    return Object.keys(map).map((id) => ({ id, ...map[id] }));
   } catch (error) {
     console.error('Error fetching services by provider:', error);
     throw error;
@@ -288,30 +359,34 @@ export async function fetchServicesByProvider(providerId) {
 export async function calculateProviderStats(providerId) {
   try {
     if (!providerId) throw new Error('Provider ID is required');
-    
+
     // Fetch provider's commission rate and data
     const [services, bookings, commissionRate] = await Promise.all([
       fetchServicesByProvider(providerId),
       fetchProviderBookings(providerId),
-      fetchProviderCommissionRate(providerId)
+      fetchProviderCommissionRate(providerId),
     ]);
-    
+
     // Calculate stats
     const totalServices = services.length;
-    const activeServices = services.filter(s => s.status === 'active').length;
-    
-    const completedBookings = bookings.filter(b => b.status === 'completed');
-    const upcomingBookings = bookings.filter(b => b.status === 'upcoming' || b.status === 'accepted');
+    const activeServices = services.filter((s) => s.status === 'active').length;
+
+    const completedBookings = bookings.filter((b) => b.status === 'completed');
+    const upcomingBookings = bookings.filter(
+      (b) => b.status === 'upcoming' || b.status === 'accepted'
+    );
     const totalBookings = bookings.length;
-    
+
     // Calculate monthly earnings (current month) - with commission deduction
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
     const monthlyEarnings = completedBookings
-      .filter(booking => {
+      .filter((booking) => {
         if (booking.createdAt) {
           const bookingDate = booking.createdAt.toDate();
-          return bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear;
+          return (
+            bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear
+          );
         }
         return false;
       })
@@ -320,14 +395,14 @@ export async function calculateProviderStats(providerId) {
         const { providerEarnings } = calculateCommissionDeduction(amount, commissionRate);
         return total + providerEarnings;
       }, 0);
-    
+
     // Calculate total earnings - with commission deduction
     const totalEarnings = completedBookings.reduce((total, booking) => {
       const amount = parseFloat(booking.price) || 0;
       const { providerEarnings } = calculateCommissionDeduction(amount, commissionRate);
       return total + providerEarnings;
     }, 0);
-    
+
     // Get actual average rating from user profile
     let averageRating = 0;
     let ratingCount = 0;
@@ -341,7 +416,7 @@ export async function calculateProviderStats(providerId) {
     } catch (err) {
       console.error('Error fetching provider rating:', err);
     }
-    
+
     return {
       totalServices,
       activeServices,
@@ -352,7 +427,7 @@ export async function calculateProviderStats(providerId) {
       totalEarnings,
       averageRating,
       ratingCount,
-      commissionRate // Include commission rate in return for reference
+      commissionRate, // Include commission rate in return for reference
     };
   } catch (error) {
     console.error('Error calculating provider stats:', error);
@@ -386,18 +461,18 @@ export async function updateBookingStatus(bookingId, newStatus, providerId) {
 
     // Define valid status transitions
     const validTransitions = {
-      'pending_payment': ['cancelled'],
-      'upcoming': ['accepted', 'rejected', 'cancelled'], // Can accept, reject, or cancel
-      'accepted': ['arrived', 'cancelled'], // Can mark as arrived or cancel after accepting
-      'arrived': ['in_progress', 'cancelled'], // Can start service (via OTP) or cancel
-      'in_progress': ['completed', 'cancelled'], // Can complete or cancel while in progress
-      'completed': [], // Final state
-      'cancelled': [], // Final state
-      'rejected': [] // Final state
+      pending_payment: ['cancelled'],
+      upcoming: ['accepted', 'rejected', 'cancelled'], // Can accept, reject, or cancel
+      accepted: ['arrived', 'cancelled'], // Can mark as arrived or cancel after accepting
+      arrived: ['in_progress', 'cancelled'], // Can start service (via OTP) or cancel
+      in_progress: ['completed', 'cancelled'], // Can complete or cancel while in progress
+      completed: [], // Final state
+      cancelled: [], // Final state
+      rejected: [], // Final state
     };
 
     const bookingDoc = doc(firestore, 'bookings', bookingId);
-    
+
     // First check if the booking exists and belongs to this provider
     const bookingSnap = await getDoc(bookingDoc);
     if (!bookingSnap.exists()) {
@@ -420,7 +495,7 @@ export async function updateBookingStatus(bookingId, newStatus, providerId) {
     const updateData = {
       status: newStatus,
       updatedAt: serverTimestamp(),
-      [`${newStatus}At`]: serverTimestamp() // Track when each status was set
+      [`${newStatus}At`]: serverTimestamp(), // Track when each status was set
     };
 
     // Calculate service duration if completing
@@ -430,7 +505,9 @@ export async function updateBookingStatus(bookingId, newStatus, providerId) {
       const durationMinutes = Math.round((now - startTime) / (1000 * 60));
       updateData.actualServiceDuration = durationMinutes;
       updateData.serviceDurationHours = (durationMinutes / 60).toFixed(2);
-      console.log(`Service duration: ${durationMinutes} minutes (${updateData.serviceDurationHours} hours)`);
+      console.log(
+        `Service duration: ${durationMinutes} minutes (${updateData.serviceDurationHours} hours)`
+      );
     }
 
     // Update the booking status
@@ -439,19 +516,27 @@ export async function updateBookingStatus(bookingId, newStatus, providerId) {
     console.log('✅ Booking status updated:', bookingId, '→', newStatus);
 
     // Send email notification for accepted/cancelled/rejected/completed status
-    if (newStatus === 'accepted' || newStatus === 'cancelled' || newStatus === 'rejected' || newStatus === 'completed') {
+    if (
+      newStatus === 'accepted' ||
+      newStatus === 'cancelled' ||
+      newStatus === 'rejected' ||
+      newStatus === 'completed'
+    ) {
       try {
         console.log(`📧 Sending ${newStatus} email notification...`);
-        const response = await fetch('https://us-central1-mylocalforce-295b8.cloudfunctions.net/sendBookingStatusEmail', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            bookingId: bookingId,
-            newStatus: newStatus,
-          }),
-        });
+        const response = await fetch(
+          'https://us-central1-mylocalforce-295b8.cloudfunctions.net/sendBookingStatusEmail',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              bookingId: bookingId,
+              newStatus: newStatus,
+            }),
+          }
+        );
 
         if (response.ok) {
           console.log('✅ Email notification sent successfully');
@@ -466,8 +551,12 @@ export async function updateBookingStatus(bookingId, newStatus, providerId) {
 
     // Send push notifications based on status change
     try {
-      const { notifyCustomerBookingAccepted, notifyCustomerBookingCompleted, notifyCustomerBookingCancelled } = require('./notificationService');
-      
+      const {
+        notifyCustomerBookingAccepted,
+        notifyCustomerBookingCompleted,
+        notifyCustomerBookingCancelled,
+      } = require('./notificationService');
+
       const customerId = bookingData.customerId;
       const notificationData = {
         bookingId: bookingId,
@@ -505,10 +594,10 @@ export async function updateBookingStatus(bookingId, newStatus, providerId) {
 export async function getBookingById(bookingId) {
   try {
     if (!bookingId) throw new Error('Booking ID is required');
-    
+
     const bookingDoc = doc(firestore, 'bookings', bookingId);
     const bookingSnap = await getDoc(bookingDoc);
-    
+
     if (bookingSnap.exists()) {
       return { id: bookingSnap.id, ...bookingSnap.data() };
     } else {
@@ -528,17 +617,14 @@ export async function getBookingById(bookingId) {
 export function subscribeToAllServices(callback) {
   try {
     const servicesCol = collection(firestore, 'services');
-    const q = query(
-      servicesCol,
-      where('status', '==', 'active'),
-      orderBy('createdAt', 'desc')
-    );
-    
-    return onSnapshot(q, 
+    const q = query(servicesCol, where('status', '==', 'active'), orderBy('createdAt', 'desc'));
+
+    return onSnapshot(
+      q,
       (querySnapshot) => {
-        const services = querySnapshot.docs.map(docSnap => ({
+        const services = querySnapshot.docs.map((docSnap) => ({
           id: docSnap.id,
-          ...docSnap.data()
+          ...docSnap.data(),
         }));
         callback(services);
       },
@@ -562,17 +648,25 @@ export function subscribeToAllServices(callback) {
 export function subscribeToProviderServices(providerId, callback) {
   try {
     if (!providerId) throw new Error('Provider ID is required');
-    
+
     const servicesCol = collection(firestore, 'services');
     // We need to listen to both services where the provider is owner
     // and services where the provider is in the `providers` array.
-    const qOwner = query(servicesCol, where('ownerId', '==', providerId), orderBy('createdAt', 'desc'));
-    const qAssigned = query(servicesCol, where('providers', 'array-contains', providerId), orderBy('createdAt', 'desc'));
+    const qOwner = query(
+      servicesCol,
+      where('ownerId', '==', providerId),
+      orderBy('createdAt', 'desc')
+    );
+    const qAssigned = query(
+      servicesCol,
+      where('providers', 'array-contains', providerId),
+      orderBy('createdAt', 'desc')
+    );
 
     const servicesMap = {};
 
     const emit = () => {
-      const merged = Object.keys(servicesMap).map(id => ({ id, ...servicesMap[id] }));
+      const merged = Object.keys(servicesMap).map((id) => ({ id, ...servicesMap[id] }));
       // Sort by createdAt desc if possible
       merged.sort((a, b) => {
         const aTime = a.createdAt ? (a.createdAt.toDate ? a.createdAt.toDate() : a.createdAt) : 0;
@@ -582,9 +676,10 @@ export function subscribeToProviderServices(providerId, callback) {
       callback(merged);
     };
 
-    const ownerUnsub = onSnapshot(qOwner,
+    const ownerUnsub = onSnapshot(
+      qOwner,
       (querySnapshot) => {
-        querySnapshot.docs.forEach(docSnap => {
+        querySnapshot.docs.forEach((docSnap) => {
           servicesMap[docSnap.id] = docSnap.data();
         });
         emit();
@@ -592,9 +687,10 @@ export function subscribeToProviderServices(providerId, callback) {
       (error) => console.log('Owner services listener error:', error)
     );
 
-    const assignedUnsub = onSnapshot(qAssigned,
+    const assignedUnsub = onSnapshot(
+      qAssigned,
       (querySnapshot) => {
-        querySnapshot.docs.forEach(docSnap => {
+        querySnapshot.docs.forEach((docSnap) => {
           servicesMap[docSnap.id] = docSnap.data();
         });
         emit();
@@ -604,8 +700,12 @@ export function subscribeToProviderServices(providerId, callback) {
 
     // Return combined unsubscribe
     return () => {
-      try { ownerUnsub(); } catch (e) {}
-      try { assignedUnsub(); } catch (e) {}
+      try {
+        ownerUnsub();
+      } catch (e) {}
+      try {
+        assignedUnsub();
+      } catch (e) {}
     };
   } catch (error) {
     console.error('Error setting up provider services subscription:', error);
@@ -622,44 +722,51 @@ export function subscribeToProviderServices(providerId, callback) {
 export async function subscribeToProviderDashboard(providerId, callback) {
   try {
     if (!providerId) throw new Error('Provider ID is required');
-    
+
     // Fetch commission rate FIRST before setting up subscriptions
     const commissionRate = await fetchProviderCommissionRate(providerId);
     console.log('Dashboard commission rate loaded:', commissionRate);
-    
+
     // Set up listeners for both services and bookings
     const servicesCol = collection(firestore, 'services');
     const bookingsCol = collection(firestore, 'bookings');
-    
+
     // We need to listen to services where provider is owner or assigned in `providers` array
     const servicesQueryOwner = query(servicesCol, where('ownerId', '==', providerId));
-    const servicesQueryAssigned = query(servicesCol, where('providers', 'array-contains', providerId));
-    
+    const servicesQueryAssigned = query(
+      servicesCol,
+      where('providers', 'array-contains', providerId)
+    );
+
     const bookingsQuery = query(
       bookingsCol,
       where('providerId', '==', providerId),
       orderBy('createdAt', 'desc')
     );
-    
+
     let servicesData = [];
     let bookingsData = [];
     let activeListeners = 0;
-    
+
     // Function to calculate and send stats when both datasets are ready
     const updateStats = () => {
       if (activeListeners === 2) {
         // Calculate stats from real-time data
         const stats = {
           totalServices: servicesData.length,
-          activeBookings: bookingsData.filter(b => b.status === 'upcoming' || b.status === 'accepted').length,
+          activeBookings: bookingsData.filter(
+            (b) => b.status === 'upcoming' || b.status === 'accepted'
+          ).length,
           monthlyEarnings: bookingsData
-            .filter(b => {
+            .filter((b) => {
               if (!b.createdAt) return false;
               const bookingDate = b.createdAt.toDate();
               const currentDate = new Date();
-              return bookingDate.getMonth() === currentDate.getMonth() && 
-                     bookingDate.getFullYear() === currentDate.getFullYear() &&
-                     b.status === 'completed';
+              return (
+                bookingDate.getMonth() === currentDate.getMonth() &&
+                bookingDate.getFullYear() === currentDate.getFullYear() &&
+                b.status === 'completed'
+              );
             })
             .reduce((sum, b) => {
               const amount = parseFloat(b.price) || 0;
@@ -667,41 +774,52 @@ export async function subscribeToProviderDashboard(providerId, callback) {
               return sum + providerEarnings;
             }, 0),
           averageRating: 4.5, // TODO: Calculate from reviews
-          recentBookings: bookingsData.slice(0, 3).map(booking => {
+          recentBookings: bookingsData.slice(0, 3).map((booking) => {
             const originalAmount = parseFloat(booking.price) || 0;
-            const { providerEarnings, commission } = calculateCommissionDeduction(originalAmount, commissionRate);
-            
+            const { providerEarnings, commission } = calculateCommissionDeduction(
+              originalAmount,
+              commissionRate
+            );
+
             return {
               id: booking.id,
               customer: booking.customerName || 'Customer',
               service: booking.serviceName || 'Service',
-              date: booking.createdAt ? booking.createdAt.toDate().toISOString().split('T')[0] : 'TBD',
+              date: booking.createdAt
+                ? booking.createdAt.toDate().toISOString().split('T')[0]
+                : 'TBD',
               time: booking.scheduledTime || 'TBD',
-              status: booking.status === 'completed' ? 'Completed' : 
-                     booking.status === 'upcoming' ? 'Upcoming' : 
-                     booking.status === 'accepted' ? 'Accepted' : booking.status,
+              status:
+                booking.status === 'completed'
+                  ? 'Completed'
+                  : booking.status === 'upcoming'
+                    ? 'Upcoming'
+                    : booking.status === 'accepted'
+                      ? 'Accepted'
+                      : booking.status,
               amount: providerEarnings, // Show provider's earnings after commission
               originalAmount: originalAmount, // Keep original for reference
               commission: commission, // Commission amount
             };
-          })
+          }),
         };
-        
+
         callback(stats);
       }
     };
-    
+
     // Services listeners (owner and assigned) - merge results into servicesData
     const servicesMap = {};
     const emitServices = () => {
-      servicesData = Object.keys(servicesMap).map(id => ({ id, ...servicesMap[id] }));
+      servicesData = Object.keys(servicesMap).map((id) => ({ id, ...servicesMap[id] }));
       activeListeners = Math.max(activeListeners, 1);
       updateStats();
     };
 
-    const ownerUnsub = onSnapshot(servicesQueryOwner,
+    const ownerUnsub = onSnapshot(
+      servicesQueryOwner,
       (querySnapshot) => {
-        querySnapshot.docs.forEach(docSnap => {
+        querySnapshot.docs.forEach((docSnap) => {
           servicesMap[docSnap.id] = docSnap.data();
         });
         emitServices();
@@ -709,22 +827,24 @@ export async function subscribeToProviderDashboard(providerId, callback) {
       (error) => console.log('Dashboard owner services listener error:', error)
     );
 
-    const assignedUnsub = onSnapshot(servicesQueryAssigned,
+    const assignedUnsub = onSnapshot(
+      servicesQueryAssigned,
       (querySnapshot) => {
-        querySnapshot.docs.forEach(docSnap => {
+        querySnapshot.docs.forEach((docSnap) => {
           servicesMap[docSnap.id] = docSnap.data();
         });
         emitServices();
       },
       (error) => console.log('Dashboard assigned services listener error:', error)
     );
-    
+
     // Bookings listener
-    const bookingsUnsubscribe = onSnapshot(bookingsQuery, 
+    const bookingsUnsubscribe = onSnapshot(
+      bookingsQuery,
       (querySnapshot) => {
-        bookingsData = querySnapshot.docs.map(docSnap => ({
+        bookingsData = querySnapshot.docs.map((docSnap) => ({
           id: docSnap.id,
-          ...docSnap.data()
+          ...docSnap.data(),
         }));
         activeListeners = 2; // Mark bookings as ready
         updateStats();
@@ -733,14 +853,19 @@ export async function subscribeToProviderDashboard(providerId, callback) {
         console.log('Real-time dashboard bookings listener error:', error);
       }
     );
-    
+
     // Return combined unsubscribe function
     return () => {
-      try { ownerUnsub(); } catch (e) {}
-      try { assignedUnsub(); } catch (e) {}
-      try { bookingsUnsubscribe(); } catch (e) {}
+      try {
+        ownerUnsub();
+      } catch (e) {}
+      try {
+        assignedUnsub();
+      } catch (e) {}
+      try {
+        bookingsUnsubscribe();
+      } catch (e) {}
     };
-    
   } catch (error) {
     console.error('Error setting up provider dashboard subscription:', error);
     throw error;
@@ -756,19 +881,20 @@ export async function subscribeToProviderDashboard(providerId, callback) {
 export function subscribeToProviderBookings(providerId, callback) {
   try {
     if (!providerId) throw new Error('Provider ID is required');
-    
+
     const bookingsCol = collection(firestore, 'bookings');
     const q = query(
       bookingsCol,
       where('providerId', '==', providerId),
       orderBy('createdAt', 'desc')
     );
-    
-    return onSnapshot(q, 
+
+    return onSnapshot(
+      q,
       (querySnapshot) => {
-        const bookings = querySnapshot.docs.map(docSnap => ({
+        const bookings = querySnapshot.docs.map((docSnap) => ({
           id: docSnap.id,
-          ...docSnap.data()
+          ...docSnap.data(),
         }));
         callback(bookings);
       },
@@ -787,53 +913,63 @@ export function subscribeToProviderBookings(providerId, callback) {
 export async function subscribeToProviderEarnings(providerId, callback) {
   try {
     console.log('Setting up real-time provider earnings subscription for:', providerId);
-    
+
     // Fetch commission rate FIRST before setting up subscriptions
     const commissionRate = await fetchProviderCommissionRate(providerId);
     console.log('Provider commission rate loaded:', commissionRate);
-    
+
     // Query earnings collection first (new system)
     const earningsQuery = query(
       collection(firestore, 'earnings'),
       where('providerId', '==', providerId),
       orderBy('createdAt', 'desc')
     );
-    
+
     // Also subscribe to bookings for backward compatibility
     const bookingsQuery = query(
       collection(firestore, 'bookings'),
       where('providerId', '==', providerId),
       orderBy('createdAt', 'desc')
     );
-    
+
     let earningsData = [];
     let bookingsData = [];
-    
+
     const processData = () => {
-      console.log('Processing earnings data...', earningsData.length, 'earnings records,', bookingsData.length, 'bookings');
+      console.log(
+        'Processing earnings data...',
+        earningsData.length,
+        'earnings records,',
+        bookingsData.length,
+        'bookings'
+      );
       console.log('Using commission rate:', commissionRate);
-      
+
       const currentDate = new Date();
       const currentMonth = currentDate.getMonth();
       const currentYear = currentDate.getFullYear();
-      
+
       let totalEarnings = 0;
       let receivedEarnings = 0;
       let monthlyEarnings = 0;
       let pendingAmount = 0;
       let completedJobs = 0;
-      
+
       // ALWAYS use bookings data (has service name, customer name, proper status)
       const earningsTransactions = [];
-      
-      bookingsData.forEach(booking => {
+
+      bookingsData.forEach((booking) => {
         const amount = parseFloat(booking.price) || 0;
         const bookingDate = booking.createdAt ? booking.createdAt.toDate() : new Date();
-        const isCurrentMonth = bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear;
-        
+        const isCurrentMonth =
+          bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear;
+
         // Calculate commission deduction
-        const { originalAmount, commission, providerEarnings } = calculateCommissionDeduction(amount, commissionRate);
-        
+        const { originalAmount, commission, providerEarnings } = calculateCommissionDeduction(
+          amount,
+          commissionRate
+        );
+
         // Calculate stats based on actual booking status
         if (booking.status === 'completed') {
           totalEarnings += providerEarnings; // Provider gets amount after commission
@@ -845,7 +981,7 @@ export async function subscribeToProviderEarnings(providerId, callback) {
         } else if (booking.status === 'accepted' || booking.status === 'upcoming') {
           pendingAmount += providerEarnings; // Show pending amount after commission
         }
-        
+
         earningsTransactions.push({
           id: booking.id,
           date: bookingDate.toISOString().split('T')[0],
@@ -861,25 +997,25 @@ export async function subscribeToProviderEarnings(providerId, callback) {
           stripePaymentIntentId: booking.stripePaymentIntentId,
         });
       });
-      
+
       const stats = {
         monthlyEarnings,
         totalEarnings,
         receivedEarnings,
         pendingAmount,
         completedJobs,
-        avgPerJob: completedJobs > 0 ? Math.round(totalEarnings / completedJobs) : 0
+        avgPerJob: completedJobs > 0 ? Math.round(totalEarnings / completedJobs) : 0,
       };
-      
+
       console.log('Earnings stats calculated:', stats);
       callback({ transactions: earningsTransactions, stats });
     };
-    
+
     // Subscribe to earnings
     const unsubscribeEarnings = onSnapshot(
       earningsQuery,
       (querySnapshot) => {
-        earningsData = querySnapshot.docs.map(docSnap => ({
+        earningsData = querySnapshot.docs.map((docSnap) => ({
           id: docSnap.id,
           ...docSnap.data(),
           createdAt: docSnap.data().createdAt,
@@ -892,26 +1028,26 @@ export async function subscribeToProviderEarnings(providerId, callback) {
         // Continue with bookings only
       }
     );
-    
+
     // Subscribe to bookings (fallback)
     const unsubscribeBookings = onSnapshot(
       bookingsQuery,
       (querySnapshot) => {
         console.log('Real-time earnings data updated, processing...');
-        
-        bookingsData = querySnapshot.docs.map(docSnap => ({
+
+        bookingsData = querySnapshot.docs.map((docSnap) => ({
           id: docSnap.id,
           ...docSnap.data(),
-          createdAt: docSnap.data().createdAt
+          createdAt: docSnap.data().createdAt,
         }));
-        
+
         processData();
       },
       (error) => {
         console.log('Real-time provider bookings listener error:', error);
       }
     );
-    
+
     // Return combined unsubscribe function
     return () => {
       unsubscribeEarnings();
@@ -927,67 +1063,80 @@ export async function subscribeToProviderEarnings(providerId, callback) {
 export function subscribeToBusinessProfile(providerId, callback) {
   try {
     console.log('Setting up real-time business profile subscription for:', providerId);
-    
+
     // Query for provider bookings to calculate business stats
     const bookingsQuery = query(
       collection(firestore, 'bookings'),
       where('providerId', '==', providerId),
       orderBy('createdAt', 'desc')
     );
-    
+
     // Query for provider user profile
     const userDoc = doc(firestore, 'users', providerId);
-    
+
     let bookingsData = [];
     let userProfileData = null;
     let activeListeners = 0;
-    
+
     const updateBusinessProfile = () => {
       if (activeListeners >= 2) {
         console.log('Real-time business profile data updated, processing...');
-        
+
         // Calculate business statistics
-        const completedBookings = bookingsData.filter(booking => booking.status === 'completed');
-        const totalEarnings = completedBookings.reduce((sum, booking) => sum + (parseFloat(booking.price) || 0), 0);
-        const averageRating = completedBookings.length > 0 ? 
-          (completedBookings.reduce((sum, booking) => sum + (booking.rating || 4.9), 0) / completedBookings.length).toFixed(1) : '4.9';
-        
+        const completedBookings = bookingsData.filter((booking) => booking.status === 'completed');
+        const totalEarnings = completedBookings.reduce(
+          (sum, booking) => sum + (parseFloat(booking.price) || 0),
+          0
+        );
+        const averageRating =
+          completedBookings.length > 0
+            ? (
+                completedBookings.reduce((sum, booking) => sum + (booking.rating || 4.9), 0) /
+                completedBookings.length
+              ).toFixed(1)
+            : '4.9';
+
         // Calculate monthly earnings
         const currentDate = new Date();
         const currentMonth = currentDate.getMonth();
         const currentYear = currentDate.getFullYear();
-        
+
         const monthlyEarnings = completedBookings
-          .filter(booking => {
+          .filter((booking) => {
             const bookingDate = booking.createdAt ? booking.createdAt.toDate() : new Date();
-            return bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear;
+            return (
+              bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear
+            );
           })
           .reduce((sum, booking) => sum + (parseFloat(booking.price) || 0), 0);
-        
+
         const businessStats = {
           jobsCompleted: completedBookings.length,
           averageRating: averageRating,
           monthlyEarnings: monthlyEarnings,
           totalEarnings: totalEarnings,
           totalBookings: bookingsData.length,
-          pendingBookings: bookingsData.filter(booking => booking.status === 'accepted' || booking.status === 'upcoming').length
+          pendingBookings: bookingsData.filter(
+            (booking) => booking.status === 'accepted' || booking.status === 'upcoming'
+          ).length,
         };
-        
-        callback({ 
-          userProfile: userProfileData, 
+
+        callback({
+          userProfile: userProfileData,
           businessStats: businessStats,
-          recentBookings: bookingsData.slice(0, 5) // Last 5 bookings for quick reference
+          recentBookings: bookingsData.slice(0, 5), // Last 5 bookings for quick reference
         });
       }
     };
-    
+
     // Bookings listener
-    const bookingsUnsubscribe = onSnapshot(bookingsQuery, 
+    const bookingsUnsubscribe = onSnapshot(
+      bookingsQuery,
       (querySnapshot) => {
-        bookingsData = querySnapshot.docs.map(docSnap => ({
+        bookingsData = querySnapshot.docs.map((docSnap) => ({
           id: docSnap.id,
           ...docSnap.data(),
-          createdAt: docSnap.data().createdAt
+          createdAt: docSnap.data().createdAt,
         }));
         activeListeners = Math.max(activeListeners, 1);
         updateBusinessProfile();
@@ -996,14 +1145,15 @@ export function subscribeToBusinessProfile(providerId, callback) {
         console.log('Real-time business profile bookings listener error:', error);
       }
     );
-    
+
     // User profile listener
-    const userUnsubscribe = onSnapshot(userDoc, 
+    const userUnsubscribe = onSnapshot(
+      userDoc,
       (docSnap) => {
         if (docSnap.exists()) {
           userProfileData = {
             id: docSnap.id,
-            ...docSnap.data()
+            ...docSnap.data(),
           };
         } else {
           userProfileData = null;
@@ -1015,13 +1165,12 @@ export function subscribeToBusinessProfile(providerId, callback) {
         console.log('Real-time business profile user listener error:', error);
       }
     );
-    
+
     // Return combined unsubscribe function
     return () => {
       bookingsUnsubscribe();
       userUnsubscribe();
     };
-    
   } catch (error) {
     console.error('Error setting up business profile subscription:', error);
     throw error;
@@ -1033,7 +1182,13 @@ function getCategoryFromService(serviceName) {
   const name = serviceName.toLowerCase();
   if (name.includes('clean')) return 'Beauty Therapy';
   if (name.includes('salon') || name.includes('hair') || name.includes('beauty')) return 'salon';
-  if (name.includes('repair') || name.includes('fix') || name.includes('plumb') || name.includes('electric')) return 'repair';
+  if (
+    name.includes('repair') ||
+    name.includes('fix') ||
+    name.includes('plumb') ||
+    name.includes('electric')
+  )
+    return 'repair';
   return 'other';
 }
 
@@ -1056,14 +1211,17 @@ export async function fetchCategories() {
         const subcol = collection(firestore, 'categories', docSnap.id, 'subcategories');
         const subSnap = await getDocs(subcol);
         if (subSnap && subSnap.docs && subSnap.docs.length > 0) {
-          data.subcategories = subSnap.docs.map(s => ({ id: s.id, ...s.data() }));
+          data.subcategories = subSnap.docs.map((s) => ({ id: s.id, ...s.data() }));
         } else {
           // ensure there's at least an empty array
           data.subcategories = data.subcategories || [];
         }
       } catch (subErr) {
         // If subcollection doesn't exist or fails (eg. rules), log the error and fall back to inline field
-        console.warn(`Could not read subcollection for category ${docSnap.id}:`, subErr.message || subErr);
+        console.warn(
+          `Could not read subcollection for category ${docSnap.id}:`,
+          subErr.message || subErr
+        );
         data.subcategories = data.subcategories || [];
       }
 
@@ -1092,7 +1250,7 @@ export async function fetchCategoryById(categoryId) {
       const subcol = collection(firestore, `categories/${snap.id}/subcategories`);
       const subSnap = await getDocs(subcol);
       if (subSnap && subSnap.docs && subSnap.docs.length > 0) {
-        data.subcategories = subSnap.docs.map(s => ({ id: s.id, ...s.data() }));
+        data.subcategories = subSnap.docs.map((s) => ({ id: s.id, ...s.data() }));
       } else {
         data.subcategories = data.subcategories || [];
       }

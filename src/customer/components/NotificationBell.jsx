@@ -9,7 +9,7 @@ const NotificationBell = ({
   size = 20,
   color = '#5A52E3',
   role = 'customer',
-  bgColor
+  bgColor,
 }) => {
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -46,7 +46,7 @@ const NotificationBell = ({
   return (
     <button
       onClick={onPress}
-      className="relative w-11 h-11 sm:w-10 sm:h-10 flex items-center justify-center rounded-md hover:bg-indigo-100/40 active:bg-indigo-100/60 transition-colors cursor-pointer border border-blue-100"
+      className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm transition-colors hover:border-[#6C63FF]/40 hover:bg-indigo-50 active:bg-indigo-100 cursor-pointer"
       style={{ backgroundColor: bgColor || 'transparent' }}
       aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
     >

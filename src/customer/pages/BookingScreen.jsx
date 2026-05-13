@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   FiArrowLeft,
@@ -8,13 +8,30 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiHome,
+  FiMinus,
+  FiPlus,
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { fetchUserProfile } from '../../services/firebase';
+import { fetchServicesByProvider } from '../../services/firebase/serviceService';
 import app, { auth as firebaseAuth, firestore } from '../../services/firebase/firebaseConfig';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
-import { saveNotificationToFirestore, sendPushNotification } from '../../services/firebase/notificationService';
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  where,
+  getDocs,
+  updateDoc,
+  doc,
+  getDoc,
+} from 'firebase/firestore';
+import {
+  saveNotificationToFirestore,
+  sendPushNotification,
+} from '../../services/firebase/notificationService';
 import { notify, getUserFacingError } from '../../utils/toast';
+import { calculateCartQuote, formatAUD, normalizeServiceItems } from '../../utils/cartPricing';
 
 // NOTE: geocoding fallback uses the Google Geocoding API. Ensure this key has Geocoding enabled.
 const GOOGLE_GEOCODING_API_KEY = 'AIzaSyBfeBvLPaPSEyHpwuqcUXCa-YJnZ3iJu1Q';
@@ -33,11 +50,58 @@ const generateTimeSlots = () => {
 };
 
 const TIME_SLOTS = generateTimeSlots();
+const EMPTY_SERVICE_ITEMS = [];
+const isPermissionDeniedError = (error) =>
+  error?.code === 'permission-denied' ||
+  String(error?.message || error || '')
+    .toLowerCase()
+    .includes('missing or insufficient permissions');
 
 const parsePrice = (value, fallback = 0) => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : fallback;
   const parsed = parseFloat(String(value || '').replace(/[^0-9.]/g, ''));
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
+const parseServicePrice = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value >= 0 ? value : 0;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value.replace(/[^0-9.]/g, ''));
+    if (Number.isFinite(parsed)) return parsed >= 0 ? parsed : 0;
+  }
+
+  return null;
+};
+
+const getServiceIdentity = (service) =>
+  String(
+    service?.id ||
+      service?.serviceId ||
+      service?._id ||
+      service?.name ||
+      service?.title ||
+      service?.serviceName ||
+      ''
+  ).trim();
+
+const getServiceDisplayName = (service) =>
+  service?.name || service?.title || service?.serviceName || 'Service';
+
+const getProviderId = (provider) => {
+  if (!provider) return null;
+  if (typeof provider === 'string') return provider;
+  return provider.id || provider.providerId || provider.ownerId || provider.uid || null;
+};
+
+const getProviderName = (provider, fallback = 'Service Provider') => {
+  if (!provider) return fallback;
+  if (typeof provider === 'string') return fallback;
+  return (
+    provider.name || provider.fullName || provider.ownerName || provider.displayName || fallback
+  );
 };
 
 const BookingScreen = () => {
@@ -56,19 +120,11 @@ const BookingScreen = () => {
     providers: incomingProviders = null,
     selectedProvider: routeSelectedProvider = null,
     fromProviderSelector = false,
+    platformSettings: incomingPlatformSettings = null,
+    leadId = null,
+    leadExpectedProviderId = null,
+    serviceItems: incomingServiceItems = EMPTY_SERVICE_ITEMS,
   } = location.state || {};
-
-  // Debug: Log what data we received
-  console.log('📋 BookingScreen received params:');
-  console.log('  category:', category);
-  console.log('  subcategory:', subcategory);
-  console.log('  packageData:', packageData);
-  console.log('  serviceData:', serviceData);
-  if (serviceData) {
-    console.log('  serviceData.price:', serviceData.price);
-    console.log('  serviceData.name:', serviceData.name);
-    console.log('  serviceData.title:', serviceData.title);
-  }
 
   // Date and Time states
   const [selectedDate, setSelectedDate] = useState(null);
@@ -110,8 +166,21 @@ const BookingScreen = () => {
     incomingProviders || serviceData?.providers || []
   );
   const [selectedProvider, setSelectedProvider] = useState(null);
-  const originalProvidersRef = useRef(
-    incomingProviders || serviceData?.providers || []
+  const originalProvidersRef = useRef(incomingProviders || serviceData?.providers || []);
+  const [platformSettings, setPlatformSettings] = useState(incomingPlatformSettings);
+  const selectedProviderId = useMemo(
+    () =>
+      selectedProvider
+        ? getProviderId(selectedProvider)
+        : serviceData?.ownerId || serviceData?.providerId || null,
+    [selectedProvider, serviceData?.ownerId, serviceData?.providerId]
+  );
+  const selectedProviderName = useMemo(
+    () =>
+      selectedProvider
+        ? getProviderName(selectedProvider)
+        : serviceData?.ownerName || 'Service Provider',
+    [selectedProvider, serviceData?.ownerName]
   );
 
   // Confirmation modal state (replaces Alert)
@@ -122,6 +191,264 @@ const BookingScreen = () => {
       setSelectedProvider(providersList[0]);
     }
   }, [providersList]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadPlatformSettings = async () => {
+      try {
+        const settingsRef = doc(firestore, 'platformSettings', 'main');
+        const settingsSnap = await getDoc(settingsRef);
+        if (!mounted || !settingsSnap.exists()) return;
+
+        const latest = settingsSnap.data();
+        if (latest && typeof latest === 'object') {
+          setPlatformSettings(latest);
+        }
+      } catch (error) {
+        if (!isPermissionDeniedError(error)) {
+          console.warn('Could not load platform settings in booking:', error?.message || error);
+        }
+      }
+    };
+
+    loadPlatformSettings();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const serviceBasePrice = useMemo(() => {
+    if (serviceData?.price != null) return parsePrice(serviceData.price, 50);
+    if (packageData?.price != null) return parsePrice(packageData.price, 50);
+    return 50;
+  }, [packageData?.price, serviceData?.price]);
+
+  const serviceName = useMemo(
+    () =>
+      serviceData?.name ||
+      serviceData?.title ||
+      serviceData?.serviceName ||
+      subcategory ||
+      'Service',
+    [serviceData?.name, serviceData?.serviceName, serviceData?.title, subcategory]
+  );
+
+  const bookingPreviewData = useMemo(
+    () => ({
+      serviceId: serviceData?.id || null,
+      serviceName,
+      price: serviceBasePrice,
+    }),
+    [serviceBasePrice, serviceData?.id, serviceName]
+  );
+
+  const baseServiceItems = useMemo(
+    () => normalizeServiceItems(bookingPreviewData, incomingServiceItems),
+    [bookingPreviewData, incomingServiceItems]
+  );
+
+  const [selectedServiceItems, setSelectedServiceItems] = useState(baseServiceItems);
+  const [providerServices, setProviderServices] = useState([]);
+  const [providerServicesLoading, setProviderServicesLoading] = useState(false);
+  const [providerServicesError, setProviderServicesError] = useState('');
+
+  const cartServiceItems = useMemo(
+    () => selectedServiceItems.filter((item) => Number(item?.total || 0) > 0),
+    [selectedServiceItems]
+  );
+
+  const totalSelectedServiceCount = useMemo(
+    () => cartServiceItems.reduce((sum, item) => sum + (Number(item?.quantity || 0) || 0), 0),
+    [cartServiceItems]
+  );
+
+  const primaryServiceName = useMemo(
+    () => cartServiceItems[0]?.name || bookingPreviewData.serviceName,
+    [bookingPreviewData.serviceName, cartServiceItems]
+  );
+
+  const primaryServiceItemId = useMemo(
+    () => getServiceIdentity(baseServiceItems[0] || bookingPreviewData),
+    [baseServiceItems, bookingPreviewData]
+  );
+
+  const serviceQuantityMap = useMemo(() => {
+    const quantities = new Map();
+    cartServiceItems.forEach((item) => {
+      quantities.set(getServiceIdentity(item), Number(item?.quantity || 0));
+    });
+    return quantities;
+  }, [cartServiceItems]);
+
+  const availableProviderServices = useMemo(() => {
+    const servicesMap = new Map();
+
+    const addService = (service, isPrimary = false) => {
+      if (!service) return;
+
+      const identity = getServiceIdentity(service);
+      const price = parseServicePrice(service?.price ?? service?.amount ?? service?.total);
+      if (!identity || price == null || price <= 0) return;
+      if (!isPrimary && service?.status && service.status !== 'active') return;
+
+      const existing = servicesMap.get(identity);
+      servicesMap.set(identity, {
+        id: service?.id || service?.serviceId || identity,
+        serviceId: service?.id || service?.serviceId || identity,
+        name: getServiceDisplayName(service),
+        price,
+        description: service?.description || null,
+        duration: service?.duration || null,
+        category: service?.category || null,
+        subcategory: service?.subcategory || null,
+        isPrimary: Boolean(existing?.isPrimary || isPrimary),
+      });
+    };
+
+    addService(
+      {
+        id: bookingPreviewData.serviceId || primaryServiceItemId,
+        serviceId: bookingPreviewData.serviceId || primaryServiceItemId,
+        name: bookingPreviewData.serviceName,
+        price: serviceBasePrice,
+        description: serviceData?.description || null,
+        duration: serviceData?.duration || packageData?.duration || null,
+        category: serviceData?.category || category,
+        subcategory: serviceData?.subcategory || subcategory,
+        status: 'active',
+      },
+      true
+    );
+
+    providerServices.forEach((service) => addService(service));
+
+    return Array.from(servicesMap.values()).sort((a, b) => {
+      if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [
+    bookingPreviewData,
+    category,
+    packageData?.duration,
+    primaryServiceItemId,
+    providerServices,
+    serviceBasePrice,
+    serviceData?.category,
+    serviceData?.description,
+    serviceData?.duration,
+    serviceData?.subcategory,
+    subcategory,
+  ]);
+
+  useEffect(() => {
+    setSelectedServiceItems(baseServiceItems);
+  }, [baseServiceItems, selectedProviderId]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadProviderServices = async () => {
+      if (!selectedProviderId || isLead) {
+        if (mounted) {
+          setProviderServices([]);
+          setProviderServicesError('');
+          setProviderServicesLoading(false);
+        }
+        return;
+      }
+
+      try {
+        if (mounted) {
+          setProviderServicesLoading(true);
+          setProviderServicesError('');
+        }
+
+        const services = await fetchServicesByProvider(selectedProviderId);
+        if (!mounted) return;
+        setProviderServices(Array.isArray(services) ? services : []);
+      } catch (error) {
+        if (!mounted) return;
+        console.warn('Could not load provider services in BookingScreen:', error?.message || error);
+        setProviderServices([]);
+        setProviderServicesError('Unable to load more services from this provider right now.');
+      } finally {
+        if (mounted) setProviderServicesLoading(false);
+      }
+    };
+
+    loadProviderServices();
+    return () => {
+      mounted = false;
+    };
+  }, [isLead, selectedProviderId]);
+
+  const updateServiceQuantity = useCallback(
+    (service, delta) => {
+      if (!delta) return;
+
+      const serviceIdentity = getServiceIdentity(service);
+      const parsedPrice = parseServicePrice(service?.price ?? service?.amount ?? service?.total);
+      if (!serviceIdentity || parsedPrice == null || parsedPrice <= 0) return;
+
+      setSelectedServiceItems((prevItems) => {
+        const existingIndex = prevItems.findIndex(
+          (item) => getServiceIdentity(item) === serviceIdentity
+        );
+        const minimumQuantity = serviceIdentity === primaryServiceItemId ? 1 : 0;
+
+        if (existingIndex === -1) {
+          if (delta < 0) return prevItems;
+
+          return [
+            ...prevItems,
+            {
+              id: service?.id || serviceIdentity,
+              serviceId: service?.serviceId || service?.id || serviceIdentity,
+              name: getServiceDisplayName(service),
+              quantity: 1,
+              price: parsedPrice,
+              total: parsedPrice,
+            },
+          ];
+        }
+
+        const existingItem = prevItems[existingIndex];
+        const currentQuantity = Number(existingItem?.quantity || 0);
+        const nextQuantity = Math.max(minimumQuantity, currentQuantity + delta);
+
+        if (nextQuantity === 0) {
+          return prevItems.filter((_, index) => index !== existingIndex);
+        }
+
+        const updatedItems = [...prevItems];
+        updatedItems[existingIndex] = {
+          ...existingItem,
+          id: existingItem.id || service?.id || serviceIdentity,
+          serviceId: existingItem.serviceId || service?.serviceId || service?.id || serviceIdentity,
+          name: getServiceDisplayName(service),
+          quantity: nextQuantity,
+          price: parsedPrice,
+          total: parsedPrice * nextQuantity,
+        };
+        return updatedItems;
+      });
+    },
+    [primaryServiceItemId]
+  );
+
+  const bookingQuote = useMemo(
+    () =>
+      calculateCartQuote({
+        serviceItems: cartServiceItems,
+        platformSettings,
+      }),
+    [cartServiceItems, platformSettings]
+  );
+
+  const minimumBookingTotal = 50;
+  const minimumOrderShortfall = Math.max(0, minimumBookingTotal - bookingQuote.totalBeforeStripe);
+  const meetsMinimumBookingAmount = isLead || bookingQuote.totalBeforeStripe >= minimumBookingTotal;
 
   // ── Helpers ──
 
@@ -158,10 +485,7 @@ const BookingScreen = () => {
     const dLon = toRad(lon2 - lon1);
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRad(lat1)) *
-        Math.cos(toRad(lat2)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   };
@@ -202,8 +526,7 @@ const BookingScreen = () => {
           if (!c) continue;
           const lat = c.latitude ?? c.lat ?? c._lat ?? null;
           const lng = c.longitude ?? c.lng ?? c._long ?? null;
-          if (lat != null && lng != null)
-            return { lat: Number(lat), lng: Number(lng) };
+          if (lat != null && lng != null) return { lat: Number(lat), lng: Number(lng) };
         }
       }
 
@@ -216,8 +539,7 @@ const BookingScreen = () => {
         } catch (err) {
           const msg = err?.message || String(err);
           const isPermissionError =
-            err?.code === 'permission-denied' ||
-            /permission|insufficient permissions/i.test(msg);
+            err?.code === 'permission-denied' || /permission|insufficient permissions/i.test(msg);
           if (!isPermissionError) {
             console.warn('Failed to fetch provider profile for coords:', msg);
           }
@@ -330,10 +652,7 @@ const BookingScreen = () => {
       const nearby = [];
 
       for (const p of initial) {
-        const pid =
-          typeof p === 'string'
-            ? p
-            : p.id || p.providerId || p.ownerId || p.uid;
+        const pid = typeof p === 'string' ? p : p.id || p.providerId || p.ownerId || p.uid;
         if (!pid) continue;
 
         let profile = null;
@@ -498,8 +817,7 @@ const BookingScreen = () => {
   const getMonthDates = () =>
     calendarDates.filter(
       (d) =>
-        d.getMonth() === currentMonth.getMonth() &&
-        d.getFullYear() === currentMonth.getFullYear()
+        d.getMonth() === currentMonth.getMonth() && d.getFullYear() === currentMonth.getFullYear()
     );
 
   const goToPreviousMonth = () => {
@@ -558,10 +876,18 @@ const BookingScreen = () => {
       return;
     }
 
-    if (!serviceData?.ownerId && !selectedProvider) {
+    if (!isLead && !serviceData?.ownerId && !selectedProvider) {
       notify.error('Service information is missing. Select the service again.', {
         id: 'booking-service-missing',
       });
+      return;
+    }
+
+    if (!isLead && !meetsMinimumBookingAmount) {
+      notify.warning(
+        `Minimum booking total is ${formatAUD(minimumBookingTotal)} before Stripe charges. Add ${formatAUD(minimumOrderShortfall)} more in services to continue.`,
+        { id: 'booking-minimum-total' }
+      );
       return;
     }
 
@@ -569,87 +895,73 @@ const BookingScreen = () => {
 
     try {
       const chosenProviderId = selectedProvider
-        ? selectedProvider.id || selectedProvider.providerId || selectedProvider.ownerId || selectedProvider.uid
+        ? getProviderId(selectedProvider)
         : serviceData?.ownerId || serviceData?.providerId || null;
       const chosenProviderName = selectedProvider
-        ? selectedProvider.name || selectedProvider.fullName || selectedProvider.ownerName || 'Service Provider'
+        ? getProviderName(selectedProvider)
         : serviceData?.ownerName || 'Service Provider';
 
-      const providerCoords = await resolveProviderCoords(chosenProviderId);
+      if (!isLead) {
+        const providerCoords = await resolveProviderCoords(chosenProviderId);
 
-      let skipDistanceCheck = false;
-      if (!providerCoords) {
-        const proceed = await confirmProceedWithoutLocation(
-          'Unable to verify provider location. Do you want to proceed without verifying the 20 km distance?'
-        );
-        if (!proceed) {
-          setIsLoading(false);
-          return;
+        let skipDistanceCheck = false;
+        if (!providerCoords) {
+          const proceed = await confirmProceedWithoutLocation(
+            'Unable to verify provider location. Do you want to proceed without verifying the 20 km distance?'
+          );
+          if (!proceed) {
+            setIsLoading(false);
+            return;
+          }
+          skipDistanceCheck = true;
         }
-        skipDistanceCheck = true;
-      }
 
-      const providerAlreadyValidated = routeSelectedProvider || fromProviderSelector;
+        const providerAlreadyValidated = routeSelectedProvider || fromProviderSelector;
 
-      if (!skipDistanceCheck && !providerAlreadyValidated) {
-        let effectiveCustomerCoords = null;
-        if (customerCoords?.lat && customerCoords?.lng) {
-          effectiveCustomerCoords = { lat: customerCoords.lat, lng: customerCoords.lng };
-        } else {
-          try {
-            const geoCust = await geocodeAddress(finalAddress);
-            if (geoCust) {
-              effectiveCustomerCoords = { lat: geoCust.lat, lng: geoCust.lng };
-              setCustomerCoords({ lat: geoCust.lat, lng: geoCust.lng });
-            } else {
+        if (!skipDistanceCheck && !providerAlreadyValidated) {
+          let effectiveCustomerCoords = null;
+          if (customerCoords?.lat && customerCoords?.lng) {
+            effectiveCustomerCoords = { lat: customerCoords.lat, lng: customerCoords.lng };
+          } else {
+            try {
+              const geoCust = await geocodeAddress(finalAddress);
+              if (geoCust) {
+                effectiveCustomerCoords = { lat: geoCust.lat, lng: geoCust.lng };
+                setCustomerCoords({ lat: geoCust.lat, lng: geoCust.lng });
+              } else {
+                notify.error(
+                  'We could not confirm your location. Choose an address and try again.',
+                  {
+                    id: 'booking-location-unavailable',
+                  }
+                );
+                setIsLoading(false);
+                return;
+              }
+            } catch (_gErr) {
               notify.error('We could not confirm your location. Choose an address and try again.', {
                 id: 'booking-location-unavailable',
               });
               setIsLoading(false);
               return;
             }
-          } catch (_gErr) {
-            notify.error('We could not confirm your location. Choose an address and try again.', {
-              id: 'booking-location-unavailable',
+          }
+
+          const distanceKm = getDistanceKm(
+            effectiveCustomerCoords.lat,
+            effectiveCustomerCoords.lng,
+            providerCoords.lat,
+            providerCoords.lng
+          );
+          if (distanceKm > 20) {
+            notify.warning('This provider is outside the service range. Choose another provider.', {
+              id: 'booking-provider-distance',
             });
             setIsLoading(false);
             return;
           }
         }
-
-        const distanceKm = getDistanceKm(
-          effectiveCustomerCoords.lat,
-          effectiveCustomerCoords.lng,
-          providerCoords.lat,
-          providerCoords.lng
-        );
-        if (distanceKm > 20) {
-          notify.warning('This provider is outside the service range. Choose another provider.', {
-            id: 'booking-provider-distance',
-          });
-          setIsLoading(false);
-          return;
-        }
       }
-
-      const serviceBasePrice = (() => {
-        if (serviceData?.price != null) return parsePrice(serviceData.price, 50);
-        if (packageData?.price != null) return parsePrice(packageData.price, 50);
-        return 50;
-      })();
-      const serviceName =
-        serviceData?.name || serviceData?.title || serviceData?.serviceName || subcategory || 'Service';
-      const serviceItems = Array.isArray(serviceData?.serviceItems) && serviceData.serviceItems.length > 0
-        ? serviceData.serviceItems
-        : [
-            {
-              id: serviceData?.id || 'service-1',
-              name: serviceName,
-              quantity: 1,
-              price: serviceBasePrice,
-              total: serviceBasePrice,
-            },
-          ];
 
       const bookingData = {
         customerId: user.uid,
@@ -659,9 +971,12 @@ const BookingScreen = () => {
         address: finalAddress,
         phoneNumber,
         specialInstructions,
-        serviceId: serviceData?.id || null,
-        serviceName,
-        serviceTitle: serviceData?.title || serviceData?.name || subcategory,
+        serviceId: cartServiceItems[0]?.id || serviceData?.id || null,
+        serviceName:
+          cartServiceItems.length > 1
+            ? `${primaryServiceName} + ${cartServiceItems.length - 1} more`
+            : primaryServiceName,
+        serviceTitle: primaryServiceName,
         serviceImage: serviceData?.imageUrl || null,
         serviceDescription: serviceData?.description || null,
         category: serviceData?.category || category,
@@ -672,13 +987,13 @@ const BookingScreen = () => {
         selectedTime,
         duration: serviceData?.duration || packageData?.duration || 'TBD',
         price: serviceBasePrice,
-        serviceItems,
-        serviceCount: serviceItems.length,
+        serviceItems: cartServiceItems,
+        serviceCount: cartServiceItems.length,
         stripeCardType: null,
         stripeCardCountry: null,
         stripeCharge: null,
-        amountBeforeStripe: serviceBasePrice,
-        totalAmount: serviceBasePrice,
+        amountBeforeStripe: bookingQuote.totalBeforeStripe,
+        totalAmount: bookingQuote.totalBeforeStripe,
         paymentStatus: 'pending',
         status: 'pending',
       };
@@ -688,6 +1003,9 @@ const BookingScreen = () => {
           state: {
             bookingData,
             serviceItems: bookingData.serviceItems,
+            platformSettings,
+            leadId,
+            leadExpectedProviderId,
           },
         });
         setIsLoading(false);
@@ -698,14 +1016,82 @@ const BookingScreen = () => {
         const leadToastId = 'booking-lead-request';
         notify.loading('Sending your request to providers...', { id: leadToastId });
 
+        const addressPayload = incomingSelectedAddress || incomingAddress || null;
+        const deriveLeadArea = () => {
+          if (addressPayload && typeof addressPayload === 'object') {
+            const objectArea =
+              addressPayload.area ||
+              addressPayload.locality ||
+              addressPayload.suburb ||
+              addressPayload.city ||
+              addressPayload.state;
+
+            if (objectArea) return String(objectArea).trim();
+
+            const payloadAddress = addressPayload.formattedAddress || addressPayload.address;
+            if (payloadAddress) {
+              const payloadParts = String(payloadAddress)
+                .split(',')
+                .map((part) => part.trim())
+                .filter(Boolean);
+
+              if (payloadParts.length >= 3) return payloadParts[payloadParts.length - 2];
+              if (payloadParts.length === 2) return payloadParts[1];
+              if (payloadParts.length === 1) return payloadParts[0];
+            }
+          }
+
+          const addressParts = String(finalAddress || '')
+            .split(',')
+            .map((part) => part.trim())
+            .filter(Boolean);
+
+          if (addressParts.length >= 3) return addressParts[addressParts.length - 2];
+          if (addressParts.length === 2) return addressParts[1];
+          if (addressParts.length === 1) return addressParts[0];
+          return 'Area not provided';
+        };
+
+        const leadArea = deriveLeadArea();
+        let leadCustomerCoords = null;
+
+        if (customerCoords?.lat != null && customerCoords?.lng != null) {
+          leadCustomerCoords = {
+            lat: Number(customerCoords.lat),
+            lng: Number(customerCoords.lng),
+          };
+        } else {
+          try {
+            const geocodedCustomer = await geocodeAddress(finalAddress);
+            if (geocodedCustomer?.lat != null && geocodedCustomer?.lng != null) {
+              leadCustomerCoords = {
+                lat: Number(geocodedCustomer.lat),
+                lng: Number(geocodedCustomer.lng),
+              };
+              setCustomerCoords(leadCustomerCoords);
+            }
+          } catch (geoErr) {
+            console.warn(
+              'Could not geocode customer location for lead:',
+              geoErr?.message || geoErr
+            );
+          }
+        }
+
         const leadData = {
           status: 'lead',
           customerId: user.uid,
-          customerName: user.name || user.email || null,
-          customerEmail: user.email || null,
+          customerName: bookingData.customerName || user.email || null,
+          customerEmail: bookingData.customerEmail || user.email || null,
           customerPhone: phoneNumber,
           address: finalAddress,
+          leadArea,
           specialInstructions,
+          serviceDetails:
+            specialInstructions ||
+            bookingData.serviceDescription ||
+            bookingData.serviceName ||
+            'Not provided',
           serviceId: serviceData?.id || null,
           serviceName: bookingData.serviceName,
           leadCategory: bookingData.category,
@@ -716,6 +1102,18 @@ const BookingScreen = () => {
           requestedTime: bookingData.selectedTime,
           duration: bookingData.duration,
           price: bookingData.price,
+          ...(leadCustomerCoords
+            ? {
+                customerLocation: {
+                  latitude: leadCustomerCoords.lat,
+                  longitude: leadCustomerCoords.lng,
+                },
+                location: {
+                  latitude: leadCustomerCoords.lat,
+                  longitude: leadCustomerCoords.lng,
+                },
+              }
+            : {}),
           createdAt: serverTimestamp(),
         };
 
@@ -735,6 +1133,8 @@ const BookingScreen = () => {
                 price: bookingData.price,
                 serviceName: bookingData.serviceName,
                 customerName: leadData.customerName,
+                customerAddress: leadData.address,
+                customerLocation: leadData.customerLocation || null,
               }),
             }
           );
@@ -742,11 +1142,11 @@ const BookingScreen = () => {
 
           if (broadcastResult.success) {
             notify.success(
-              `Your request was sent to ${broadcastResult.notifiedCount} providers.`,
+              'Your lead is saved. When a provider is available, we will let you know.',
               { id: leadToastId }
             );
           } else {
-            notify.info('Your request has been saved. Providers will be notified.', {
+            notify.info('Your lead is saved. Providers will be notified.', {
               id: leadToastId,
             });
           }
@@ -852,11 +1252,7 @@ const BookingScreen = () => {
 
     const weeks = [];
     let currentWeek = [];
-    const firstDayOfMonth = new Date(
-      currentMonth.getFullYear(),
-      currentMonth.getMonth(),
-      1
-    );
+    const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
     const startDay = firstDayOfMonth.getDay();
 
     for (let i = 0; i < startDay; i++) currentWeek.push(null);
@@ -909,7 +1305,10 @@ const BookingScreen = () => {
         {/* Weekday headers */}
         <div className="grid grid-cols-7 mb-1.5 sm:mb-2">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-            <div key={day} className="text-center text-[10px] sm:text-xs font-semibold text-slate-400">
+            <div
+              key={day}
+              className="text-center text-[10px] sm:text-xs font-semibold text-slate-400"
+            >
               {day}
             </div>
           ))}
@@ -966,89 +1365,93 @@ const BookingScreen = () => {
 
     return (
       <div className="mb-4 sm:mb-6">
-        <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">Choose Provider</h3>
+        <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">
+          Choose Provider
+        </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {providersList.map((p, idx) => {
-          const pid = p.id || p.providerId || p.ownerId || p.uid || idx;
-          const displayName =
-            p.name ||
-            p.fullName ||
-            p.ownerName ||
-            p.profile?.name ||
-            p.profile?.fullName ||
-            p.profile?.displayName ||
-            'Provider';
-          const subtitle =
-            p.formattedAddress || p.address || p.city || p.profile?.city || '';
-          const distText =
-            p.distanceKm != null ? `${p.distanceKm.toFixed(1)} km` : null;
-          const avatar =
-            p.profile?.photoURL ||
-            p.profile?.avatar ||
-            p.profile?.photo ||
-            p.photoURL ||
-            p.imageUrl ||
-            null;
-          const rating =
-            p.profile?.rating ||
-            p.profile?.avgRating ||
-            p.profile?.ratingAvg ||
-            p.rating ||
-            p.avgRating ||
-            null;
-          const selectedId =
-            selectedProvider &&
-            (selectedProvider.id ||
-              selectedProvider.providerId ||
-              selectedProvider.ownerId ||
-              selectedProvider.uid);
-          const isSelected = selectedId
-            ? selectedId === pid
-            : idx === 0 && selectedProvider == null;
+          {providersList.map((p, idx) => {
+            const providerObject = typeof p === 'string' ? null : p;
+            const pid = getProviderId(p) || idx;
+            const displayName =
+              getProviderName(providerObject, null) ||
+              providerObject?.profile?.name ||
+              providerObject?.profile?.fullName ||
+              providerObject?.profile?.displayName ||
+              'Provider';
+            const subtitle =
+              providerObject?.formattedAddress ||
+              providerObject?.address ||
+              providerObject?.city ||
+              providerObject?.profile?.city ||
+              '';
+            const distText =
+              providerObject?.distanceKm != null
+                ? `${providerObject.distanceKm.toFixed(1)} km`
+                : null;
+            const avatar =
+              providerObject?.profile?.photoURL ||
+              providerObject?.profile?.avatar ||
+              providerObject?.profile?.photo ||
+              providerObject?.photoURL ||
+              providerObject?.imageUrl ||
+              null;
+            const rating =
+              providerObject?.profile?.rating ||
+              providerObject?.profile?.avgRating ||
+              providerObject?.profile?.ratingAvg ||
+              providerObject?.rating ||
+              providerObject?.avgRating ||
+              null;
+            const selectedId = getProviderId(selectedProvider);
+            const isSelected = selectedId
+              ? selectedId === pid
+              : idx === 0 && selectedProvider == null;
 
-          return (
-            <button
-              key={pid}
-              onClick={() => setSelectedProvider(p)}
-              className={`
+            return (
+              <button
+                key={pid}
+                onClick={() => setSelectedProvider(p)}
+                className={`
                 w-full text-left bg-white rounded-xl border p-3 sm:p-4 transition-colors
                 ${isSelected ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'}
               `}
-            >
-              <div className="flex items-center gap-2.5 sm:gap-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden shrink-0">
-                  {avatar ? (
-                    <img
-                      src={avatar}
-                      alt={displayName}
-                      className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover bg-slate-100"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-200" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs sm:text-sm font-semibold text-slate-800 truncate">
-                    {displayName}
-                  </p>
-                  <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 sm:mt-1 flex-wrap">
-                    {subtitle && (
-                      <span className="text-[10px] sm:text-xs text-slate-400 truncate max-w-30 sm:max-w-none">{subtitle}</span>
-                    )}
-                    {rating != null && (
-                      <span className="text-[10px] sm:text-xs text-slate-400">
-                        ★ {Number(rating).toFixed(1)}
-                      </span>
-                    )}
-                    {distText && (
-                      <span className="text-[10px] sm:text-xs text-slate-400">{distText}</span>
+              >
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden shrink-0">
+                    {avatar ? (
+                      <img
+                        src={avatar}
+                        alt={displayName}
+                        className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover bg-slate-100"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-200" />
                     )}
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-semibold text-slate-800 truncate">
+                      {displayName}
+                    </p>
+                    <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 sm:mt-1 flex-wrap">
+                      {subtitle && (
+                        <span className="text-[10px] sm:text-xs text-slate-400 truncate max-w-30 sm:max-w-none">
+                          {subtitle}
+                        </span>
+                      )}
+                      {rating != null && (
+                        <span className="text-[10px] sm:text-xs text-slate-400">
+                          ★ {Number(rating).toFixed(1)}
+                        </span>
+                      )}
+                      {distText && (
+                        <span className="text-[10px] sm:text-xs text-slate-400">{distText}</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </button>
-          );
-        })}
+              </button>
+            );
+          })}
         </div>
       </div>
     );
@@ -1061,7 +1464,9 @@ const BookingScreen = () => {
       {confirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl p-5 sm:p-6 mx-auto max-w-sm w-full shadow-xl">
-            <h3 className="text-base sm:text-lg font-bold text-slate-800 mb-2">{confirmModal.title}</h3>
+            <h3 className="text-base sm:text-lg font-bold text-slate-800 mb-2">
+              {confirmModal.title}
+            </h3>
             <p className="text-sm text-slate-600 mb-5 sm:mb-6">{confirmModal.message}</p>
             <div className="flex gap-3 justify-end">
               <button
@@ -1096,231 +1501,417 @@ const BookingScreen = () => {
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8">
         <div className="mx-auto w-full max-w-3xl">
-        {/* Service Summary Card */}
-        <div className="bg-white rounded-2xl p-4 sm:p-6 my-4 sm:my-6 shadow-md">
-          <div className="flex items-center gap-2 mb-3 sm:mb-4">
-            <FiCalendar className="w-5 h-5 text-indigo-500" />
-            <h2 className="text-sm sm:text-base font-bold text-slate-800">Service Details</h2>
-          </div>
+          {/* Service Summary Card */}
+          <div className="bg-white rounded-2xl p-4 sm:p-6 my-4 sm:my-6 shadow-md">
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
+              <FiCalendar className="w-5 h-5 text-indigo-500" />
+              <h2 className="text-sm sm:text-base font-bold text-slate-800">Service Details</h2>
+            </div>
 
-          <div className="space-y-2.5 sm:space-y-3">
-            {serviceData?.imageUrl && (
-              <img
-                src={serviceData.imageUrl}
-                alt="Service"
-                className="w-full h-32 sm:h-40 md:h-48 object-cover rounded-xl mb-3 sm:mb-4"
-              />
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
-              {(serviceData?.name || serviceData?.title) && (
-                <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
-                  <span className="text-xs sm:text-sm text-slate-400">Service:</span>
-                  <span className="text-xs sm:text-sm font-semibold text-slate-800 text-right sm:text-left">
-                    {serviceData.name || serviceData.title}
-                  </span>
-                </div>
+            <div className="space-y-2.5 sm:space-y-3">
+              {serviceData?.imageUrl && (
+                <img
+                  src={serviceData.imageUrl}
+                  alt="Service"
+                  className="w-full h-32 sm:h-40 md:h-48 object-cover rounded-xl mb-3 sm:mb-4"
+                />
               )}
 
-              <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
-                <span className="text-xs sm:text-sm text-slate-400">Category:</span>
-                <span className="text-xs sm:text-sm font-semibold text-slate-800 text-right sm:text-left">
-                  {serviceData?.category || category}
-                </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                {(serviceData?.name || serviceData?.title) && (
+                  <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
+                    <span className="text-xs sm:text-sm text-slate-400">Service:</span>
+                    <span className="text-xs sm:text-sm font-semibold text-slate-800 text-right sm:text-left">
+                      {primaryServiceName}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
+                  <span className="text-xs sm:text-sm text-slate-400">Category:</span>
+                  <span className="text-xs sm:text-sm font-semibold text-slate-800 text-right sm:text-left">
+                    {serviceData?.category || category}
+                  </span>
+                </div>
+
+                {(serviceData?.subcategory || subcategory) && (
+                  <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
+                    <span className="text-xs sm:text-sm text-slate-400">Subcategory:</span>
+                    <span className="text-xs sm:text-sm font-semibold text-slate-800 text-right sm:text-left">
+                      {serviceData?.subcategory || subcategory}
+                    </span>
+                  </div>
+                )}
+
+                {providersList && providersList.length > 0 && (
+                  <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
+                    <span className="text-xs sm:text-sm text-slate-400">Provider:</span>
+                    <span className="text-xs sm:text-sm font-semibold text-slate-800 text-right sm:text-left">
+                      {selectedProvider
+                        ? selectedProvider.name ||
+                          selectedProvider.ownerName ||
+                          selectedProvider.fullName
+                        : serviceData?.ownerName || 'Service Provider'}
+                    </span>
+                  </div>
+                )}
+
+                {(serviceData?.price != null || packageData?.price) && (
+                  <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
+                    <span className="text-xs sm:text-sm text-slate-400">Services Total:</span>
+                    <span className="text-sm sm:text-base font-bold text-indigo-500">
+                      {formatAUD(bookingQuote.serviceTotal)}
+                    </span>
+                  </div>
+                )}
+
+                {cartServiceItems.length > 0 && (
+                  <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
+                    <span className="text-xs sm:text-sm text-slate-400">Items:</span>
+                    <span className="text-xs sm:text-sm font-semibold text-slate-800 text-right sm:text-left">
+                      {totalSelectedServiceCount}
+                    </span>
+                  </div>
+                )}
+
+                {(serviceData?.duration || packageData?.duration) && (
+                  <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
+                    <span className="text-xs sm:text-sm text-slate-400">Duration:</span>
+                    <span className="text-xs sm:text-sm font-semibold text-slate-800 text-right sm:text-left">
+                      {serviceData?.duration || packageData?.duration}
+                    </span>
+                  </div>
+                )}
               </div>
 
-              {(serviceData?.subcategory || subcategory) && (
-                <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
-                  <span className="text-xs sm:text-sm text-slate-400">Subcategory:</span>
-                  <span className="text-xs sm:text-sm font-semibold text-slate-800 text-right sm:text-left">
-                    {serviceData?.subcategory || subcategory}
-                  </span>
+              {serviceData?.description && (
+                <div className="mt-2 pt-2 border-t border-slate-100">
+                  <span className="text-xs sm:text-sm text-slate-400">Description:</span>
+                  <p className="text-xs sm:text-sm text-slate-800 leading-5 mt-1">
+                    {serviceData.description}
+                  </p>
                 </div>
               )}
 
-              {providersList && providersList.length > 0 && (
-                <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
-                  <span className="text-xs sm:text-sm text-slate-400">Provider:</span>
-                  <span className="text-xs sm:text-sm font-semibold text-slate-800 text-right sm:text-left">
-                    {selectedProvider
-                      ? selectedProvider.name ||
-                        selectedProvider.ownerName ||
-                        selectedProvider.fullName
-                      : serviceData?.ownerName || 'Service Provider'}
-                  </span>
-                </div>
-              )}
-
-              {(serviceData?.price != null || packageData?.price) && (
-                <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
-                  <span className="text-xs sm:text-sm text-slate-400">Price:</span>
-                  <span className="text-sm sm:text-base font-bold text-indigo-500">
-                    {serviceData?.price != null
-                      ? serviceData.price
-                      : packageData?.price || '50'}
-                  </span>
-                </div>
-              )}
-
-              {(serviceData?.duration || packageData?.duration) && (
-                <div className="flex justify-between sm:flex-col sm:gap-0.5 items-center sm:items-start">
-                  <span className="text-xs sm:text-sm text-slate-400">Duration:</span>
-                  <span className="text-xs sm:text-sm font-semibold text-slate-800 text-right sm:text-left">
-                    {serviceData?.duration || packageData?.duration}
-                  </span>
+              {cartServiceItems.length > 1 && (
+                <div className="mt-2 pt-2 border-t border-slate-100">
+                  <span className="text-xs sm:text-sm text-slate-400">Selected Services:</span>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {cartServiceItems.map((item) => (
+                      <span
+                        key={getServiceIdentity(item)}
+                        className="rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600"
+                      >
+                        {item.quantity} x {item.name}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
+          </div>
 
-            {serviceData?.description && (
-              <div className="mt-2 pt-2 border-t border-slate-100">
-                <span className="text-xs sm:text-sm text-slate-400">Description:</span>
-                <p className="text-xs sm:text-sm text-slate-800 leading-5 mt-1">
-                  {serviceData.description}
+          {/* Provider Selector */}
+          {renderProviderSelector()}
+
+          {!isLead && selectedProviderId && (
+            <div className="mb-4 sm:mb-6 rounded-2xl bg-white p-4 sm:p-6 shadow-md">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-slate-800">
+                    Add More Services
+                  </h3>
+                  <p className="mt-1 text-xs sm:text-sm text-slate-500">
+                    {meetsMinimumBookingAmount
+                      ? `Add more services from ${selectedProviderName} if you want to build your cart.`
+                      : `Minimum booking total is ${formatAUD(minimumBookingTotal)} before Stripe charges. Add ${formatAUD(minimumOrderShortfall)} more from ${selectedProviderName} to continue.`}
+                  </p>
+                </div>
+                {!meetsMinimumBookingAmount && (
+                  <span className="inline-flex w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">
+                    Min A$50
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs sm:text-sm text-slate-500">Services Total</span>
+                  <span className="text-xs sm:text-sm font-bold text-slate-900">
+                    {formatAUD(bookingQuote.serviceTotal)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs sm:text-sm text-slate-500">
+                    Platform Fee ({bookingQuote.platformFee.label})
+                  </span>
+                  <span className="text-xs sm:text-sm font-bold text-slate-900">
+                    {formatAUD(bookingQuote.platformFee.amount)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs sm:text-sm text-slate-500">Total Before Stripe</span>
+                  <span className="text-xs sm:text-sm font-bold text-slate-900">
+                    {formatAUD(bookingQuote.totalBeforeStripe)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs sm:text-sm text-slate-500">Services In Cart</span>
+                  <span className="text-xs sm:text-sm font-bold text-slate-900">
+                    {totalSelectedServiceCount}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                {providerServicesLoading ? (
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
+                    Loading provider services...
+                  </div>
+                ) : availableProviderServices.length > 0 ? (
+                  <div className="space-y-3">
+                    {availableProviderServices.map((service) => {
+                      const serviceId = getServiceIdentity(service);
+                      const quantity = serviceQuantityMap.get(serviceId) || 0;
+                      const canDecrease = quantity > (serviceId === primaryServiceItemId ? 1 : 0);
+                      const subtitle = [service.category, service.subcategory, service.duration]
+                        .filter(Boolean)
+                        .join(' • ');
+
+                      return (
+                        <div
+                          key={serviceId}
+                          className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-bold text-slate-800">{service.name}</p>
+                              {service.isPrimary && (
+                                <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-600">
+                                  Included
+                                </span>
+                              )}
+                            </div>
+                            {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
+                            {service.description && (
+                              <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+                                {service.description}
+                              </p>
+                            )}
+                            <p className="mt-2 text-sm font-bold text-indigo-500">
+                              {formatAUD(service.price)}
+                            </p>
+                          </div>
+
+                          <div className="flex shrink-0 items-center justify-end">
+                            {quantity > 0 ? (
+                              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1">
+                                <button
+                                  type="button"
+                                  onClick={() => updateServiceQuantity(service, -1)}
+                                  disabled={!canDecrease}
+                                  className={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
+                                    canDecrease
+                                      ? 'bg-white text-indigo-600 hover:bg-indigo-50'
+                                      : 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                                  }`}
+                                >
+                                  <FiMinus size={16} />
+                                </button>
+                                <span className="min-w-6 text-center text-sm font-bold text-slate-800">
+                                  {quantity}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => updateServiceQuantity(service, 1)}
+                                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-indigo-600 transition-colors hover:bg-indigo-50"
+                                >
+                                  <FiPlus size={16} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => updateServiceQuantity(service, 1)}
+                                className="rounded-xl bg-indigo-500 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-indigo-600"
+                              >
+                                Add
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
+                    No additional active services found for this provider.
+                  </div>
+                )}
+
+                {providerServicesError && (
+                  <p className="mt-3 text-xs font-semibold text-red-500">{providerServicesError}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Date Selection */}
+          {renderCalendar()}
+
+          {/* Time Selection */}
+          <div className="mb-4 sm:mb-6">
+            <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">
+              Select Time
+            </h3>
+
+            <button
+              type="button"
+              onClick={() => setShowTimeModal(true)}
+              className="w-full flex items-center gap-2.5 sm:gap-3 bg-white rounded-xl border border-slate-200 p-3 sm:p-4 hover:border-slate-300 transition-colors"
+            >
+              <FiClock className="w-5 h-5 text-indigo-500" />
+              <span
+                className={`flex-1 text-left text-sm sm:text-base ${selectedTime ? 'text-slate-800' : 'text-slate-400'}`}
+              >
+                {selectedTime || 'Choose a time'}
+              </span>
+              <FiChevronDown className="w-5 h-5 text-slate-400" />
+            </button>
+
+            {showTimeModal && (
+              <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
+                <div className="w-full sm:max-w-2xl bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden">
+                  <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-200">
+                    <h4 className="text-base sm:text-lg font-bold text-slate-800">Select Time</h4>
+                    <button
+                      type="button"
+                      onClick={() => setShowTimeModal(false)}
+                      className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors"
+                    >
+                      <FiChevronDown className="w-5 h-5 text-slate-700 rotate-180" />
+                    </button>
+                  </div>
+
+                  <div className="max-h-[60vh] overflow-y-auto p-4 sm:p-6">
+                    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+                      {TIME_SLOTS.map((time) => {
+                        const isActive = selectedTime === time;
+                        return (
+                          <button
+                            key={time}
+                            type="button"
+                            onClick={() => handleTimeSelect(time)}
+                            className={`rounded-lg border px-2 py-3 text-sm font-semibold transition-colors ${
+                              isActive
+                                ? 'bg-indigo-500 border-indigo-500 text-white'
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200'
+                            }`}
+                          >
+                            {time}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Address Section */}
+          <div className="mb-4 sm:mb-6">
+            <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">
+              Service Address
+            </h3>
+            {defaultAddress ? (
+              <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4">
+                <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
+                  <FiHome className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-500" />
+                  <span className="text-xs sm:text-sm font-semibold text-indigo-500">
+                    Selected Address
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-800 leading-5 wrap-break-word">
+                  {defaultAddress}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4">
+                <p className="text-xs sm:text-sm text-slate-800">
+                  No address selected. Please choose an address from the Address screen before
+                  booking.
                 </p>
               </div>
             )}
           </div>
-        </div>
 
-        {/* Provider Selector */}
-        {renderProviderSelector()}
-
-        {/* Date Selection */}
-        {renderCalendar()}
-
-        {/* Time Selection */}
-        <div className="mb-4 sm:mb-6">
-          <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">Select Time</h3>
-
-          <button
-            type="button"
-            onClick={() => setShowTimeModal(true)}
-            className="w-full flex items-center gap-2.5 sm:gap-3 bg-white rounded-xl border border-slate-200 p-3 sm:p-4 hover:border-slate-300 transition-colors"
-          >
-            <FiClock className="w-5 h-5 text-indigo-500" />
-            <span className={`flex-1 text-left text-sm sm:text-base ${selectedTime ? 'text-slate-800' : 'text-slate-400'}`}>
-              {selectedTime || 'Choose a time'}
-            </span>
-            <FiChevronDown className="w-5 h-5 text-slate-400" />
-          </button>
-
-          {showTimeModal && (
-            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
-              <div className="w-full sm:max-w-2xl bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden">
-                <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-200">
-                  <h4 className="text-base sm:text-lg font-bold text-slate-800">Select Time</h4>
-                  <button
-                    type="button"
-                    onClick={() => setShowTimeModal(false)}
-                    className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors"
-                  >
-                    <FiChevronDown className="w-5 h-5 text-slate-700 rotate-180" />
-                  </button>
-                </div>
-
-                <div className="max-h-[60vh] overflow-y-auto p-4 sm:p-6">
-                  <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
-                    {TIME_SLOTS.map((time) => {
-                      const isActive = selectedTime === time;
-                      return (
-                        <button
-                          key={time}
-                          type="button"
-                          onClick={() => handleTimeSelect(time)}
-                          className={`rounded-lg border px-2 py-3 text-sm font-semibold transition-colors ${
-                            isActive
-                              ? 'bg-indigo-500 border-indigo-500 text-white'
-                              : 'bg-white border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200'
-                          }`}
-                        >
-                          {time}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Address Section */}
-        <div className="mb-4 sm:mb-6">
-          <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">Service Address</h3>
-          {defaultAddress ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4">
-              <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
-                <FiHome className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-500" />
-                <span className="text-xs sm:text-sm font-semibold text-indigo-500">
-                  Selected Address
+          {/* Contact Information */}
+          <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 mb-4 sm:mb-6">
+            <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">
+              Contact Information
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-2">
+              <div className="flex items-center">
+                <span className="text-xs sm:text-sm text-slate-400 pr-2">Phone:</span>
+                <span className="text-xs sm:text-sm font-semibold text-slate-800 break-all">
+                  {phoneNumber || 'Not set'}
                 </span>
               </div>
-              <p className="text-xs sm:text-sm text-slate-800 leading-5 wrap-break-word">{defaultAddress}</p>
+              <div className="flex items-center">
+                <span className="text-xs sm:text-sm text-slate-400 pr-2">Email:</span>
+                <span className="text-xs sm:text-sm font-semibold text-slate-800 truncate">
+                  {customerEmail || 'Not set'}
+                </span>
+              </div>
             </div>
-          ) : (
-            <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4">
-              <p className="text-xs sm:text-sm text-slate-800">
-                No address selected. Please choose an address from the Address screen
-                before booking.
-              </p>
+            <p className="mt-2.5 sm:mt-3 text-[10px] sm:text-xs text-slate-400 italic">
+              * All notifications and service-related information will be sent to your registered
+              email and phone number.
+            </p>
+          </div>
+
+          {/* Special Instructions */}
+          <div className="mb-4 sm:mb-6">
+            <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">
+              Special Instructions
+            </h3>
+            <textarea
+              className="w-full bg-white rounded-xl border border-slate-200 p-3 sm:p-4 text-xs sm:text-sm text-slate-800 placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="Any special requirements or instructions"
+              value={specialInstructions}
+              onChange={(e) => setSpecialInstructions(e.target.value)}
+              rows={3}
+            />
+          </div>
+
+          {isLead && (
+            <div className="mb-4 sm:mb-6 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs sm:text-sm text-amber-900">
+              Minimum booking total applies when a provider accepts and the booking is confirmed.
             </div>
           )}
-        </div>
 
-        {/* Contact Information */}
-        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 mb-4 sm:mb-6">
-          <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">
-            Contact Information
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-2">
-            <div className="flex items-center">
-              <span className="text-xs sm:text-sm text-slate-400 pr-2">Phone:</span>
-              <span className="text-xs sm:text-sm font-semibold text-slate-800 break-all">
-                {phoneNumber || 'Not set'}
-              </span>
+          {!isLead && !meetsMinimumBookingAmount && (
+            <div className="mb-4 sm:mb-6 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs sm:text-sm text-amber-900">
+              Add {formatAUD(minimumOrderShortfall)} more in services to reach the minimum booking
+              total of {formatAUD(minimumBookingTotal)}.
             </div>
-            <div className="flex items-center">
-              <span className="text-xs sm:text-sm text-slate-400 pr-2">Email:</span>
-              <span className="text-xs sm:text-sm font-semibold text-slate-800 truncate">
-                {customerEmail || 'Not set'}
-              </span>
-            </div>
-          </div>
-          <p className="mt-2.5 sm:mt-3 text-[10px] sm:text-xs text-slate-400 italic">
-            * All notifications and service-related information will be sent to your
-            registered email and phone number.
-          </p>
-        </div>
+          )}
 
-        {/* Special Instructions */}
-        <div className="mb-4 sm:mb-6">
-          <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">
-            Special Instructions
-          </h3>
-          <textarea
-            className="w-full bg-white rounded-xl border border-slate-200 p-3 sm:p-4 text-xs sm:text-sm text-slate-800 placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            placeholder="Any special requirements or instructions"
-            value={specialInstructions}
-            onChange={(e) => setSpecialInstructions(e.target.value)}
-            rows={3}
-          />
-        </div>
-
-        {/* Book Button */}
-        <button
-          onClick={handleSubmitBooking}
-          disabled={isLoading}
-          className={`
+          {/* Book Button */}
+          <button
+            onClick={handleSubmitBooking}
+            disabled={isLoading || (!isLead && !meetsMinimumBookingAmount)}
+            className={`
             w-full sm:w-auto sm:min-w-70 sm:mx-auto flex items-center justify-center py-3 sm:py-4 rounded-2xl mt-4 sm:mt-6 font-bold text-sm sm:text-base text-white shadow-md transition-colors
-            ${isLoading ? 'bg-slate-400 cursor-not-allowed' : 'bg-indigo-500 hover:bg-indigo-600 cursor-pointer'}
+            ${isLoading || (!isLead && !meetsMinimumBookingAmount) ? 'bg-slate-400 cursor-not-allowed' : 'bg-indigo-500 hover:bg-indigo-600 cursor-pointer'}
           `}
-        >
-          {isLoading ? 'Processing...' : 'Review Cart'}
-        </button>
+          >
+            {isLoading ? 'Processing...' : isLead ? 'Save Lead Request' : 'Review Cart'}
+          </button>
 
-        {/* Bottom spacer */}
-        <div className="h-6 sm:h-8" />
+          {/* Bottom spacer */}
+          <div className="h-6 sm:h-8" />
         </div>
       </div>
     </div>

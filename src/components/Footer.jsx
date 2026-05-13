@@ -4,8 +4,11 @@ import { FiArrowUpRight } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 
 import React from 'react';
+import { useAuth } from '../context/AuthContext';
 
 const Footer = () => {
+  const { isAuthenticated, isLoggedIn } = useAuth();
+  const isSignedIn = isAuthenticated || isLoggedIn;
   const socialLinks = [
     {
       icon: <FaXTwitter />,
@@ -29,11 +32,15 @@ const Footer = () => {
       hover: 'hover:bg-[#0A66C2] hover:text-white',
     },
   ];
+  const footerGridClass = isSignedIn
+    ? 'mb-6 sm:mb-8 md:mb-10 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3 lg:gap-14'
+    : 'mb-6 sm:mb-8 md:mb-12 grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 md:gap-12';
+
   return (
-    <footer className="bg-gray-100 px-4 sm:px-6 md:px-8 pt-8 pb-2 sm:pt-12 sm:pb-4 md:pt-16 md:pb-8">
+    <footer className="bg-gray-100 px-4 pb-2 pt-8 sm:px-6 sm:pb-4 sm:pt-12 md:px-8 md:pb-8 md:pt-14">
       <div className="mx-auto max-w-7xl">
         {/* Logo Section */}
-        <div className="mb-6 sm:mb-8 md:mb-12 flex items-center gap-2 sm:gap-3">
+        <div className="mb-6 flex items-center gap-2 sm:mb-8 sm:gap-3">
           <img src="/images/MLF.jpg" alt="Logo" className="h-8 w-8 sm:h-10 sm:w-10 rounded" />
           <span className="font-extrabold text-black text-sm sm:text-base md:text-lg">
             MY LOCAL FORCE
@@ -41,7 +48,7 @@ const Footer = () => {
         </div>
 
         {/* Footer Content */}
-        <div className="mb-6 sm:mb-8 md:mb-12 grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 md:gap-12">
+        <div className={footerGridClass}>
           {/* Company Column */}
           <div>
             <h3 className="mb-3 sm:mb-4 md:mb-6 font-bold text-gray-900 text-sm sm:text-base">
@@ -91,35 +98,36 @@ const Footer = () => {
             </ul>
           </div>
 
-          {/* For Customers Column */}
-          <div>
-            <h3 className="mb-3 sm:mb-4 md:mb-6 font-bold text-gray-900 text-sm sm:text-base">
-              For customers
-            </h3>
-            <ul className="space-y-2 sm:space-y-3">
-              <li>
-                <Link
-                  to="/signup/customer"
-                  className="text-xs sm:text-sm text-gray-700 hover:text-gray-900 transition"
-                >
-                  Sign Up as a Customer
-                </Link>
-              </li>
-            </ul>
-            <h3 className="mt-6 mb-3 sm:mb-4 md:mb-6 font-bold text-gray-900 text-sm sm:text-base">
-              For professionals
-            </h3>
-            <ul className="space-y-2 sm:space-y-3">
-              <li>
-                <Link
-                  to="/signup/provider"
-                  className="text-xs sm:text-sm text-gray-700 hover:text-gray-900 transition"
-                >
-                  Register as a professional
-                </Link>
-              </li>
-            </ul>
-          </div>
+          {!isSignedIn ? (
+            <div>
+              <h3 className="mb-3 sm:mb-4 md:mb-6 font-bold text-gray-900 text-sm sm:text-base">
+                For customers
+              </h3>
+              <ul className="space-y-2 sm:space-y-3">
+                <li>
+                  <Link
+                    to="/signup/customer"
+                    className="text-xs sm:text-sm text-gray-700 hover:text-gray-900 transition"
+                  >
+                    Sign Up as a Customer
+                  </Link>
+                </li>
+              </ul>
+              <h3 className="mt-6 mb-3 sm:mb-4 md:mb-6 font-bold text-gray-900 text-sm sm:text-base">
+                For professionals
+              </h3>
+              <ul className="space-y-2 sm:space-y-3">
+                <li>
+                  <Link
+                    to="/signup/provider"
+                    className="text-xs sm:text-sm text-gray-700 hover:text-gray-900 transition"
+                  >
+                    Register as a professional
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          ) : null}
 
           {/* For Professionals Column */}
           {/* <div className="col-span-2 sm:col-span-1">
@@ -139,7 +147,7 @@ const Footer = () => {
           </div> */}
 
           {/* Social Links & Apps Column */}
-          <div className="col-span-2 sm:col-span-1">
+          <div className={isSignedIn ? '' : 'col-span-2 sm:col-span-1'}>
             <h3 className="mb-3 sm:mb-4 md:mb-5 font-semibold text-gray-900 text-sm sm:text-base md:text-lg">
               Social links
             </h3>
@@ -174,7 +182,7 @@ const Footer = () => {
             </div>
 
             {/* App Download Buttons */}
-            <div className="flex flex-row sm:flex-col gap-2 sm:gap-3 md:gap-4">
+            <div className="flex flex-row flex-wrap gap-2 sm:flex-col sm:gap-3 md:gap-4">
               <a
                 href="https://apps.apple.com/in/app/mylocalforce/id6757386095"
                 className="inline-block transition-transform duration-300 hover:scale-105"
@@ -200,7 +208,7 @@ const Footer = () => {
           </div>
 
           {/* Presented By Column */}
-          <div className="col-span-2 sm:col-span-1">
+          <div className={isSignedIn ? '' : 'col-span-2 sm:col-span-1'}>
             <h3 className="mb-3 sm:mb-4 md:mb-5 font-semibold text-gray-900 text-sm sm:text-base md:text-lg">
               Presented by
             </h3>

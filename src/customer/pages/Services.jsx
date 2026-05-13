@@ -48,7 +48,7 @@ const Services = () => {
   // Create category filters from main categories
   const categoryFilters = useMemo(() => {
     if (!categories || categories.length === 0) return ['All'];
-    return ['All', ...categories.map(cat => typeof cat === 'string' ? cat : cat.name)];
+    return ['All', ...categories.map((cat) => (typeof cat === 'string' ? cat : cat.name))];
   }, [categories]);
 
   // Load services once
@@ -93,7 +93,7 @@ const Services = () => {
     const iconMap = {
       'woman salon': <FiScissors className="w-6 h-6" />,
       'beauty therapy': <FiHome className="w-6 h-6" />,
-      'massage': <FiWind className="w-6 h-6" />,
+      massage: <FiWind className="w-6 h-6" />,
       'electrician plumber and carpenters': <FiZap className="w-6 h-6" />,
       'beard trim': <FiLock className="w-6 h-6" />,
       'native water': <FiDroplet className="w-6 h-6" />,
@@ -102,7 +102,7 @@ const Services = () => {
     return iconMap[category?.toLowerCase()] || <FiSettings className="w-6 h-6" />;
   };
 
-  const filteredServices = services.filter(service => {
+  const filteredServices = services.filter((service) => {
     const matchesSearch =
       service.name?.toLowerCase().includes(searchText.toLowerCase()) ||
       service.category?.toLowerCase().includes(searchText.toLowerCase()) ||
@@ -120,7 +120,10 @@ const Services = () => {
       id: service.id,
       title: service.name || service.title,
       description: service.description,
-      price: typeof service.price === 'number' ? service.price : parseFloat(String(service.price).replace(/[^0-9.]/g, '')) || 0,
+      price:
+        typeof service.price === 'number'
+          ? service.price
+          : parseFloat(String(service.price).replace(/[^0-9.]/g, '')) || 0,
       duration: service.duration,
       category: service.category,
       categoryId: service.categoryId || service.category,
@@ -146,7 +149,10 @@ const Services = () => {
       return;
     }
 
-    const numericPrice = typeof item.price === 'number' ? item.price : parseFloat(String(item.price).replace(/[^0-9.]/g, '')) || 0;
+    const numericPrice =
+      typeof item.price === 'number'
+        ? item.price
+        : parseFloat(String(item.price).replace(/[^0-9.]/g, '')) || 0;
 
     navigate('/customer/address', {
       state: {
@@ -182,18 +188,24 @@ const Services = () => {
   return (
     <>
       {/* Desktop */}
-      <div className='hidden lg:block flex-1 bg-slate-50 min-h-screen'>
+      <div className="hidden lg:block flex-1 bg-slate-50 min-h-screen">
         {/* Header */}
         <div className="sticky top-0 z-10 overflow-hidden">
-
           {/* Dark Overlay */}
           <div className="absolute inset-0 bg-slate-50"></div>
 
           {/* Navigation Content */}
           <nav className="relative z-10 flex flex-col sm:flex-row items-center justify-between lg:px-30 py-1 sm:py-2 gap-4 ">
             {/* Logo Section */}
-            <div onClick={()=>navigate('/customer')} className="flex items-center gap-2 sm:gap-3 cursor-pointer">
-              <img src="/images/MLF.jpg" alt="Logo" className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded-lg border border-blue-100" />
+            <div
+              onClick={() => navigate('/customer')}
+              className="flex items-center gap-2 sm:gap-3 cursor-pointer"
+            >
+              <img
+                src="/images/MLF.jpg"
+                alt="Logo"
+                className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded-lg border border-blue-100"
+              />
               <p className="text-[#5A52E3] text-lg sm:text-xl md:text-2xl font-bold">
                 MY LOCAL FORCE
               </p>
@@ -201,9 +213,8 @@ const Services = () => {
 
             {/* Right Section */}
             <div className="flex flex-row items-center gap-3 sm:gap-4">
-
               <div className="flex-1 flex items-center gap-2 px-4 py-2 border border-blue-100 rounded-lg bg-slate-50">
-                <FiSearch className="text-gray-400 w-5 h-5" color='#5A52E3'/>
+                <FiSearch className="text-gray-400 w-5 h-5" color="#5A52E3" />
                 <input
                   type="text"
                   placeholder="Search for services..."
@@ -223,8 +234,8 @@ const Services = () => {
               )}
 
               <button
-                onClick={() => navigate("/customer/profile")}
-                className="w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-md bg-white hover:bg-gray-100 active:bg-gray-200 transition-colors cursor-pointer border border-blue-100"
+                onClick={() => navigate('/customer/profile')}
+                className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm transition-colors hover:border-[#6C63FF]/40 hover:bg-indigo-50 active:bg-indigo-100 cursor-pointer"
               >
                 <FiUser className="w-5 h-5 text-[#5A52E3]" />
               </button>
@@ -242,10 +253,11 @@ const Services = () => {
                   <button
                     key={idx}
                     onClick={() => setSelectedCategory(category)}
-                    className={`px-4 py-2 rounded-lg whitespace-nowrap font-medium transition-colors ${selectedCategory === category
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white text-slate-700 border border-gray-200 hover:border-indigo-300'
-                      }`}
+                    className={`px-4 py-2 rounded-lg whitespace-nowrap font-medium transition-colors ${
+                      selectedCategory === category
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-white text-slate-700 border border-gray-200 hover:border-indigo-300'
+                    }`}
                   >
                     {category}
                   </button>
@@ -269,7 +281,10 @@ const Services = () => {
               <>
                 <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-6">
                   {filteredServices.map((service) => (
-                    <div key={service.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow overflow-hidden">
+                    <div
+                      key={service.id}
+                      className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow overflow-hidden"
+                    >
                       {/* Service Image */}
                       <div className="h-40 bg-indigo-100 flex items-center justify-center overflow-hidden">
                         {service.imageUrl ? (
@@ -279,9 +294,7 @@ const Services = () => {
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <div className="text-indigo-600">
-                            {getServiceIcon(service.category)}
-                          </div>
+                          <div className="text-indigo-600">{getServiceIcon(service.category)}</div>
                         )}
                       </div>
 
@@ -297,7 +310,10 @@ const Services = () => {
 
                         <div className="border-t border-gray-100 pt-3 mb-3">
                           <p className="text-lg font-bold text-indigo-600">
-                            ${typeof service.price === 'number' ? service.price.toFixed(2) : service.price}
+                            $
+                            {typeof service.price === 'number'
+                              ? service.price.toFixed(2)
+                              : service.price}
                           </p>
                           <p className="text-xs text-slate-400">onwards</p>
                         </div>
@@ -378,10 +394,11 @@ const Services = () => {
               <button
                 key={idx}
                 onClick={() => setSelectedCategory(category)}
-                className={`px-4 py-2 rounded-lg whitespace-nowrap font-medium transition-colors ${selectedCategory === category
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
+                className={`px-4 py-2 rounded-lg whitespace-nowrap font-medium transition-colors ${
+                  selectedCategory === category
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
               >
                 {category}
               </button>
@@ -405,7 +422,10 @@ const Services = () => {
           ) : (
             <div className="grid gap-4">
               {filteredServices.map((service) => (
-                <div key={service.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+                <div
+                  key={service.id}
+                  className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+                >
                   {/* Service Header */}
                   <div className="flex gap-4 mb-4">
                     {/* Icon/Image */}
@@ -436,7 +456,10 @@ const Services = () => {
                     {/* Price */}
                     <div className="text-right shrink-0">
                       <p className="font-bold text-indigo-600 text-lg">
-                        ${typeof service.price === 'number' ? service.price.toFixed(2) : service.price}
+                        $
+                        {typeof service.price === 'number'
+                          ? service.price.toFixed(2)
+                          : service.price}
                       </p>
                       <p className="text-xs text-slate-500">onwards</p>
                     </div>

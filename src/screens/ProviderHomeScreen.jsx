@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Loading } from '../components/StateComponents';
+import Footer from '../components/Footer';
 import { fetchProviderDetails } from '../services/firebase/providerOnboardingService';
 import { getProviderFlowPath } from '../utils/providerFlow';
 
@@ -36,7 +37,7 @@ const ProviderHomeScreen = () => {
           getProviderFlowPath({
             profile: user,
             providerDetails,
-          }),
+          })
         );
       }
     };
@@ -64,7 +65,7 @@ const ProviderHomeScreen = () => {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-950 via-slate-900 to-slate-950 text-white">
+    <div className="min-h-screen bg-slate-950">
       <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
         <div className="w-full rounded-4xl border border-white/10 bg-white/6 px-6 py-10 shadow-[0_30px_80px_rgba(0,0,0,0.35)] backdrop-blur-sm sm:px-10 sm:py-14">
           <div className="flex flex-col items-center text-center">
@@ -86,8 +87,8 @@ const ProviderHomeScreen = () => {
               It is coming
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-white/72 sm:text-lg">
-              This provider dashboard is still being built. For now, download
-              our app and keep using My Local Force on mobile.
+              This provider dashboard is still being built. For now, download our app and keep using
+              My Local Force on mobile.
             </p>
 
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:gap-5">
@@ -119,6 +120,7 @@ const ProviderHomeScreen = () => {
           </div>
         </div>
       </div>
+      <Footer />
     </div>
   );
 };
