@@ -9,6 +9,8 @@ import Bookings from './customer/pages/Bookings';
 import Profile from './customer/pages/Profile';
 import EditProfile from './customer/pages/EditProfile';
 import Notifications from './customer/pages/Notifications';
+import AcceptedOffers from './customer/pages/AcceptedOffers';
+import ContactSupport from './customer/pages/ContactSupport';
 import ServiceDetailsScreen from './customer/pages/ServiceDetailsScreen';
 import AddressScreen from './customer/pages/AddressScreen';
 import ProviderSelectorScreen from './customer/pages/ProviderSelectorScreen';
@@ -20,6 +22,15 @@ import CustomerSignupScreen from './screens/CustomerSignupScreen';
 import ProviderSignupScreen from './screens/ProviderSignupScreen';
 import ProviderEntryScreen from './screens/ProviderEntryScreen';
 import ProviderHomeScreen from './screens/ProviderHomeScreen';
+import ProviderServicesScreen from './screens/ProviderServicesScreen';
+import ProviderBookingsScreen from './screens/ProviderBookingsScreen';
+import ProviderEarningsScreen from './screens/ProviderEarningsScreen';
+import ProviderProfileScreen from './screens/ProviderProfileScreen';
+import ProviderNotificationsScreen from './screens/ProviderNotificationsScreen';
+import ProviderEditProfileScreen from './screens/ProviderEditProfileScreen';
+import ProviderDocumentsScreen from './screens/ProviderDocumentsScreen';
+import ProviderEditDetailsScreen from './screens/ProviderEditDetailsScreen';
+import ProviderContactSupportScreen from './screens/ProviderContactSupportScreen';
 import ProviderOnboardingScreen from './screens/ProviderOnboardingScreen';
 import ProviderUnderReviewScreen from './screens/ProviderUnderReviewScreen';
 import BookingScreen from './customer/pages/BookingScreen';
@@ -124,6 +135,8 @@ const App = () => {
         <Route path="profile" element={<Profile />} />
         <Route path="edit-profile" element={<EditProfile />} />
         <Route path="notifications" element={<Notifications />} />
+        <Route path="accepted-leads" element={<AcceptedOffers />} />
+        <Route path="contact-support" element={<ContactSupport />} />
 
         {/* Catch-all for unknown customer routes */}
         <Route path="*" element={<Navigate to="/customer" replace />} />
@@ -148,12 +161,83 @@ const App = () => {
       />
       <Route
         path="/provider/home"
-        element={withPublicNavbar(
+        element={
           <RoleProtectedRoute requiredRole="client">
             <ProviderHomeScreen />
-          </RoleProtectedRoute>,
-          { variant: 'transparent', overlay: true }
-        )}
+          </RoleProtectedRoute>
+        }
+      />
+      <Route
+        path="/provider/services"
+        element={
+          <RoleProtectedRoute requiredRole="client">
+            <ProviderServicesScreen />
+          </RoleProtectedRoute>
+        }
+      />
+      <Route
+        path="/provider/bookings"
+        element={
+          <RoleProtectedRoute requiredRole="client">
+            <ProviderBookingsScreen />
+          </RoleProtectedRoute>
+        }
+      />
+      <Route
+        path="/provider/earnings"
+        element={
+          <RoleProtectedRoute requiredRole="client">
+            <ProviderEarningsScreen />
+          </RoleProtectedRoute>
+        }
+      />
+      <Route
+        path="/provider/profile"
+        element={
+          <RoleProtectedRoute requiredRole="client">
+            <ProviderProfileScreen />
+          </RoleProtectedRoute>
+        }
+      />
+      <Route
+        path="/provider/notifications"
+        element={
+          <RoleProtectedRoute requiredRole="client">
+            <ProviderNotificationsScreen />
+          </RoleProtectedRoute>
+        }
+      />
+      <Route
+        path="/provider/edit-profile"
+        element={
+          <RoleProtectedRoute requiredRole="client">
+            <ProviderEditProfileScreen />
+          </RoleProtectedRoute>
+        }
+      />
+      <Route
+        path="/provider/documents"
+        element={
+          <RoleProtectedRoute requiredRole="client">
+            <ProviderDocumentsScreen />
+          </RoleProtectedRoute>
+        }
+      />
+      <Route
+        path="/provider/edit-details"
+        element={
+          <RoleProtectedRoute requiredRole="client">
+            <ProviderEditDetailsScreen />
+          </RoleProtectedRoute>
+        }
+      />
+      <Route
+        path="/provider/contact-support"
+        element={
+          <RoleProtectedRoute requiredRole="client">
+            <ProviderContactSupportScreen />
+          </RoleProtectedRoute>
+        }
       />
       <Route
         path="/provider/onboarding"

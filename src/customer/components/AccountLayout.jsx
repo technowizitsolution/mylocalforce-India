@@ -80,23 +80,8 @@ const AccountLayout = ({ title, subtitle, children }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] lg:grid lg:h-screen lg:grid-cols-[348px_minmax(0,1fr)] lg:overflow-hidden">
+    <div className="min-h-screen bg-[#F8FAFC] lg:grid lg:h-[calc(100vh-5rem)] lg:grid-cols-[348px_minmax(0,1fr)] lg:overflow-hidden">
       <aside className="hidden bg-[#F8FAFC] text-slate-700 border-r border-slate-200 lg:flex min-h-0 flex-col">
-        <div className="shrink-0 h-24 bg-[#F8FAFC] px-6 border-b border-slate-200 flex items-center">
-          <button
-            onClick={() => navigate('/customer')}
-            className="flex items-center gap-3 text-left"
-            type="button"
-          >
-            <img
-              src="/images/MLF.jpg"
-              alt="My Local Force logo"
-              className="w-11 h-11 object-cover rounded-lg border border-slate-200 shadow-sm"
-            />
-            <span className="text-lg font-bold tracking-wide text-slate-900">MY LOCAL FORCE</span>
-          </button>
-        </div>
-
         <div className="px-6 py-6 border-b border-slate-200">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-linear-to-br from-[#6C63FF] to-[#4ECDC4] flex items-center justify-center overflow-hidden">
@@ -182,23 +167,7 @@ const AccountLayout = ({ title, subtitle, children }) => {
               {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
             </div>
 
-            <div className="flex items-center gap-3">
-              <NotificationBell
-                onPress={handleNotificationPress}
-                size={20}
-                color="#5A52E3"
-                role="customer"
-                bgColor="white"
-              />
-              <button
-                onClick={() => navigate('/customer/profile')}
-                className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm transition-colors hover:border-[#6C63FF]/40 hover:bg-indigo-50 active:bg-indigo-100 cursor-pointer"
-                type="button"
-                aria-label="Open profile"
-              >
-                <FiUser className="w-5 h-5 text-[#5A52E3]" />
-              </button>
-            </div>
+            <div className="hidden" aria-hidden="true" />
           </div>
         </header>
 

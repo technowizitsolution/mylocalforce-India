@@ -754,8 +754,8 @@ export async function subscribeToProviderDashboard(providerId, callback) {
         // Calculate stats from real-time data
         const stats = {
           totalServices: servicesData.length,
-          activeBookings: bookingsData.filter(
-            (b) => b.status === 'upcoming' || b.status === 'accepted'
+          activeBookings: bookingsData.filter((b) =>
+            ['upcoming', 'accepted', 'arrived', 'in_progress'].includes(b.status)
           ).length,
           monthlyEarnings: bookingsData
             .filter((b) => {
@@ -774,34 +774,75 @@ export async function subscribeToProviderDashboard(providerId, callback) {
               return sum + providerEarnings;
             }, 0),
           averageRating: 4.5, // TODO: Calculate from reviews
-          recentBookings: bookingsData.slice(0, 3).map((booking) => {
-            const originalAmount = parseFloat(booking.price) || 0;
-            const { providerEarnings, commission } = calculateCommissionDeduction(
-              originalAmount,
-              commissionRate
+          recentBookings: bookingsData
+            .filter((booking) =>
+              ['upcoming', 'accepted', 'arrived', 'in_progress'].includes(booking.status)
+            )
+            .slice(0, 3)
+            .map((booking) => {
+              const originalAmount = parseFloat(booking.price) || 0;
+              const { providerEarnings, commission } = calculateCommissionDeduction(
+                originalAmount,
+                commissionRate
+              );
+
+              return {
+                id: booking.id,
+                customer: booking.customerName || 'Customer',
+                service: booking.serviceName || 'Service',
+                date:
+                  booking.selectedDate ||
+                  booking.requestedDate ||
+                  (booking.createdAt
+                    ? booking.createdAt.toDate().toISOString().split('T')[0]
+                    : 'TBD'),
+                time:
+                  booking.selectedTime || booking.requestedTime || booking.scheduledTime || 'TBD',
+                rawStatus: booking.status,
+                status:
+                  booking.status === 'completed'
+                    ? 'Completed'
+                    : booking.status === 'upcoming'
+                      ? 'Upcoming'
+                      : booking.status === 'accepted'
+                        ? 'Accepted'
+                        : booking.status,
+                amount: providerEarnings, // Show provider's earnings after commission
+                originalAmount: originalAmount, // Keep original for reference
+                commission: commission, // Commission amount
+                selectedDate: booking.selectedDate || booking.requestedDate || null,
+                selectedTime:
+                  booking.selectedTime || booking.requestedTime || booking.scheduledTime || null,
+                scheduledTime:
+                  booking.scheduledTime || booking.selectedTime || booking.requestedTime || null,
+              };
+            }),
+          weeklyStats: (() => {
+            const now = new Date();
+            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const weeklyBookings = bookingsData.filter((booking) => {
+              if (!booking.createdAt) return false;
+              const bookingDate = booking.createdAt.toDate();
+              return bookingDate >= weekAgo && bookingDate <= now;
+            });
+            const completedThisWeek = weeklyBookings.filter((booking) =>
+              ['completed', 'paid'].includes(booking.status)
             );
+            const weeklyEarnings = completedThisWeek.reduce((sum, booking) => {
+              const amount = parseFloat(booking.price) || 0;
+              const { providerEarnings } = calculateCommissionDeduction(amount, commissionRate);
+              return sum + providerEarnings;
+            }, 0);
 
             return {
-              id: booking.id,
-              customer: booking.customerName || 'Customer',
-              service: booking.serviceName || 'Service',
-              date: booking.createdAt
-                ? booking.createdAt.toDate().toISOString().split('T')[0]
-                : 'TBD',
-              time: booking.scheduledTime || 'TBD',
-              status:
-                booking.status === 'completed'
-                  ? 'Completed'
-                  : booking.status === 'upcoming'
-                    ? 'Upcoming'
-                    : booking.status === 'accepted'
-                      ? 'Accepted'
-                      : booking.status,
-              amount: providerEarnings, // Show provider's earnings after commission
-              originalAmount: originalAmount, // Keep original for reference
-              commission: commission, // Commission amount
+              newBookings: weeklyBookings.length,
+              completionRate:
+                weeklyBookings.length > 0
+                  ? Math.round((completedThisWeek.length / weeklyBookings.length) * 100)
+                  : 0,
+              weeklyEarnings: Math.round(weeklyEarnings),
             };
-          }),
+          })(),
         };
 
         callback(stats);

@@ -2,13 +2,21 @@ import { FaFacebookF, FaInstagram, FaLinkedinIn } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 import { FiArrowUpRight } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 
 const Footer = () => {
+  const location = useLocation();
   const { isAuthenticated, isLoggedIn } = useAuth();
   const isSignedIn = isAuthenticated || isLoggedIn;
+  const isProviderRoute = location.pathname.startsWith('/provider');
+
+  if (isProviderRoute && location.pathname !== '/provider/home') {
+    return null;
+  }
+
   const socialLinks = [
     {
       icon: <FaXTwitter />,
@@ -37,8 +45,8 @@ const Footer = () => {
     : 'mb-6 sm:mb-8 md:mb-12 grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 md:gap-12';
 
   return (
-    <footer className="bg-gray-100 px-4 pb-2 pt-8 sm:px-6 sm:pb-4 sm:pt-12 md:px-8 md:pb-8 md:pt-14">
-      <div className="mx-auto max-w-7xl">
+    <footer className="mt-16 hidden bg-gray-100 px-4 pb-0 pt-12 shadow-[0_0_0_100vmax_#f3f4f6] [clip-path:inset(0_-100vmax)] sm:mt-20 sm:px-6 sm:pt-14 md:px-8 md:pt-16 lg:block">
+      <div className="mx-auto w-full max-w-7xl">
         {/* Logo Section */}
         <div className="mb-6 flex items-center gap-2 sm:mb-8 sm:gap-3">
           <img src="/images/MLF.jpg" alt="Logo" className="h-8 w-8 sm:h-10 sm:w-10 rounded" />

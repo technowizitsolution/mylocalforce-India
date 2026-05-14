@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiRefreshCw, FiUser, FiChevronDown } from 'react-icons/fi';
+import { FiUser } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { fetchAllServices, fetchUserRoles } from '../../services/firebase';
 import useCategories from '../../hooks/useCategories';
@@ -20,26 +20,16 @@ import {
 } from '../../data/services';
 import { notify, getUserFacingError } from '../../utils/toast';
 
-const customerNavItems = [
-  { label: 'Home', path: '/customer' },
-  { label: 'About us', path: '/about' },
-  { label: 'Careers', path: '/careers' },
-  { label: 'Contact us', path: '/contact' },
-];
-
 const HomeScreen = () => {
   const navigate = useNavigate();
-  const { isLoggedIn, user, userRoles } = useAuth();
+  const { isLoggedIn, user } = useAuth();
   const { categories: dbCategories, loading: loadingCategories } = useCategories();
   const [searchText, setSearchText] = useState('');
   const [isSearchSticky, setIsSearchSticky] = useState(false);
-  const [isCustomerNavScrolled, setIsCustomerNavScrolled] = useState(false);
   const [mostBookedServices, setMostBookedServices] = useState([]);
 
   // Use database categories if loaded, otherwise use local fallback for instant display
   const categories = dbCategories.length > 0 ? dbCategories : localCategories;
-  const roles = userRoles?.roles || user?.roles || {};
-  const canSwitchRole = Boolean(roles.customer && roles.client);
 
   // Fetch services from Firebase
   useEffect(() => {
@@ -62,22 +52,6 @@ const HomeScreen = () => {
     };
 
     loadServices();
-  }, []);
-
-  useEffect(() => {
-    const scrollRoot = document.getElementById('customer-scroll-root');
-    if (!scrollRoot) return undefined;
-
-    const updateNavState = () => {
-      setIsCustomerNavScrolled(scrollRoot.scrollTop > 8);
-    };
-
-    updateNavState();
-    scrollRoot.addEventListener('scroll', updateNavState, { passive: true });
-
-    return () => {
-      scrollRoot.removeEventListener('scroll', updateNavState);
-    };
   }, []);
 
   // Notification press handler
@@ -181,7 +155,6 @@ const HomeScreen = () => {
   const handleScroll = (e) => {
     const scrollY = e.currentTarget.scrollTop;
     setIsSearchSticky(scrollY > 120);
-    setIsCustomerNavScrolled(scrollY > 8);
   };
 
   const handleSwitchRole = async () => {
@@ -236,83 +209,6 @@ const HomeScreen = () => {
         <div className="absolute inset-0 bg-black/40"></div>
 
         <div className="relative z-10 h-full flex flex-col">
-          {/* Navbar */}
-          <nav
-            className={`fixed left-0 right-0 top-0 z-30 hidden items-center justify-between px-4 py-4 transition-colors duration-300 sm:px-6 md:px-8 lg:flex lg:px-12 ${
-              isCustomerNavScrolled
-                ? 'border-b border-gray-200 bg-white text-gray-950 shadow-sm'
-                : 'bg-transparent text-white'
-            }`}
-          >
-            <div className="flex items-center gap-2 sm:gap-3">
-              <img
-                src="/images/MLF.jpg"
-                alt="Logo"
-                className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded"
-              />
-              <p className="text-lg sm:text-xl md:text-2xl font-bold">MY LOCAL FORCE</p>
-            </div>
-
-            <div className="flex items-center gap-1">
-              {customerNavItems.map((item) => {
-                const isActive = item.path === '/customer';
-
-                return (
-                  <button
-                    key={item.path}
-                    type="button"
-                    onClick={() => navigate(item.path)}
-                    className={`rounded-md px-3 py-2 text-sm font-semibold transition ${
-                      isCustomerNavScrolled
-                        ? isActive
-                          ? 'bg-blue-50 text-blue-700'
-                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-950'
-                        : isActive
-                          ? 'bg-white/18 text-white'
-                          : 'text-white/86 hover:bg-white/12 hover:text-white'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex flex-row items-center gap-4 p-5">
-              {canSwitchRole && (
-                <button
-                  type="button"
-                  onClick={handleSwitchRole}
-                  className={`inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold shadow-sm transition-colors ${
-                    isCustomerNavScrolled
-                      ? 'border-slate-200 bg-white text-slate-800 hover:border-[#6C63FF]/40 hover:bg-indigo-50'
-                      : 'border-white/60 bg-white/10 text-white hover:bg-white/18'
-                  }`}
-                >
-                  <FiRefreshCw className="h-4 w-4" />
-                  Switch
-                </button>
-              )}
-
-              {isLoggedIn && (
-                <NotificationBell
-                  onPress={handleNotificationPress}
-                  size={20}
-                  color="#5A52E3"
-                  role="customer"
-                  bgColor="white"
-                />
-              )}
-
-              <button
-                onClick={() => navigate('/customer/profile')}
-                className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm transition-colors hover:border-[#6C63FF]/40 hover:bg-indigo-50 active:bg-indigo-100 cursor-pointer"
-              >
-                <FiUser className="w-5 h-5 text-[#5A52E3]" />
-              </button>
-            </div>
-          </nav>
-
           {/* Hero Content */}
           <div className="flex-1 flex items-center px-4 sm:px-6 md:px-8 lg:px-12">
             <div className="max-w-2xl text-white">

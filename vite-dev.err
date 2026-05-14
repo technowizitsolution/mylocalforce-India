@@ -1,0 +1,1 @@
+[33mThe `define` option contains an object with "PATH" for "process.env" key. It looks like you may have passed the entire `process.env` object to `define`, which can unintentionally expose all environment variables. This poses a security risk and is discouraged.[39m

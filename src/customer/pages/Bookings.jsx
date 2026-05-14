@@ -17,12 +17,10 @@ import {
   FiStar,
   FiChevronRight,
   FiRefreshCw,
-  FiSearch,
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { fetchUserBookings, subscribeToUserBookings } from '../../services/firebase';
 import BookingDetailModal from '../components/BookingDetailModal';
-import NotificationBell from '../components/NotificationBell';
 
 /* ── Icon look-ups ── */
 const STATUS_MAP = {
@@ -162,59 +160,10 @@ const Bookings = () => {
   /* ── Logged-in view ── */
   return (
     <div className="min-h-screen bg-linear-to-br from-gray-50 to-slate-100">
-      {/* Desktop nav - shown on md+ */}
-      <header className="hidden lg:block sticky top-0 z-20 border-b border-gray-200 bg-[#F8FAFC]/95 backdrop-blur-sm">
-        <div>
-          <nav className="flex items-center justify-between px-6 lg:px-30 py-3 gap-6">
-            {/* Logo */}
-            <div
-              onClick={() => navigate('/customer')}
-              className="flex items-center gap-3 cursor-pointer shrink-0"
-            >
-              <img
-                src="/images/MLF.jpg"
-                alt="Logo"
-                className="w-12 h-12 object-cover rounded-lg border border-blue-100"
-              />
-              <p className="text-[#5A52E3] text-2xl font-bold">MY LOCAL FORCE</p>
-            </div>
-
-            {/* Right section */}
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 px-4 py-2 border border-blue-100 rounded-lg bg-white w-80">
-                <FiSearch className="text-[#5A52E3] w-5 h-5 shrink-0" />
-                <input
-                  type="text"
-                  placeholder="Search bookings..."
-                  className="flex-1 bg-transparent outline-none text-sm text-slate-800 placeholder-gray-400"
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                />
-              </div>
-              {isLoggedIn && (
-                <NotificationBell
-                  onPress={() => navigate('/customer/notifications')}
-                  size={20}
-                  color="#5A52E3"
-                  role="customer"
-                  bgColor="white"
-                />
-              )}
-              <button
-                onClick={() => navigate('/customer/profile')}
-                className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm transition-colors hover:border-[#6C63FF]/40 hover:bg-indigo-50 active:bg-indigo-100 cursor-pointer"
-              >
-                <FiUser className="w-5 h-5 text-[#5A52E3]" />
-              </button>
-            </div>
-          </nav>
-        </div>
-      </header>
-
       {/* Mobile nav - shown below md */}
       <header className="md:hidden sticky top-0 z-20 bg-white/95 backdrop-blur-sm shadow-sm">
         <div className="px-4 sm:px-6 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-6">
             <div>
               <h1 className="text-xl font-bold text-gray-800">My Bookings</h1>
               <p className="text-sm text-gray-400 mt-0.5">
@@ -247,15 +196,24 @@ const Bookings = () => {
                 {refreshing && ' • Refreshing…'}
               </p>
             </div>
-            <button
-              onClick={onRefresh}
-              disabled={refreshing}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-50 hover:bg-violet-100 transition-colors disabled:opacity-50 cursor-pointer text-sm font-medium text-violet-600"
-              title="Refresh bookings"
-            >
-              <FiRefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
+            <div className="flex items-center gap-3">
+              <input
+                type="text"
+                placeholder="Search bookings..."
+                className="h-11 w-72 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-800 outline-none transition focus:border-[#6C63FF] focus:ring-4 focus:ring-[#6C63FF]/10"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+              />
+              <button
+                onClick={onRefresh}
+                disabled={refreshing}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-50 hover:bg-violet-100 transition-colors disabled:opacity-50 cursor-pointer text-sm font-medium text-violet-600"
+                title="Refresh bookings"
+              >
+                <FiRefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
           </div>
         </div>
       </div>

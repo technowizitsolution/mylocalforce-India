@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import NotificationBell from '../components/NotificationBell';
 import {
   FiSearch,
   FiFilter,
@@ -189,63 +188,29 @@ const Services = () => {
     <>
       {/* Desktop */}
       <div className="hidden lg:block flex-1 bg-slate-50 min-h-screen">
-        {/* Header */}
-        <div className="sticky top-0 z-10 overflow-hidden">
-          {/* Dark Overlay */}
-          <div className="absolute inset-0 bg-slate-50"></div>
-
-          {/* Navigation Content */}
-          <nav className="relative z-10 flex flex-col sm:flex-row items-center justify-between lg:px-30 py-1 sm:py-2 gap-4 ">
-            {/* Logo Section */}
-            <div
-              onClick={() => navigate('/customer')}
-              className="flex items-center gap-2 sm:gap-3 cursor-pointer"
-            >
-              <img
-                src="/images/MLF.jpg"
-                alt="Logo"
-                className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded-lg border border-blue-100"
-              />
-              <p className="text-[#5A52E3] text-lg sm:text-xl md:text-2xl font-bold">
-                MY LOCAL FORCE
-              </p>
-            </div>
-
-            {/* Right Section */}
-            <div className="flex flex-row items-center gap-3 sm:gap-4">
-              <div className="flex-1 flex items-center gap-2 px-4 py-2 border border-blue-100 rounded-lg bg-slate-50">
-                <FiSearch className="text-gray-400 w-5 h-5" color="#5A52E3" />
+        {/* Services Content */}
+        <div className="px-6 py-6">
+          <div className="max-w-7xl mx-auto">
+            <div className="mb-6 flex items-center justify-between gap-6">
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">All Services</h1>
+                <p className="mt-1 text-sm text-slate-500">
+                  {filteredServices.length} services available
+                  {refreshing ? ' • Refreshing...' : ''}
+                </p>
+              </div>
+              <div className="flex h-11 w-96 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 shadow-sm">
+                <FiSearch className="h-5 w-5 shrink-0 text-[#5A52E3]" />
                 <input
                   type="text"
                   placeholder="Search for services..."
-                  className="flex-1 bg-transparent outline-none text-sm text-slate-800 placeholder-gray-400"
+                  className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
                 />
               </div>
-              {isLoggedIn && (
-                <NotificationBell
-                  onPress={() => navigate('/customer/notifications')}
-                  size={20}
-                  color="#5A52E3"
-                  role="customer"
-                  bgColor="white"
-                />
-              )}
-
-              <button
-                onClick={() => navigate('/customer/profile')}
-                className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm transition-colors hover:border-[#6C63FF]/40 hover:bg-indigo-50 active:bg-indigo-100 cursor-pointer"
-              >
-                <FiUser className="w-5 h-5 text-[#5A52E3]" />
-              </button>
             </div>
-          </nav>
-        </div>
 
-        {/* Services Content */}
-        <div className="px-6 py-6">
-          <div className="max-w-7xl mx-auto">
             {/* Category Filters */}
             <div className="mb-6">
               <div className="flex gap-2 overflow-x-auto pb-2">

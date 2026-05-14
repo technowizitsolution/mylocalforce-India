@@ -42,20 +42,41 @@ const PublicNavbar = ({
       return '/';
     }
 
+    const rememberedHomePath =
+      user?.uid && typeof window !== 'undefined'
+        ? window.sessionStorage.getItem(`mylocalforce:last-home-path:${user.uid}`)
+        : null;
+
+    if (rememberedHomePath === '/customer' || rememberedHomePath === '/provider/home') {
+      return rememberedHomePath;
+    }
+
+    if (activeRole === 'client' && roles.client) {
+      return '/provider/home';
+    }
+
+    if (activeRole === 'customer' && roles.customer) {
+      return '/customer';
+    }
+
+    if (roles.client && !roles.customer) {
+      return '/provider/home';
+    }
+
+    if (roles.customer && !roles.client) {
+      return '/customer';
+    }
+
+    if (roles.client) {
+      return '/provider/home';
+    }
+
     if (roles.customer) {
       return '/customer';
     }
 
-    if (activeRole === 'customer') {
-      return '/customer';
-    }
-
-    if (roles.client || activeRole === 'client') {
-      return '/provider/home';
-    }
-
     return '/';
-  }, [activeRole, isSignedIn, location.pathname, roles]);
+  }, [activeRole, isSignedIn, location.pathname, roles, user?.uid]);
 
   const navItems = useMemo(() => [{ label: 'Home', to: homePath }, ...baseNavItems], [homePath]);
 
