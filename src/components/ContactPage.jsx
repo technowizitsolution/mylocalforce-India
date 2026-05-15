@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { httpsCallable } from 'firebase/functions';
 import { Phone, Send } from 'lucide-react';
 import Footer from './Footer';
 import PublicNavbar from './PublicNavbar';
-import { functions } from '../services/firebase/firebaseConfig';
+
+const CONTACT_FORM_URL = 'https://us-central1-mylocalforce-295b8.cloudfunctions.net/submitContactForm';
 
 const initialForm = {
   name: '',
@@ -41,14 +41,27 @@ const ContactPage = () => {
 
     setIsSubmitting(true);
     try {
-      const submitContactForm = httpsCallable(functions, 'submitContactForm');
-      await submitContactForm({
-        name,
-        email,
-        phone: form.phone.trim(),
-        subject: form.subject.trim() || 'Website contact request',
-        message,
+      const response = await fetch(CONTACT_FORM_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          phone: form.phone.trim(),
+          subject: form.subject.trim() || 'Website contact request',
+          message,
+        }),
       });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.success) {
+        throw new Error(
+          result?.error || result?.message || 'Unable to send your message. Please try again.',
+        );
+      }
 
       setForm(initialForm);
       setStatus({
@@ -74,11 +87,11 @@ const ContactPage = () => {
         <section className="flex flex-col justify-center">
           <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">Contact us</p>
           <h1 className="mt-3 text-3xl font-bold text-gray-950 sm:text-4xl">
-            Send a message to My Local Force support.
+            Send us a message.
           </h1>
           <p className="mt-4 text-base leading-7 text-gray-600">
-            Fill out the form and our support team will receive your message by email. You will also
-            receive an automatic confirmation email from noreply.
+            Use this form for general questions, feedback, or help. Your message goes directly to
+            our team by email and does not create a support case.
           </p>
 
           <div className="mt-8 space-y-4">

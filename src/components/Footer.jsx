@@ -87,14 +87,16 @@ const Footer = () => {
                   Privacy policy
                 </Link>
               </li>
-              <li>
-                <Link
-                  to="/careers"
-                  className="text-xs sm:text-sm text-gray-700 hover:text-gray-900 transition"
-                >
-                  Careers
-                </Link>
-              </li>
+              {!isSignedIn ? (
+                <li>
+                  <Link
+                    to="/careers"
+                    className="text-xs sm:text-sm text-gray-700 hover:text-gray-900 transition"
+                  >
+                    Careers
+                  </Link>
+                </li>
+              ) : null}
               <li>
                 <Link
                   to="/contact"

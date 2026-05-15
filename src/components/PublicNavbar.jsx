@@ -78,7 +78,13 @@ const PublicNavbar = ({
     return '/';
   }, [activeRole, isSignedIn, location.pathname, roles, user?.uid]);
 
-  const navItems = useMemo(() => [{ label: 'Home', to: homePath }, ...baseNavItems], [homePath]);
+  const navItems = useMemo(() => {
+    const visibleBaseNavItems = isSignedIn
+      ? baseNavItems.filter((item) => item.to !== '/careers')
+      : baseNavItems;
+
+    return [{ label: 'Home', to: homePath }, ...visibleBaseNavItems];
+  }, [homePath, isSignedIn]);
 
   useEffect(() => {
     const scrollTarget = scrollTargetId ? document.getElementById(scrollTargetId) : window;
