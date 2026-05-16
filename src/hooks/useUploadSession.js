@@ -7,6 +7,27 @@ import {
 } from '../services/firebase/documentUploadService';
 import { notify, getUserFacingError } from '../utils/toast';
 
+const toMillis = (value) => {
+  if (!value) return 0;
+  if (typeof value === 'number') return value;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.seconds === 'number') return value.seconds * 1000;
+  return new Date(value).getTime() || 0;
+};
+
+const sessionMatchesMetadata = (session, metadata = {}) =>
+  Object.entries(metadata).every(
+    ([key, value]) => String(session?.metadata?.[key] || '') === String(value || ''),
+  );
+
+const canReuseSmsSession = (session, metadata = {}) =>
+  Boolean(
+    session?.id &&
+      session.status === 'active' &&
+      (!session.expiresAt || toMillis(session.expiresAt) > Date.now()) &&
+      sessionMatchesMetadata(session, metadata),
+  );
+
 /**
  * Tracks and manages a provider upload session.
  *
@@ -140,7 +161,7 @@ export const useUploadSession = ({
     async (mobileNumber = verifiedMobileNumber, metadata = {}) => {
       let activeSession = session;
 
-      if (!activeSession?.id) {
+      if (!canReuseSmsSession(activeSession, metadata)) {
         const result = await createSession('sms', metadata);
         activeSession = result.session;
       }

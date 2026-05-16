@@ -23,6 +23,31 @@ const documentTypes = [
   { key: 'verificationVideoUrl', uploadType: 'verificationVideo', label: 'Verification Video' },
 ];
 
+const secureDocumentFieldByKey = {
+  passportUrl: 'passport',
+  drivingLicenceUrl: 'drivingLicence',
+  resumeUrl: 'resume',
+  certificatesUrl: 'certificates',
+  verificationVideoUrl: 'verificationVideo',
+};
+
+const getDocumentState = (documents, docConfig) => {
+  const url = documents?.[docConfig.key] || '';
+  const secureField = secureDocumentFieldByKey[docConfig.key];
+  const secureDocument = secureField ? documents?.[secureField] : null;
+  const hasSecureDocument = Boolean(
+    secureDocument?.uploadMode === 'secure_v2' ||
+      secureDocument?.documentIds?.length ||
+      secureDocument?.files?.length ||
+      secureDocument?.storagePaths?.length
+  );
+
+  return {
+    url: hasSecureDocument ? '' : url,
+    uploaded: Boolean(url || hasSecureDocument),
+  };
+};
+
 const statusConfig = {
   approved: { label: 'Approved', className: 'bg-emerald-50 text-emerald-700' },
   rejected: { label: 'Rejected', className: 'bg-rose-50 text-rose-700' },
@@ -164,7 +189,7 @@ const ProviderDocumentsScreen = () => {
         <h2 className="text-lg font-black text-slate-950">Documents</h2>
         <div className="mt-4 grid gap-3">
           {documentTypes.map((docConfig) => {
-            const url = documents[docConfig.key];
+            const { url, uploaded } = getDocumentState(documents, docConfig);
             return (
               <div
                 key={docConfig.key}
@@ -173,7 +198,7 @@ const ProviderDocumentsScreen = () => {
                 <div>
                   <p className="font-black text-slate-950">{docConfig.label}</p>
                   <p className="mt-1 text-sm font-semibold text-slate-500">
-                    {url ? 'Uploaded' : 'Not uploaded'}
+                    {uploaded ? (url ? 'Uploaded' : 'Secure document uploaded') : 'Not uploaded'}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">

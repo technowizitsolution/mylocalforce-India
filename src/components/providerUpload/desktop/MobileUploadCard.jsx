@@ -22,6 +22,41 @@ const toMillis = (value) => {
   return new Date(value).getTime() || 0;
 };
 
+const formatSmsPhoneNumber = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  if (raw.startsWith('+')) {
+    return `+${raw.replace(/[^\d]/g, '')}`;
+  }
+
+  const digits = raw.replace(/[^\d]/g, '');
+  if (!digits) return '';
+
+  if (digits.startsWith('61') && digits.length >= 11) {
+    return `+${digits}`;
+  }
+
+  if (digits.startsWith('0') && digits.length === 10) {
+    return `+61${digits.slice(1)}`;
+  }
+
+  if (digits.startsWith('4') && digits.length === 9) {
+    return `+61${digits}`;
+  }
+
+  if (/^[6-9]\d{9}$/.test(digits)) {
+    return `+91${digits}`;
+  }
+
+  return digits.length >= 8 && digits.length <= 15 ? `+${digits}` : '';
+};
+
+const sessionMatchesMetadata = (session, metadata = {}) =>
+  Object.entries(metadata).every(
+    ([key, value]) => String(session?.metadata?.[key] || '') === String(value || ''),
+  );
+
 /**
  * Desktop card for QR/SMS cross-device provider document upload.
  *
@@ -35,6 +70,8 @@ const toMillis = (value) => {
  * @param {Function} [props.onSummaryChange]
  * @param {Function} [props.onAvailabilityChange]
  * @param {Function} [props.onBeforeCreateSession]
+ * @param {boolean} [props.allowSms]
+ * @param {'qr'|'sms'|'desktop'|''} [props.forcedMode]
  * @returns {JSX.Element|null}
  */
 const MobileUploadCard = ({
@@ -47,10 +84,13 @@ const MobileUploadCard = ({
   onSummaryChange,
   onAvailabilityChange,
   onBeforeCreateSession,
+  allowSms = true,
+  forcedMode = '',
 }) => {
   const { settings, loading: settingsLoading, error: settingsError } = useDocumentUploadSettings();
-  const [activeMode, setActiveMode] = useState('qr');
+  const [activeMode, setActiveMode] = useState(forcedMode || 'qr');
   const [notice, setNotice] = useState('');
+  const [smsNumber, setSmsNumber] = useState(verifiedMobileNumber || '');
   const {
     createSession,
     documents,
@@ -70,7 +110,7 @@ const MobileUploadCard = ({
   });
 
   const canUseQr = Boolean(settings?.qrEnabled);
-  const canUseSms = Boolean(settings?.smsEnabled);
+  const canUseSms = allowSms && Boolean(settings?.smsEnabled);
   const canUseDesktop = Boolean(settings?.desktopFallbackEnabled);
   const isEnabled = canUseQr || canUseSms || canUseDesktop;
   const hasAuthSettingsError = /auth|unauth|unauthorized|sign in/i.test(
@@ -80,6 +120,24 @@ const MobileUploadCard = ({
     if (!session?.expiresAt) return false;
     return toMillis(session.expiresAt) - Date.now() < 10 * 60 * 1000;
   }, [session?.expiresAt]);
+  const uploadMetadata = useMemo(
+    () => ({
+      requestedReuploadTypes: requestedReuploadTypes.join(','),
+      reuploadOnly: requestedReuploadTypes.length > 0 ? 'true' : 'false',
+    }),
+    [requestedReuploadTypes],
+  );
+  const canReuseCurrentQr = Boolean(
+    mobileUrl &&
+      session?.status === 'active' &&
+      !qrRefreshSoon &&
+      (!session?.expiresAt || toMillis(session.expiresAt) > Date.now()) &&
+      sessionMatchesMetadata(session, uploadMetadata),
+  );
+
+  useEffect(() => {
+    setSmsNumber(verifiedMobileNumber || '');
+  }, [verifiedMobileNumber]);
 
   useEffect(() => {
     onAvailabilityChange?.({
@@ -105,6 +163,11 @@ const MobileUploadCard = ({
       return;
     }
 
+    if (forcedMode) {
+      setActiveMode(forcedMode);
+      return;
+    }
+
     const activeModeAvailable =
       (activeMode === 'qr' && canUseQr) ||
       (activeMode === 'sms' && canUseSms) ||
@@ -121,7 +184,7 @@ const MobileUploadCard = ({
     } else if (canUseDesktop) {
       setActiveMode('desktop');
     }
-  }, [activeMode, canUseDesktop, canUseQr, canUseSms, settingsLoading]);
+  }, [activeMode, canUseDesktop, canUseQr, canUseSms, forcedMode, settingsLoading]);
 
   if (settingsLoading) {
     return (
@@ -157,16 +220,17 @@ const MobileUploadCard = ({
     setNotice('');
     setError('');
     await onBeforeCreateSession?.();
-    return createSession(deliveryMethod, {
-      requestedReuploadTypes: requestedReuploadTypes.join(','),
-      reuploadOnly: requestedReuploadTypes.length > 0 ? 'true' : 'false',
-    });
+    return createSession(deliveryMethod, uploadMetadata);
   };
 
   const handleQr = async () => {
     setActiveMode('qr');
+    if (canReuseCurrentQr) {
+      setNotice('Current QR upload link is still active.');
+      return;
+    }
     try {
-      await prepareAndCreateSession(canUseSms ? 'both' : 'qr');
+      await prepareAndCreateSession('qr');
     } catch (createError) {
       setError(getUserFacingError(createError, 'Could not create QR upload link.'));
     }
@@ -174,15 +238,25 @@ const MobileUploadCard = ({
 
   const handleSms = async () => {
     setActiveMode('sms');
+    const mobileNumber = formatSmsPhoneNumber(smsNumber);
+    if (!/^\+\d{8,15}$/.test(mobileNumber)) {
+      setError(
+        'A valid mobile number is required to send the upload SMS. Use international format, for example +61412345678 or +918569051234.'
+      );
+      return;
+    }
+
     try {
       await onBeforeCreateSession?.();
-      await sendSms(verifiedMobileNumber, {
-        requestedReuploadTypes: requestedReuploadTypes.join(','),
-        reuploadOnly: requestedReuploadTypes.length > 0 ? 'true' : 'false',
-      });
+      await sendSms(mobileNumber, uploadMetadata);
       setNotice('Upload link sent by SMS.');
     } catch (smsError) {
-      setError(getUserFacingError(smsError, 'Could not send upload SMS.'));
+      const message = getUserFacingError(smsError, 'Could not send upload SMS.');
+      setError(
+        /failed to send upload sms/i.test(message)
+          ? 'SMS sending failed on the server. Check Twilio configuration and the provider mobile number.'
+          : message
+      );
     }
   };
 
@@ -210,57 +284,95 @@ const MobileUploadCard = ({
         </p>
       )}
 
-      <div>
-        <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-blue-700">
-          Upload method
-        </p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {canUseQr && (
-            <button
-              type="button"
-              onClick={handleQr}
-              disabled={loading}
-              className={`flex h-12 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold transition ${
-                activeMode === 'qr'
-                  ? 'border-blue-600 bg-blue-600 text-white'
-                  : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'
-              } disabled:opacity-60`}
-            >
-              <FiSmartphone className="h-4 w-4" />
-              Mobile camera
-            </button>
-          )}
-          {canUseSms && (
-            <button
-              type="button"
-              onClick={handleSms}
-              disabled={loading || !verifiedMobileNumber}
-              className={`flex h-12 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold transition ${
-                activeMode === 'sms'
-                  ? 'border-blue-600 bg-blue-600 text-white'
-                  : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'
-              } disabled:opacity-60`}
-            >
-              <FiMessageSquare className="h-4 w-4" />
-              Text link
-            </button>
-          )}
-          {canUseDesktop && (
-            <button
-              type="button"
-              onClick={() => setActiveMode('desktop')}
-              className={`flex h-12 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold transition ${
-                activeMode === 'desktop'
-                  ? 'border-blue-600 bg-blue-600 text-white'
-                  : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'
-              }`}
-            >
-              <FiMonitor className="h-4 w-4" />
-              This device
-            </button>
-          )}
+      {!forcedMode ? (
+        <div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-blue-700">
+            Upload method
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {canUseQr && (
+              <button
+                type="button"
+                onClick={handleQr}
+                disabled={loading}
+                className={`flex h-12 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold transition ${
+                  activeMode === 'qr'
+                    ? 'border-blue-600 bg-blue-600 text-white'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'
+                } disabled:opacity-60`}
+              >
+                <FiSmartphone className="h-4 w-4" />
+                Mobile camera
+              </button>
+            )}
+            {canUseSms && (
+              <button
+                type="button"
+                onClick={handleSms}
+                disabled={loading || !smsNumber}
+                className={`flex h-12 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold transition ${
+                  activeMode === 'sms'
+                    ? 'border-blue-600 bg-blue-600 text-white'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'
+                } disabled:opacity-60`}
+              >
+                <FiMessageSquare className="h-4 w-4" />
+                Text link
+              </button>
+            )}
+            {canUseDesktop && (
+              <button
+                type="button"
+                onClick={() => setActiveMode('desktop')}
+                className={`flex h-12 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold transition ${
+                  activeMode === 'desktop'
+                    ? 'border-blue-600 bg-blue-600 text-white'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'
+                }`}
+              >
+                <FiMonitor className="h-4 w-4" />
+                This device
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      ) : null}
+
+      {forcedMode === 'qr' && (
+        <button
+          type="button"
+          onClick={handleQr}
+          disabled={loading || !canUseQr}
+          className="inline-flex h-11 w-fit items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+        >
+          <FiSmartphone className="h-4 w-4" />
+          {mobileUrl ? 'Show QR upload link' : 'Generate QR upload link'}
+        </button>
+      )}
+
+      {forcedMode === 'sms' && (
+        <div className="grid gap-3 sm:max-w-md">
+          <label className="grid gap-1.5">
+            <span className="text-sm font-bold text-gray-700">SMS mobile number</span>
+            <input
+              type="tel"
+              value={smsNumber}
+              onChange={(event) => setSmsNumber(event.target.value)}
+              placeholder="+61412345678 or +918569051234"
+              className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 outline-none transition focus:border-blue-500"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={handleSms}
+            disabled={loading || !canUseSms || !smsNumber}
+            className="inline-flex h-11 w-fit items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+          >
+            <FiMessageSquare className="h-4 w-4" />
+            Send SMS upload link
+          </button>
+        </div>
+      )}
 
       {activeMode === 'qr' && (
         <QrCodeDisplay

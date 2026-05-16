@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { FiLoader, FiMapPin } from 'react-icons/fi';
 import { doc, setDoc } from 'firebase/firestore';
 import ProviderAppLayout from '../components/ProviderAppLayout';
 import Footer from '../components/Footer';
@@ -7,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { fetchUserProfile } from '../services/firebase';
 import { firestore } from '../services/firebase/firebaseConfig';
 import { updateProviderDetails } from '../services/firebase/providerOnboardingService';
+import { fetchAutocompleteSuggestions, geocodeAddress } from '../utils/googleMaps';
 import { notify } from '../utils/toast';
 
 const ProviderEditProfileScreen = () => {
@@ -23,6 +25,11 @@ const ProviderEditProfileScreen = () => {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [addressLoading, setAddressLoading] = useState(false);
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [addressMeta, setAddressMeta] = useState({ lat: null, lng: null });
+  const selectingAddressRef = useRef(false);
+  const addressDebounceRef = useRef(null);
 
   useEffect(() => {
     let mounted = true;
@@ -42,6 +49,20 @@ const ProviderEditProfileScreen = () => {
               profile?.nationalityStatus || profile?.profile?.nationalityStatus || '',
             dob: normalizeDateInput(profile?.dob || profile?.profile?.dob),
           });
+          setAddressMeta({
+            lat:
+              profile?.latitude ??
+              profile?.lat ??
+              profile?.coords?.lat ??
+              profile?.location?.latitude ??
+              null,
+            lng:
+              profile?.longitude ??
+              profile?.lng ??
+              profile?.coords?.lng ??
+              profile?.location?.longitude ??
+              null,
+          });
         }
       } catch (error) {
         notify.error('Failed to load profile');
@@ -59,23 +80,103 @@ const ProviderEditProfileScreen = () => {
 
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
 
+  useEffect(() => {
+    if (selectingAddressRef.current) return undefined;
+
+    const address = form.address.trim();
+    if (address.length < 3) {
+      setAddressSuggestions([]);
+      return undefined;
+    }
+
+    if (addressDebounceRef.current) clearTimeout(addressDebounceRef.current);
+
+    addressDebounceRef.current = setTimeout(async () => {
+      setAddressLoading(true);
+      try {
+        const results = await fetchAutocompleteSuggestions(address);
+        setAddressSuggestions(results);
+      } catch (error) {
+        setAddressSuggestions([]);
+      } finally {
+        setAddressLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      if (addressDebounceRef.current) clearTimeout(addressDebounceRef.current);
+    };
+  }, [form.address]);
+
+  const handleAddressChange = (value) => {
+    updateField('address', value);
+    setAddressMeta({ lat: null, lng: null });
+  };
+
+  const handleSelectAddress = async (suggestion) => {
+    selectingAddressRef.current = true;
+    setAddressSuggestions([]);
+    updateField('address', suggestion.description);
+
+    try {
+      setAddressLoading(true);
+      const geocoded = await geocodeAddress(suggestion.description);
+      if (geocoded) {
+        updateField('address', geocoded.formattedAddress || suggestion.description);
+        setAddressMeta({ lat: geocoded.lat ?? null, lng: geocoded.lng ?? null });
+      } else {
+        setAddressMeta({ lat: null, lng: null });
+      }
+    } finally {
+      setAddressLoading(false);
+      selectingAddressRef.current = false;
+    }
+  };
+
+  const resolveAddressMeta = async () => {
+    if (addressMeta.lat !== null && addressMeta.lng !== null) {
+      return { ...addressMeta, formattedAddress: form.address };
+    }
+    if (!form.address.trim()) return { lat: null, lng: null, formattedAddress: '' };
+
+    const geocoded = await geocodeAddress(form.address.trim());
+    if (!geocoded) return { lat: null, lng: null, formattedAddress: form.address.trim() };
+
+    updateField('address', geocoded.formattedAddress || form.address.trim());
+    const nextMeta = { lat: geocoded.lat ?? null, lng: geocoded.lng ?? null };
+    setAddressMeta(nextMeta);
+    return { ...nextMeta, formattedAddress: geocoded.formattedAddress || form.address.trim() };
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     try {
       setSaving(true);
+      const resolvedAddressMeta = await resolveAddressMeta();
+      const resolvedAddress = resolvedAddressMeta.formattedAddress || form.address;
       await setDoc(
         doc(firestore, 'users', user.uid),
         {
           name: form.name,
           phone: form.phone,
-          address: form.address,
+          address: resolvedAddress,
           gender: form.gender,
           experience: form.experience,
           about: form.about,
           nationalityStatus: form.nationalityStatus,
           dob: form.dob || null,
+          formattedAddress: resolvedAddress,
+          latitude: resolvedAddressMeta.lat,
+          longitude: resolvedAddressMeta.lng,
+          lat: resolvedAddressMeta.lat,
+          lng: resolvedAddressMeta.lng,
+          coords: {
+            lat: resolvedAddressMeta.lat,
+            lng: resolvedAddressMeta.lng,
+          },
           profile: {
-            address: form.address,
+            address: resolvedAddress,
+            formattedAddress: resolvedAddress,
             nationalityStatus: form.nationalityStatus,
             dob: form.dob || null,
           },
@@ -85,7 +186,10 @@ const ProviderEditProfileScreen = () => {
       await updateProviderDetails(user.uid, {
         profile: {
           about: form.about,
-          address: form.address,
+          address: resolvedAddress,
+          formattedAddress: resolvedAddress,
+          latitude: resolvedAddressMeta.lat,
+          longitude: resolvedAddressMeta.lng,
           nationalityStatus: form.nationalityStatus,
           dob: form.dob || null,
         },
@@ -155,14 +259,13 @@ const ProviderEditProfileScreen = () => {
               ['visa_holder', 'VISA Holder'],
             ]}
           />
-          <label className="grid gap-1.5 sm:col-span-2">
-            <span className="text-sm font-bold text-slate-700">Address</span>
-            <input
-              value={form.address}
-              onChange={(event) => updateField('address', event.target.value)}
-              className="h-11 rounded-lg border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-[#5A52E3]"
-            />
-          </label>
+          <AddressAutocompleteField
+            value={form.address}
+            loading={addressLoading}
+            suggestions={addressSuggestions}
+            onChange={handleAddressChange}
+            onSelect={handleSelectAddress}
+          />
           <label className="grid gap-1.5 sm:col-span-2">
             <span className="text-sm font-bold text-slate-700">About</span>
             <textarea
@@ -206,6 +309,41 @@ const Field = ({ label, value, onChange, type = 'text', placeholder = '' }) => (
       placeholder={placeholder}
       className="h-11 rounded-lg border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-[#5A52E3]"
     />
+  </label>
+);
+
+const AddressAutocompleteField = ({ value, loading, suggestions, onChange, onSelect }) => (
+  <label className="relative grid gap-1.5 sm:col-span-2">
+    <span className="text-sm font-bold text-slate-700">Address</span>
+    <div className="relative">
+      <FiMapPin className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Start typing your address..."
+        className="h-11 w-full rounded-lg border border-slate-200 px-10 text-sm font-semibold outline-none focus:border-[#5A52E3]"
+        autoComplete="off"
+      />
+      {loading ? (
+        <FiLoader className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#5A52E3]" />
+      ) : null}
+    </div>
+
+    {suggestions.length > 0 ? (
+      <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+        {suggestions.map((suggestion) => (
+          <button
+            key={suggestion.place_id}
+            type="button"
+            onClick={() => onSelect(suggestion)}
+            className="flex w-full items-start gap-2 border-b border-slate-100 px-4 py-3 text-left text-sm font-semibold text-slate-700 last:border-b-0 hover:bg-slate-50"
+          >
+            <FiMapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+            <span>{suggestion.description}</span>
+          </button>
+        ))}
+      </div>
+    ) : null}
   </label>
 );
 
