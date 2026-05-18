@@ -5,6 +5,8 @@ import {
   FiBellOff,
   FiBriefcase,
   FiCalendar,
+  FiCheck,
+  FiChevronRight,
   FiClock,
   FiDollarSign,
   FiEdit,
@@ -14,7 +16,6 @@ import {
   FiMail,
   FiMapPin,
   FiPhone,
-  FiRefreshCw,
   FiShield,
   FiSlash,
   FiStar,
@@ -31,8 +32,8 @@ import {
   deleteCurrentUserAccount,
   fetchProviderDetails,
   fetchUserProfile,
-  fetchUserRoles,
   isAppPushPermissionEnabled,
+  requestNotificationPermission,
   subscribeToBusinessProfile,
   updatePushNotificationPreference,
 } from '../services/firebase';
@@ -188,27 +189,75 @@ const ProviderProfileScreen = () => {
       'Tell customers about your experience, services, and what makes your work reliable.',
     [profile, providerDetails]
   );
-
-  const handleSwitchRole = async () => {
-    try {
-      const { roles } = await fetchUserRoles(user.uid);
-      const availableRoles = Object.keys(roles || {}).filter((role) => roles[role]);
-      if (availableRoles.length > 1) {
-        navigate('/role-selection');
-      } else {
-        notify.info('You only have one role available.');
-      }
-    } catch (error) {
-      notify.error('Failed to check available roles');
-    }
-  };
+  const initials = name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+  const profileChecklist = [
+    { label: 'Profile photo uploaded', done: Boolean(profile?.photoURL || profile?.avatar) },
+    { label: 'Business details submitted', done: Boolean(providerDetails?.businessInformation) },
+    { label: 'Documents uploaded', done: isProviderOnboardingComplete(providerDetails) },
+    { label: 'Services added', done: Boolean(providerDetails?.profile?.servicesOffered?.length) },
+  ];
+  const profileCompletion = Math.round(
+    (profileChecklist.filter((item) => item.done).length / profileChecklist.length) * 100
+  );
+  const desktopActions = [
+    {
+      icon: FiEdit,
+      label: 'Edit Profile',
+      description: 'Update your public provider profile and photo.',
+      path: '/provider/edit-profile',
+      badge: `${profileCompletion}% complete`,
+      badgeClass: 'bg-[#4ECDC4]/10 text-[#1E9E94]',
+      iconBg: 'bg-[#4ECDC4]/10',
+      iconColor: 'text-[#1E9E94]',
+    },
+    {
+      icon: FiFileText,
+      label: 'My Details & Docs',
+      description: 'Review submitted identity, visa, and business files.',
+      path: '/provider/documents',
+      badge: isOnboardingSubmitted ? 'Submitted' : 'Not submitted',
+      badgeClass: isOnboardingSubmitted ? 'bg-[#6C63FF]/10 text-[#5A52E3]' : 'bg-rose-50 text-rose-600',
+      iconBg: 'bg-[#6C63FF]/10',
+      iconColor: 'text-[#5A52E3]',
+    },
+    {
+      icon: FiCalendar,
+      label: 'My Jobs',
+      description: 'Track new, active, and completed service bookings.',
+      path: '/provider/bookings',
+      badge: `${businessStats.totalBookings || 0} total`,
+      badgeClass: 'bg-slate-100 text-slate-600',
+      iconBg: 'bg-slate-100',
+      iconColor: 'text-slate-500',
+    },
+    {
+      icon: FiDollarSign,
+      label: 'Earnings',
+      description: 'View monthly income and payout activity.',
+      path: '/provider/earnings',
+      badge: formatMoney(businessStats.totalEarnings),
+      badgeClass: 'bg-emerald-50 text-emerald-700',
+      iconBg: 'bg-emerald-50',
+      iconColor: 'text-emerald-600',
+    },
+  ];
 
   const handlePushPreferenceToggle = async (nextValue) => {
     if (!user?.uid || pushPreferenceUpdating) return;
 
+    const actionText = nextValue ? 'enable' : 'disable';
+    const confirmed = window.confirm(`Do you want to ${actionText} push notifications?`);
+    if (!confirmed) return;
+
     if (nextValue) {
+      const permissionGranted = await requestNotificationPermission();
       const systemPushEnabled = await isAppPushPermissionEnabled();
-      if (!systemPushEnabled) {
+      if (!permissionGranted || !systemPushEnabled) {
         notify.warning('Push notifications are off in your browser settings.');
         return;
       }
@@ -270,10 +319,11 @@ const ProviderProfileScreen = () => {
 
   return (
     <ProviderAppLayout>
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="lg:hidden">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-4">
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-indigo-50">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-indigo-50">
               {profile?.photoURL || profile?.avatar ? (
                 <img
                   src={profile.photoURL || profile.avatar}
@@ -285,36 +335,23 @@ const ProviderProfileScreen = () => {
               )}
             </div>
             <div className="min-w-0">
-              <h1 className="truncate text-2xl font-black text-slate-950">{name}</h1>
-              <p className="mt-1 truncate text-sm font-semibold text-slate-500">
+              <h1 className="truncate text-xl font-semibold text-slate-900">{name}</h1>
+              <p className="mt-1 truncate text-sm text-slate-500">
                 {profile?.email || user?.email || 'user@example.com'}
               </p>
-              <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+              <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
                 <FiStar className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
                 {rating > 0 ? rating.toFixed(1) : 'No ratings yet'}
               </div>
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <IconButton
-              label="Edit profile"
-              Icon={FiEdit}
-              onClick={() => navigate('/provider/edit-profile')}
-            />
-            <IconButton
-              label="Switch role"
-              Icon={FiRefreshCw}
-              onClick={handleSwitchRole}
-              className="lg:hidden"
-            />
-          </div>
         </div>
       </section>
 
-      <section className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-black text-slate-950">Business Information</h2>
-        <div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
+      <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h2 className="text-base font-semibold text-slate-900">Business Information</h2>
+        <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
           <InfoRow Icon={FiClock} label="Experience" value={`${profile?.experience || 0} years`} />
           <InfoRow
             Icon={FiMail}
@@ -353,21 +390,21 @@ const ProviderProfileScreen = () => {
         </div>
       </section>
 
-      <section className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-center gap-2">
           <FiBell className="h-5 w-5 text-[#5A52E3]" />
-          <h2 className="text-lg font-black text-slate-950">About Us</h2>
+          <h2 className="text-base font-semibold text-slate-900">About Us</h2>
         </div>
-        <p className="mt-3 text-sm font-semibold leading-6 text-slate-500">{aboutText}</p>
+        <p className="mt-3 text-sm leading-6 text-slate-500">{aboutText}</p>
       </section>
 
-      <section className="mt-6 grid grid-cols-1 divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white shadow-sm sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+      <section className="mt-4 grid grid-cols-1 divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white shadow-sm sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         <Stat value={businessStats.jobsCompleted || 0} label="Jobs Completed" />
         <Stat value={rating > 0 ? rating.toFixed(1) : '-'} label="Rating" />
         <Stat value={formatMoney(businessStats.monthlyEarnings)} label="Monthly Earnings" />
       </section>
 
-      <section className="mt-6 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <section className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <MenuItem
           Icon={FiEdit}
           label="Edit Profile"
@@ -402,22 +439,25 @@ const ProviderProfileScreen = () => {
         />
         <div className="flex min-h-14 items-center gap-3 border-b border-slate-100 px-4 py-3">
           <FiBellOff className="h-5 w-5 text-[#5A52E3]" />
-          <span className="flex-1 font-bold text-slate-800">Push Notifications</span>
-          <button
-            type="button"
-            onClick={() => handlePushPreferenceToggle(!providerPushEnabled)}
-            disabled={pushPreferenceUpdating}
-            className={`relative h-7 w-12 rounded-full transition-colors ${
-              providerPushEnabled ? 'bg-[#6C63FF]' : 'bg-slate-200'
-            } disabled:opacity-60`}
-            aria-pressed={providerPushEnabled}
-          >
-            <span
-              className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                providerPushEnabled ? 'translate-x-5' : 'translate-x-1'
+          <span className="flex-1 font-medium text-slate-800">Push Notifications</span>
+          {pushPreferenceUpdating ? (
+            <div className="h-5 w-5 rounded-full border-2 border-[#6C63FF] border-t-transparent animate-spin" />
+          ) : (
+            <button
+              type="button"
+              onClick={() => handlePushPreferenceToggle(!providerPushEnabled)}
+              className={`relative h-6 w-11 rounded-full transition-colors ${
+                providerPushEnabled ? 'bg-[#6C63FF]' : 'bg-slate-200'
               }`}
-            />
-          </button>
+              aria-pressed={providerPushEnabled}
+            >
+              <span
+                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                  providerPushEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          )}
         </div>
         <MenuItem
           Icon={FiHelpCircle}
@@ -443,49 +483,265 @@ const ProviderProfileScreen = () => {
       <button
         type="button"
         onClick={logout}
-        className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-rose-200 bg-white text-sm font-black text-rose-600 shadow-sm hover:bg-rose-50"
+        className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white text-sm font-semibold text-rose-600 shadow-sm hover:bg-rose-50"
       >
         <FiLogOut className="h-5 w-5" />
         Logout
       </button>
 
       <div className="mt-6 text-center">
-        <p className="font-black text-slate-700">MyLocalForce</p>
-        <p className="mt-1 text-xs font-semibold text-slate-400">Version 3.0.4</p>
+        <p className="font-semibold text-slate-700">MyLocalForce</p>
+        <p className="mt-1 text-xs text-slate-400">Version 3.0.4</p>
       </div>
 
       <Footer />
+      </div>
+
+      <div className="hidden lg:block">
+        <div className="grid grid-cols-3 gap-6">
+          <DesktopStat
+            Icon={FiBriefcase}
+            label="Jobs Completed"
+            value={businessStats.jobsCompleted || 0}
+            accent="border-l-[#6C63FF]"
+          />
+          <DesktopStat
+            Icon={FiStar}
+            label="Average Rating"
+            value={rating > 0 ? rating.toFixed(1) : 'N/A'}
+            accent="border-l-[#4ECDC4]"
+          />
+          <DesktopStat
+            Icon={FiDollarSign}
+            label="Monthly Earnings"
+            value={formatMoney(businessStats.monthlyEarnings)}
+            accent="border-l-emerald-300"
+          />
+        </div>
+
+        <div className="mt-6 grid grid-cols-[minmax(0,1fr)_340px] items-start gap-6">
+          <div className="space-y-6">
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-start justify-between gap-6">
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-linear-to-br from-[#6C63FF] to-[#4ECDC4] text-white">
+                    {profile?.photoURL || profile?.avatar ? (
+                      <img
+                        src={profile.photoURL || profile.avatar}
+                        alt={name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-xl font-semibold">{initials}</span>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                      Provider profile
+                    </p>
+                    <h1 className="mt-1 truncate text-3xl font-semibold text-slate-950">
+                      {name}
+                    </h1>
+                    <p className="mt-1 truncate text-sm text-slate-500">
+                      {profile?.email || user?.email || 'user@example.com'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/provider/edit-profile')}
+                  className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-[#6C63FF] hover:text-[#5A52E3]"
+                >
+                  <FiEdit className="h-4 w-4" />
+                  Edit profile
+                </button>
+              </div>
+              <p className="mt-5 max-w-3xl text-sm leading-6 text-slate-500">{aboutText}</p>
+            </section>
+
+            <section className="grid grid-cols-2 gap-4">
+              {desktopActions.map((action) => {
+                const Icon = action.icon;
+                return (
+                  <button
+                    key={action.label}
+                    type="button"
+                    onClick={() => navigate(action.path)}
+                    className="group min-h-[178px] rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#6C63FF]/30 hover:shadow-lg"
+                  >
+                    <div className="flex items-start justify-between">
+                      <span
+                        className={`flex h-12 w-12 items-center justify-center rounded-xl ${action.iconBg}`}
+                      >
+                        <Icon className={action.iconColor} size={22} />
+                      </span>
+                      <FiChevronRight className="text-slate-400 group-hover:text-slate-600" />
+                    </div>
+                    <p className="mt-7 text-base font-semibold text-slate-900">{action.label}</p>
+                    <p className="mt-1 text-sm text-slate-500">{action.description}</p>
+                    <span
+                      className={`mt-4 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${action.badgeClass}`}
+                    >
+                      {action.badge}
+                    </span>
+                  </button>
+                );
+              })}
+            </section>
+
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-base font-semibold text-slate-800">Business Information</h2>
+              <div className="mt-5 grid grid-cols-2 gap-4">
+                <DesktopInfo label="Experience" value={`${profile?.experience || 0} years`} />
+                <DesktopInfo label="Phone" value={profile?.phone || profile?.phoneNumber || user?.phoneNumber || 'Not specified'} />
+                <DesktopInfo label="Location" value={profile?.address || profile?.profile?.address || 'Not specified'} wide />
+                <DesktopInfo label="Nationality" value={formatNationalityStatus(profile?.nationalityStatus || profile?.profile?.nationalityStatus)} />
+                <DesktopInfo label="Joined" value={formatDate(profile?.createdAt || user?.createdAt)} />
+              </div>
+            </section>
+          </div>
+
+          <aside className="space-y-4">
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold text-slate-800">Profile Strength</h2>
+                <span className="text-sm font-semibold text-[#5A52E3]">{profileCompletion}%</span>
+              </div>
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full bg-linear-to-r from-[#6C63FF] to-[#4ECDC4]"
+                  style={{ width: `${profileCompletion}%` }}
+                />
+              </div>
+              <div className="mt-5 space-y-3">
+                {profileChecklist.map((item) => (
+                  <div key={item.label} className="flex items-center gap-3">
+                    <span
+                      className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                        item.done ? 'bg-[#4ECDC4]/15 text-[#1E9E94]' : 'bg-slate-100 text-slate-400'
+                      }`}
+                    >
+                      {item.done ? <FiCheck size={16} /> : <span className="text-xs">+</span>}
+                    </span>
+                    <span className={`text-sm ${item.done ? 'text-slate-700' : 'text-slate-400'}`}>
+                      {item.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/provider/documents')}
+                className="mt-5 w-full rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:border-[#6C63FF] hover:text-[#5A52E3]"
+              >
+                Review details
+              </button>
+            </section>
+
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold text-slate-800">Account Controls</h2>
+                <FiBell className="text-slate-400" size={18} />
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Push Notifications</p>
+                  <p className="text-xs text-slate-500">Browser alerts for jobs and updates.</p>
+                </div>
+                {pushPreferenceUpdating ? (
+                  <div className="h-5 w-5 rounded-full border-2 border-[#6C63FF] border-t-transparent animate-spin" />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handlePushPreferenceToggle(!providerPushEnabled)}
+                    className={`relative h-6 w-11 rounded-full transition-colors ${
+                      providerPushEnabled ? 'bg-[#6C63FF]' : 'bg-slate-200'
+                    }`}
+                    aria-pressed={providerPushEnabled}
+                  >
+                    <span
+                      className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                        providerPushEnabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/provider/contact-support')}
+                className="mt-4 flex w-full items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-[#6C63FF] hover:text-[#5A52E3]"
+              >
+                <span className="flex items-center gap-2">
+                  <FiHelpCircle size={16} />
+                  Contact Support
+                </span>
+                <FiChevronRight size={16} />
+              </button>
+              <div className="mt-4 space-y-2">
+                <button
+                  type="button"
+                  onClick={handleDeactivateAccount}
+                  disabled={accountActionLoading}
+                  className="w-full rounded-xl border border-amber-200 px-4 py-3 text-left text-sm font-semibold text-amber-600 transition-colors hover:bg-amber-50 disabled:opacity-60"
+                >
+                  Deactivate Account
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteAccount}
+                  disabled={accountActionLoading}
+                  className="w-full rounded-xl border border-rose-200 px-4 py-3 text-left text-sm font-semibold text-rose-600 transition-colors hover:bg-rose-50 disabled:opacity-60"
+                >
+                  Delete Account
+                </button>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
     </ProviderAppLayout>
   );
 };
-
-const IconButton = ({ label, Icon, onClick, className = '' }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={`flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#5A52E3] shadow-sm transition-colors hover:bg-indigo-50 ${className}`}
-    aria-label={label}
-  >
-    <Icon className="h-5 w-5" />
-  </button>
-);
 
 const InfoRow = ({ Icon, label, value, last = false }) => (
   <div
     className={`grid gap-3 px-4 py-3 sm:grid-cols-[220px_1fr] ${last ? '' : 'border-b border-slate-100'}`}
   >
-    <div className="flex items-center gap-2 font-bold text-slate-500">
+    <div className="flex items-center gap-2 font-medium text-slate-500">
       <Icon className="h-5 w-5" />
       {label}
     </div>
-    <p className="font-bold text-slate-900">{value}</p>
+    <p className="font-medium text-slate-900">{value}</p>
   </div>
 );
 
 const Stat = ({ value, label }) => (
   <div className="p-5 text-center">
-    <p className="text-2xl font-black text-[#5A52E3]">{value}</p>
-    <p className="mt-1 text-sm font-semibold text-slate-500">{label}</p>
+    <p className="text-2xl font-semibold text-[#5A52E3]">{value}</p>
+    <p className="mt-1 text-sm text-slate-500">{label}</p>
+  </div>
+);
+
+const DesktopStat = ({ Icon, label, value, accent }) => (
+  <div className={`rounded-2xl border border-slate-200 border-l-4 ${accent} bg-white p-6 shadow-sm`}>
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="text-xs uppercase tracking-widest text-slate-500">{label}</p>
+        <p className="mt-4 text-4xl font-semibold text-slate-950">{value}</p>
+        <p className="mt-2 text-sm text-slate-500">Updated from your provider activity</p>
+      </div>
+      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#6C63FF]/10 text-[#5A52E3]">
+        <Icon size={22} />
+      </span>
+    </div>
+  </div>
+);
+
+const DesktopInfo = ({ label, value, wide = false }) => (
+  <div className={`rounded-xl border border-slate-200 bg-[#F8FAFC] p-4 ${wide ? 'col-span-2' : ''}`}>
+    <p className="text-xs uppercase tracking-widest text-slate-400">{label}</p>
+    <p className="mt-2 text-sm font-medium text-slate-800">{value}</p>
   </div>
 );
 
@@ -503,10 +759,10 @@ const MenuItem = ({ Icon, label, tag, tagTone, danger, disabled, onClick }) => {
       className="flex min-h-14 w-full items-center gap-3 border-b border-slate-100 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-slate-50 disabled:opacity-60"
     >
       <Icon className={`h-5 w-5 ${iconClass}`} />
-      <span className={`flex-1 font-bold ${textClass}`}>{label}</span>
+      <span className={`flex-1 font-semibold ${textClass}`}>{label}</span>
       {tag ? (
         <span
-          className={`rounded-full px-2 py-1 text-xs font-bold ${
+          className={`rounded-full px-2 py-1 text-xs font-medium ${
             tagTone === 'danger' ? 'bg-rose-50 text-rose-600' : 'bg-indigo-50 text-indigo-600'
           }`}
         >

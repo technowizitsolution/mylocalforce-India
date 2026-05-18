@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { fetchProviderDetails } from '../services/firebase';
 import {
   deleteProviderDocument,
+  getProviderDocumentViewUrl,
   updateProviderDetails,
   uploadProviderDocument,
 } from '../services/firebase/providerOnboardingService';
@@ -311,12 +312,25 @@ const ProviderEditDetailsScreen = () => {
     }
   };
 
+  const handleOpenSecureDocument = async (storagePath) => {
+    try {
+      const viewUrl = await getProviderDocumentViewUrl(storagePath);
+      window.open(viewUrl, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      notify.error(
+        error?.code === 'storage/unauthorized'
+          ? 'You do not have permission to view this file yet. Deploy the updated storage rules and try again.'
+          : error?.message || 'Could not open secure document.'
+      );
+    }
+  };
+
   if (loading) return <Loading fullScreen />;
 
   return (
     <ProviderAppLayout>
       <header className="border-b border-slate-200 pb-6">
-        <h1 className="text-2xl font-black text-slate-950 sm:text-3xl">
+        <h1 className="text-2xl font-semibold text-slate-950 sm:text-3xl">
           Edit My Details & Documents
         </h1>
         <p className="mt-1 text-sm font-semibold text-slate-500">
@@ -326,7 +340,7 @@ const ProviderEditDetailsScreen = () => {
 
       <form onSubmit={handleSave} className="mt-6 grid gap-6">
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-black text-slate-950">Provider Details</h2>
+          <h2 className="text-lg font-semibold text-slate-950">Provider Details</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <SelectField
               label="Nationality Status"
@@ -390,7 +404,7 @@ const ProviderEditDetailsScreen = () => {
           </div>
 
           <div className="mt-6">
-            <h3 className="text-sm font-black text-slate-800">Services Offered</h3>
+            <h3 className="text-sm font-semibold text-slate-800">Services Offered</h3>
             <p className="mt-1 text-sm font-semibold text-slate-500">
               Select one or more categories, then choose the subcategories you provide.
             </p>
@@ -445,14 +459,14 @@ const ProviderEditDetailsScreen = () => {
                   No subcategories available for the selected category.
                 </p>
               )}
-              <p className="mt-3 text-xs font-bold text-slate-400">
+              <p className="mt-3 text-xs font-medium text-slate-400">
                 {selectedServices.length} service(s) selected
               </p>
             </div>
           </div>
 
           <label className="mt-6 grid gap-1.5">
-            <span className="text-sm font-bold text-slate-700">About Us</span>
+            <span className="text-sm font-medium text-slate-700">About Us</span>
             <textarea
               value={form.providerIntroduction}
               onChange={(event) => updateField('providerIntroduction', event.target.value)}
@@ -461,14 +475,14 @@ const ProviderEditDetailsScreen = () => {
               placeholder="Tell customers about your experience and service approach."
               className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-[#5A52E3]"
             />
-            <span className="text-right text-xs font-bold text-slate-400">
+            <span className="text-right text-xs font-medium text-slate-400">
               {form.providerIntroduction.length}/600 characters
             </span>
           </label>
         </section>
 
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-black text-slate-950">Business & Banking</h2>
+          <h2 className="text-lg font-semibold text-slate-950">Business & Banking</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <Field
               label="TFN Number"
@@ -504,7 +518,7 @@ const ProviderEditDetailsScreen = () => {
           <div className="flex items-start gap-2">
             <FiFileText className="mt-1 h-5 w-5 text-[#5A52E3]" />
             <div>
-              <h2 className="text-lg font-black text-slate-950">Documents</h2>
+              <h2 className="text-lg font-semibold text-slate-950">Documents</h2>
               <p className="mt-1 text-sm font-semibold text-slate-500">
                 Upload or replace documents here. The documents page is view-only.
               </p>
@@ -518,6 +532,7 @@ const ProviderEditDetailsScreen = () => {
               isUploading={uploadingKey === 'passportUrl'}
               progress={progress.passportUrl || 0}
               onFileChange={handleFileChange}
+              onOpenSecureDocument={handleOpenSecureDocument}
               externalActive={externalUploadTarget.docKey === 'passportUrl'}
               onExternalUpload={(mode) => setExternalUploadTarget({ docKey: 'passportUrl', mode })}
               externalUploadContent={
@@ -556,6 +571,7 @@ const ProviderEditDetailsScreen = () => {
               isUploading={uploadingKey === 'drivingLicenceUrl'}
               progress={progress.drivingLicenceUrl || 0}
               onFileChange={handleFileChange}
+              onOpenSecureDocument={handleOpenSecureDocument}
               externalActive={externalUploadTarget.docKey === 'drivingLicenceUrl'}
               onExternalUpload={(mode) =>
                 setExternalUploadTarget({ docKey: 'drivingLicenceUrl', mode })
@@ -606,6 +622,7 @@ const ProviderEditDetailsScreen = () => {
                   isUploading={isUploading}
                   progress={progress[docConfig.key] || 0}
                   onFileChange={handleFileChange}
+                  onOpenSecureDocument={handleOpenSecureDocument}
                   externalActive={externalUploadTarget.docKey === docConfig.key}
                   onExternalUpload={(mode) =>
                     setExternalUploadTarget({ docKey: docConfig.key, mode })
@@ -640,14 +657,14 @@ const ProviderEditDetailsScreen = () => {
           <button
             type="button"
             onClick={() => navigate('/provider/documents')}
-            className="min-h-11 rounded-lg border border-slate-200 bg-white px-5 text-sm font-black text-slate-700"
+            className="min-h-11 rounded-lg border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#5A52E3] px-5 text-sm font-black text-white disabled:opacity-60"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#5A52E3] px-5 text-sm font-semibold text-white disabled:opacity-60"
           >
             <FiSave className="h-4 w-4" />
             {saving ? 'Saving...' : 'Save Details'}
@@ -779,7 +796,7 @@ const normalizeDateInput = (value) => {
 
 const Field = ({ label, value, onChange, type = 'text', placeholder = '' }) => (
   <label className="grid gap-1.5">
-    <span className="text-sm font-bold text-slate-700">{label}</span>
+    <span className="text-sm font-medium text-slate-700">{label}</span>
     <input
       type={type}
       value={value}
@@ -795,9 +812,12 @@ const DocumentCard = ({
   docConfig,
   url,
   uploaded,
+  secureUploaded,
+  secureStoragePath,
   isUploading,
   progress,
   onFileChange,
+  onOpenSecureDocument,
   externalActive,
   onExternalUpload,
   externalUploadContent,
@@ -810,9 +830,13 @@ const DocumentCard = ({
     <div className="rounded-lg border border-slate-200 p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 className="font-black text-slate-950">{title}</h3>
+          <h3 className="font-semibold text-slate-950">{title}</h3>
           <p className="mt-1 text-sm font-semibold text-slate-500">
-            {uploaded ? (url ? 'Document uploaded' : 'Secure document uploaded') : 'Document not uploaded'}
+            {uploaded
+              ? url
+                ? 'Document uploaded'
+                : 'Secure document uploaded'
+              : 'Document not uploaded'}
             {isUploading ? ` - ${progress || 0}%` : ''}
           </p>
         </div>
@@ -822,25 +846,40 @@ const DocumentCard = ({
               href={url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               <FiExternalLink className="h-4 w-4" />
               Open
             </a>
           ) : null}
+          {secureUploaded && secureStoragePath ? (
+            <button
+              type="button"
+              onClick={() => onOpenSecureDocument(secureStoragePath)}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
+            >
+              <FiFileText className="h-4 w-4" />
+              View file
+            </button>
+          ) : secureUploaded ? (
+            <span className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-medium text-emerald-700">
+              <FiFileText className="h-4 w-4" />
+              Secure file
+            </span>
+          ) : null}
           <button
             type="button"
             onClick={() => setShowUploadOptions((current) => !current)}
             disabled={isUploading}
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#5A52E3] px-3 text-sm font-bold text-white hover:bg-[#4b44c8] disabled:opacity-60"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#5A52E3] px-3 text-sm font-medium text-white hover:bg-[#4b44c8] disabled:opacity-60"
           >
             <FiUpload className="h-4 w-4" />
-            {isUploading ? 'Uploading...' : url ? 'Replace' : 'Upload'}
+            {isUploading ? 'Uploading...' : uploaded ? 'Replace' : 'Upload'}
           </button>
 
           {showUploadOptions ? (
             <div className="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-              <label className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-bold text-slate-700 hover:bg-slate-50">
+              <label className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-medium text-slate-700 hover:bg-slate-50">
                 This device
                 <input
                   type="file"
@@ -859,7 +898,7 @@ const DocumentCard = ({
                   setShowUploadOptions(false);
                   onExternalUpload('qr');
                 }}
-                className="flex min-h-11 w-full items-center px-4 text-left text-sm font-bold text-slate-700 hover:bg-slate-50"
+                className="flex min-h-11 w-full items-center px-4 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 Using QR
               </button>
@@ -869,7 +908,7 @@ const DocumentCard = ({
                   setShowUploadOptions(false);
                   onExternalUpload('sms');
                 }}
-                className="flex min-h-11 w-full items-center px-4 text-left text-sm font-bold text-slate-700 hover:bg-slate-50"
+                className="flex min-h-11 w-full items-center px-4 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 Using SMS URL
               </button>
@@ -931,20 +970,59 @@ const secureDocumentFieldByKey = {
   verificationVideoUrl: 'verificationVideo',
 };
 
+const secureDocumentFieldsByKey = {
+  passportUrl: ['passport', 'idProof', 'id_proof'],
+  drivingLicenceUrl: ['drivingLicence', 'drivingLicense', 'driving_licence', 'driving_license'],
+  resumeUrl: ['resume', 'resume_cv', 'cv'],
+  certificatesUrl: ['certificates', 'certificate'],
+  verificationVideoUrl: ['verificationVideo', 'verification_video'],
+};
+
+const getSecureDocument = (documents, docKey) => {
+  const candidates = secureDocumentFieldsByKey[docKey] || [];
+
+  for (const field of candidates) {
+    const directDocument = documents?.[field];
+    if (directDocument) return directDocument;
+
+    const nestedDocument = documents?.secureDocuments?.[field];
+    if (nestedDocument) return nestedDocument;
+  }
+
+  return null;
+};
+
+const getSecureDocumentStoragePath = (secureDocument) => {
+  if (!secureDocument) return '';
+
+  if (secureDocument.storagePath) return secureDocument.storagePath;
+  if (Array.isArray(secureDocument.storagePaths) && secureDocument.storagePaths[0]) {
+    return secureDocument.storagePaths[0];
+  }
+  if (Array.isArray(secureDocument.files)) {
+    return secureDocument.files.find((file) => file?.storagePath)?.storagePath || '';
+  }
+
+  return '';
+};
+
 const getDocumentState = (documents, docConfig) => {
   const url = documents?.[docConfig.key] || '';
-  const secureField = secureDocumentFieldByKey[docConfig.key];
-  const secureDocument = secureField ? documents?.[secureField] : null;
+  const secureDocument = getSecureDocument(documents, docConfig.key);
+  const secureStoragePath = getSecureDocumentStoragePath(secureDocument);
   const hasSecureDocument = Boolean(
     secureDocument?.uploadMode === 'secure_v2' ||
-      secureDocument?.documentIds?.length ||
-      secureDocument?.files?.length ||
-      secureDocument?.storagePaths?.length
+    secureDocument?.documentIds?.length ||
+    secureDocument?.files?.length ||
+    secureDocument?.storagePaths?.length ||
+    secureStoragePath
   );
 
   return {
     url: hasSecureDocument ? '' : url,
     uploaded: Boolean(url || hasSecureDocument),
+    secureUploaded: hasSecureDocument,
+    secureStoragePath,
   };
 };
 
@@ -968,7 +1046,7 @@ const DatePartsField = ({ label, day, month, year, fieldPrefix = 'visaExpiry', o
 
   return (
     <div className="grid gap-1.5 sm:col-span-2">
-      <span className="text-sm font-bold text-slate-700">{label}</span>
+      <span className="text-sm font-medium text-slate-700">{label}</span>
       <div className="grid gap-3 sm:grid-cols-3">
         <select
           value={day}
@@ -1015,7 +1093,7 @@ const ChipButton = ({ selected, onClick, children }) => (
   <button
     type="button"
     onClick={onClick}
-    className={`rounded-full border px-4 py-2 text-sm font-bold transition ${
+    className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
       selected
         ? 'border-[#5A52E3] bg-indigo-50 text-[#5A52E3]'
         : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
@@ -1027,7 +1105,7 @@ const ChipButton = ({ selected, onClick, children }) => (
 
 const SelectField = ({ label, value, onChange, options }) => (
   <label className="grid gap-1.5">
-    <span className="text-sm font-bold text-slate-700">{label}</span>
+    <span className="text-sm font-medium text-slate-700">{label}</span>
     <select
       value={value}
       onChange={(event) => onChange(event.target.value)}

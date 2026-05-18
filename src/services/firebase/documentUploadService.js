@@ -1,12 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import { onAuthStateChanged } from 'firebase/auth';
-import {
-  collection,
-  doc,
-  onSnapshot,
-  query,
-  where,
-} from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
 import { auth, firestore, functions as functionsClient } from './firebaseConfig';
 
 const AUTH_READY_TIMEOUT_MS = 6000;
@@ -115,11 +109,7 @@ const normalizeUploadSettingsResponse = (response) => {
  * @param {Object} payload
  * @returns {Promise<Object>}
  */
-const callDocumentUploadFunction = async (
-  name,
-  payload = {},
-  options = {},
-) => {
+const callDocumentUploadFunction = async (name, payload = {}, options = {}) => {
   const { requireAuth = true } = options;
   let authToken = '';
 
@@ -129,19 +119,13 @@ const callDocumentUploadFunction = async (
   }
 
   const callable = httpsCallable(functionsClient, name);
-  const callablePayload = requireAuth
-    ? { ...payload, idToken: authToken }
-    : payload;
+  const callablePayload = requireAuth ? { ...payload, idToken: authToken } : payload;
 
   try {
     const result = await callable(callablePayload);
     return result.data || {};
   } catch (error) {
-    if (
-      requireAuth &&
-      isUnauthenticatedCallableError(error) &&
-      auth.currentUser?.getIdToken
-    ) {
+    if (requireAuth && isUnauthenticatedCallableError(error) && auth.currentUser?.getIdToken) {
       // Retry once with a forced token refresh to recover from stale auth state.
       const refreshedIdToken = await auth.currentUser.getIdToken(true);
       const retryResult = await callable({
@@ -162,9 +146,7 @@ const callDocumentUploadFunction = async (
  * @returns {Promise<Object>}
  */
 export const createUploadSession = (payload) =>
-  callDocumentUploadFunction('createUploadSession', payload).then(
-    normalizeUploadSettingsResponse,
-  );
+  callDocumentUploadFunction('createUploadSession', payload).then(normalizeUploadSettingsResponse);
 
 /**
  * Sends or resends a provider upload session SMS.
@@ -182,11 +164,9 @@ export const sendUploadSessionSms = (payload) =>
  * @returns {Promise<Object>}
  */
 export const validateMobileUploadToken = (token) =>
-  callDocumentUploadFunction(
-    'validateMobileUploadToken',
-    { token },
-    { requireAuth: false },
-  ).then(normalizeUploadSettingsResponse);
+  callDocumentUploadFunction('validateMobileUploadToken', { token }, { requireAuth: false }).then(
+    normalizeUploadSettingsResponse
+  );
 
 /**
  * Gets upload session status.
@@ -221,9 +201,25 @@ export const submitMobileDocuments = (sessionId) =>
  * @returns {Promise<Object>}
  */
 export const getDocumentUploadSettings = () =>
-  callDocumentUploadFunction('getDocumentUploadSettings').then(
-    normalizeUploadSettingsResponse,
-  );
+  callDocumentUploadFunction('getDocumentUploadSettings').then(normalizeUploadSettingsResponse);
+
+/**
+ * Gets the signed secure documents owned by the current provider.
+ *
+ * @param {Object} payload
+ * @returns {Promise<Object>}
+ */
+export const getProviderDocumentsForProvider = (payload = {}) =>
+  callDocumentUploadFunction('getProviderDocumentsForProvider', payload);
+
+/**
+ * Gets a short-lived signed URL for one provider-owned secure document.
+ *
+ * @param {string} storagePath
+ * @returns {Promise<Object>}
+ */
+export const getProviderDocumentDownloadUrl = (storagePath) =>
+  callDocumentUploadFunction('getProviderDocumentDownloadUrl', { storagePath });
 
 /**
  * Subscribes to a specific upload session and its documents.
@@ -234,12 +230,7 @@ export const getDocumentUploadSettings = () =>
  * @param {(error: Error) => void} [onError]
  * @returns {() => void}
  */
-export const subscribeToUploadSessionProgress = (
-  sessionId,
-  providerId,
-  onChange,
-  onError,
-) => {
+export const subscribeToUploadSessionProgress = (sessionId, providerId, onChange, onError) => {
   if (!sessionId || !providerId) {
     return () => {};
   }
@@ -257,18 +248,16 @@ export const subscribeToUploadSessionProgress = (
   const sessionUnsubscribe = onSnapshot(
     doc(firestore, 'providerUploadSessions', sessionId),
     (snapshot) => {
-      latestSession = snapshot.exists()
-        ? { id: snapshot.id, ...snapshot.data() }
-        : null;
+      latestSession = snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
       emit();
     },
-    onError,
+    onError
   );
 
   const documentsQuery = query(
     collection(firestore, 'providerDocuments'),
     where('providerId', '==', providerId),
-    where('uploadSessionId', '==', sessionId),
+    where('uploadSessionId', '==', sessionId)
   );
   const documentsUnsubscribe = onSnapshot(
     documentsQuery,
@@ -279,7 +268,7 @@ export const subscribeToUploadSessionProgress = (
       }));
       emit();
     },
-    onError,
+    onError
   );
 
   return () => {
@@ -303,7 +292,7 @@ export const subscribeToLatestProviderUploadSession = (
   registrationStep,
   onChange,
   onError,
-  options = {},
+  options = {}
 ) => {
   if (!providerId) {
     return () => {};
@@ -314,7 +303,7 @@ export const subscribeToLatestProviderUploadSession = (
   const sessionsQuery = query(
     collection(firestore, 'providerUploadSessions'),
     where('providerId', '==', providerId),
-    where('registrationStep', '==', registrationStep),
+    where('registrationStep', '==', registrationStep)
   );
 
   return onSnapshot(
@@ -335,6 +324,6 @@ export const subscribeToLatestProviderUploadSession = (
 
       onChange(sessions[0] || null);
     },
-    onError,
+    onError
   );
 };

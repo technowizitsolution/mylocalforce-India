@@ -95,7 +95,7 @@ const ProviderContactSupportScreen = () => {
   return (
     <ProviderAppLayout>
       <header className="border-b border-slate-200 pb-6">
-        <h1 className="text-2xl font-black text-slate-950 sm:text-3xl">Contact Support</h1>
+        <h1 className="text-2xl font-semibold text-slate-950 sm:text-3xl">Contact Support</h1>
         <p className="mt-1 text-sm font-semibold text-slate-500">
           Create a support request and continue the conversation here.
         </p>
@@ -107,12 +107,12 @@ const ProviderContactSupportScreen = () => {
       >
         <div className="mb-4 flex items-center gap-2">
           <FiPlus className="h-5 w-5 text-[#5A52E3]" />
-          <h2 className="text-lg font-black text-slate-950">New Request</h2>
+          <h2 className="text-lg font-semibold text-slate-950">New Request</h2>
         </div>
         <div className="grid gap-4">
           <Field label="Subject" value={subject} onChange={setSubject} />
           <label className="grid gap-1.5">
-            <span className="text-sm font-bold text-slate-700">Message</span>
+            <span className="text-sm font-medium text-slate-700">Message</span>
             <textarea
               value={message}
               onChange={(event) => setMessage(event.target.value)}
@@ -124,7 +124,7 @@ const ProviderContactSupportScreen = () => {
         <button
           type="submit"
           disabled={submitting}
-          className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#5A52E3] px-4 text-sm font-black text-white disabled:opacity-60"
+          className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#5A52E3] px-4 text-sm font-semibold text-white disabled:opacity-60"
         >
           <FiSend className="h-4 w-4" />
           {submitting ? 'Sending...' : 'Send Request'}
@@ -132,7 +132,7 @@ const ProviderContactSupportScreen = () => {
       </form>
 
       <section className="mt-8">
-        <h2 className="text-lg font-black text-slate-900">Your Requests</h2>
+        <h2 className="text-lg font-semibold text-slate-900">Your Requests</h2>
         <div className="mt-3 space-y-3">
           {loadingCases ? (
             <div className="rounded-lg border border-slate-200 bg-white p-5 font-semibold text-slate-500 shadow-sm">
@@ -148,12 +148,12 @@ const ProviderContactSupportScreen = () => {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-black text-slate-950">{supportCase.subject}</p>
+                    <p className="font-semibold text-slate-950">{supportCase.subject}</p>
                     <p className="mt-1 text-sm font-semibold text-slate-500">
                       {supportCase.caseId} - {formatDate(supportCase.lastMessageAt)}
                     </p>
                   </div>
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
                     {statusLabel(supportCase.status)}
                   </span>
                 </div>
@@ -165,7 +165,7 @@ const ProviderContactSupportScreen = () => {
           ) : (
             <div className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
               <FiMessageSquare className="mx-auto h-10 w-10 text-slate-300" />
-              <p className="mt-3 font-bold text-slate-800">No support requests yet</p>
+              <p className="mt-3 font-medium text-slate-800">No support requests yet</p>
             </div>
           )}
         </div>
@@ -220,7 +220,7 @@ const SupportChatModal = ({ supportCase, user, requesterName, onClose }) => {
       <div className="flex max-h-[88vh] w-full flex-col rounded-t-2xl bg-white shadow-2xl sm:max-w-2xl sm:rounded-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
           <div>
-            <h2 className="text-xl font-black text-slate-950">{supportCase.subject}</h2>
+            <h2 className="text-xl font-semibold text-slate-950">{supportCase.subject}</h2>
             <p className="mt-1 text-sm font-semibold text-slate-500">{supportCase.caseId}</p>
           </div>
           <button
@@ -270,7 +270,7 @@ const SupportChatModal = ({ supportCase, user, requesterName, onClose }) => {
 
 const Field = ({ label, value, onChange }) => (
   <label className="grid gap-1.5">
-    <span className="text-sm font-bold text-slate-700">{label}</span>
+    <span className="text-sm font-medium text-slate-700">{label}</span>
     <input
       value={value}
       onChange={(event) => onChange(event.target.value)}

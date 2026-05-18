@@ -17,7 +17,7 @@ const InfoCard = ({ title, children, icon: Icon = FiFileText }) => (
     <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
       <Icon className="h-5 w-5" />
     </div>
-    <h2 className="text-sm font-bold text-gray-950">{title}</h2>
+    <h2 className="text-sm font-medium text-gray-950">{title}</h2>
     <div className="mt-2 whitespace-pre-line text-sm leading-6 text-gray-600">
       {children}
     </div>
@@ -66,7 +66,7 @@ const uniqueDisplayItems = (items) => {
 const ReviewStep = ({ number, title, text, active, complete }) => (
   <div className="flex gap-4">
     <div
-      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-medium ${
         complete
           ? 'bg-emerald-600 text-white'
           : active
@@ -77,7 +77,7 @@ const ReviewStep = ({ number, title, text, active, complete }) => (
       {complete ? <FiCheckCircle className="h-4 w-4" /> : number}
     </div>
     <div>
-      <h3 className="text-sm font-bold text-gray-950">{title}</h3>
+      <h3 className="text-sm font-medium text-gray-950">{title}</h3>
       <p className="mt-1 text-sm leading-6 text-gray-600">{text}</p>
     </div>
   </div>
@@ -190,15 +190,15 @@ const ProviderUnderReviewScreen = () => {
                 />
               </div>
               <div>
-                <p className="text-sm font-bold">My Local Force</p>
+                <p className="text-sm font-medium">My Local Force</p>
               </div>
             </div>
 
             <div className="max-w-md py-10 lg:py-0">
-              <p className="text-sm font-bold uppercase tracking-wide text-blue-100">
+              <p className="text-sm font-medium uppercase tracking-wide text-blue-100">
                 Provider application
               </p>
-              <h1 className="mt-3 text-4xl font-bold leading-tight sm:text-5xl">
+              <h1 className="mt-3 text-4xl font-medium leading-tight sm:text-5xl">
                 {isRejected
                   ? 'A few updates are needed.'
                   : 'Your profile is being reviewed.'}
@@ -213,7 +213,7 @@ const ProviderUnderReviewScreen = () => {
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg border border-white/25 bg-white/15 p-4 backdrop-blur">
                 <FiShield className="mb-3 h-5 w-5 text-blue-100" />
-                <p className="text-sm font-bold">Secure review</p>
+                <p className="text-sm font-medium">Secure review</p>
                 <p className="mt-1 text-xs text-white/65">
                   Admin verification
                 </p>
@@ -224,7 +224,7 @@ const ProviderUnderReviewScreen = () => {
                 ) : (
                   <FiClock className="mb-3 h-5 w-5 text-blue-100" />
                 )}
-                <p className="text-sm font-bold">
+                <p className="text-sm font-medium">
                   {isRejected ? 'Action needed' : 'Pending review'}
                 </p>
                 <p className="mt-1 text-xs text-white/65">
@@ -267,13 +267,13 @@ const ProviderUnderReviewScreen = () => {
                   </div>
 
                   <p
-                    className={`text-sm font-bold uppercase tracking-wide ${
+                    className={`text-sm font-medium uppercase tracking-wide ${
                       isRejected ? 'text-red-600' : 'text-blue-600'
                     }`}
                   >
                     {isRejected ? 'Action required' : 'Application submitted'}
                   </p>
-                  <h1 className="mt-3 text-3xl font-bold leading-tight text-gray-950 sm:text-4xl">
+                  <h1 className="mt-3 text-3xl font-medium leading-tight text-gray-950 sm:text-4xl">
                     {pageTitle}
                   </h1>
                   <p className="mt-3 max-w-2xl text-base leading-7 text-gray-700">
@@ -310,7 +310,7 @@ const ProviderUnderReviewScreen = () => {
                 {!isRejected && (
                   <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_0.9fr]">
                     <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
-                      <h2 className="text-lg font-bold text-gray-950">
+                      <h2 className="text-lg font-medium text-gray-950">
                         Review progress
                       </h2>
                       <div className="mt-5 space-y-5">

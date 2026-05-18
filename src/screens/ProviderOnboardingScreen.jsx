@@ -358,7 +358,7 @@ const ChoiceCard = ({ selected, title, caption, onClick, children, className = '
   >
     <div className="flex items-start justify-between gap-3">
       <div>
-        <p className="text-sm font-bold">{title}</p>
+        <p className="text-sm font-medium">{title}</p>
         {caption && <p className="mt-1 text-xs opacity-75">{caption}</p>}
       </div>
       <span
@@ -395,12 +395,12 @@ const UploadField = ({
         <Icon className="w-5 h-5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-bold text-gray-900">{actionLabel}</span>
+        <span className="block text-sm font-medium text-gray-900">{actionLabel}</span>
         <span className="block text-xs text-gray-500 mt-1">
           {helperText || 'Select a file from your device'}
         </span>
       </span>
-      <span className="hidden sm:inline-flex rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white">
+      <span className="hidden sm:inline-flex rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white">
         Browse
       </span>
       <input type="file" className="hidden" accept={accept} onChange={onChange} capture={capture} />
@@ -465,7 +465,7 @@ const StepIndicator = ({ currentStep }) => {
               </div>
               <div className="mt-2 min-w-0">
                 <p
-                  className={`text-[11px] font-bold ${
+                  className={`text-[11px] font-medium ${
                     isActive ? 'text-blue-600' : 'text-gray-400'
                   }`}
                 >
@@ -1405,8 +1405,8 @@ const ProviderOnboardingScreen = () => {
 
       <section>
         <div className="flex items-center justify-between gap-4 mb-3">
-          <h3 className="text-base font-bold text-gray-950">Services Offered</h3>
-          <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-600">
+          <h3 className="text-base font-medium text-gray-950">Services Offered</h3>
+          <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
             {categorySummary}
           </span>
         </div>
@@ -1627,7 +1627,7 @@ const ProviderOnboardingScreen = () => {
   const renderNotificationsStep = () => (
     <div className="space-y-6">
       <section>
-        <h2 className="text-lg font-bold text-gray-900 mb-2">Notification Preferences</h2>
+        <h2 className="text-lg font-medium text-gray-900 mb-2">Notification Preferences</h2>
         <p className="text-sm text-gray-500 mb-4">
           Choose how you&apos;d like to receive booking notifications.
         </p>
@@ -1716,13 +1716,13 @@ const ProviderOnboardingScreen = () => {
         <section className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-lg font-bold text-gray-950">Documents for review</h2>
+              <h2 className="text-lg font-medium text-gray-950">Documents for review</h2>
               <p className="mt-1 text-sm leading-6 text-gray-600">
                 Add at least one identity proof, then upload the requested files in one secure
                 checklist.
               </p>
             </div>
-            <span className="inline-flex w-fit rounded-full bg-white px-3 py-1 text-xs font-bold text-blue-700">
+            <span className="inline-flex w-fit rounded-full bg-white px-3 py-1 text-xs font-medium text-blue-700">
               One upload flow
             </span>
           </div>
@@ -1730,8 +1730,8 @@ const ProviderOnboardingScreen = () => {
 
         <section className="space-y-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Step 1</p>
-            <h3 className="mt-1 text-base font-bold text-gray-950">Identity details</h3>
+            <p className="text-xs font-medium uppercase tracking-[0.14em] text-blue-600">Step 1</p>
+            <h3 className="mt-1 text-base font-medium text-gray-950">Identity details</h3>
             <p className="mt-1 text-sm leading-6 text-gray-500">
               Choose passport, driving licence, or both. At least one ID proof is required.
             </p>
@@ -1755,7 +1755,7 @@ const ProviderOnboardingScreen = () => {
                     <FiFileText className="h-5 w-5" />
                   </span>
                   <span>
-                    <span className="block text-sm font-bold text-gray-950">Passport</span>
+                    <span className="block text-sm font-medium text-gray-950">Passport</span>
                     <span className="mt-1 block text-xs text-gray-500">
                       Use your passport for identity verification.
                     </span>
@@ -1928,7 +1928,7 @@ const ProviderOnboardingScreen = () => {
                     <FiCreditCard className="h-5 w-5" />
                   </span>
                   <span>
-                    <span className="block text-sm font-bold text-gray-950">Driving Licence</span>
+                    <span className="block text-sm font-medium text-gray-950">Driving Licence</span>
                     <span className="mt-1 block text-xs text-gray-500">
                       Use your licence for identity verification.
                     </span>
@@ -2120,8 +2120,8 @@ const ProviderOnboardingScreen = () => {
 
         <section className="space-y-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Step 2</p>
-            <h3 className="mt-1 text-base font-bold text-gray-950">Upload files</h3>
+            <p className="text-xs font-medium uppercase tracking-[0.14em] text-blue-600">Step 2</p>
+            <h3 className="mt-1 text-base font-medium text-gray-950">Upload files</h3>
             <p className="mt-1 text-sm leading-6 text-gray-500">
               Use one method below. The checklist shows each file the review team needs.
             </p>
@@ -2143,7 +2143,7 @@ const ProviderOnboardingScreen = () => {
         {showDirectUploadFallback && (
           <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 sm:p-5">
             <div className="mb-4">
-              <h3 className="text-base font-bold text-gray-950">Direct file upload</h3>
+              <h3 className="text-base font-medium text-gray-950">Direct file upload</h3>
               <p className="mt-1 text-sm text-gray-500">
                 Secure upload is unavailable, so attach these files from this device.
               </p>
@@ -2290,14 +2290,14 @@ const ProviderOnboardingScreen = () => {
                   />
                 </div>
                 <div>
-                  <p className="text-sm font-bold">My Local Force</p>
+                  <p className="text-sm font-medium">My Local Force</p>
                 </div>
               </div>
             </div>
 
             <div className="max-w-md py-10 lg:py-0">
               <p className="text-sm font-semibold text-blue-100">Provider Setup</p>
-              <h1 className="mt-3 text-4xl font-bold leading-tight sm:text-5xl">
+              <h1 className="mt-3 text-4xl font-medium leading-tight sm:text-5xl">
                 Complete your profile for review.
               </h1>
               <p className="mt-4 text-base leading-7 text-white/78">
@@ -2309,12 +2309,12 @@ const ProviderOnboardingScreen = () => {
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg border border-white/25 bg-white/15 p-4 backdrop-blur">
                 <FiShield className="mb-3 h-5 w-5 text-blue-100" />
-                <p className="text-sm font-bold">Secure review</p>
+                <p className="text-sm font-medium">Secure review</p>
                 <p className="mt-1 text-xs text-white/65">Submitted to admin</p>
               </div>
               <div className="rounded-lg border border-white/25 bg-white/15 p-4 backdrop-blur">
                 <CurrentStepIcon className="mb-3 h-5 w-5 text-blue-100" />
-                <p className="text-sm font-bold">
+                <p className="text-sm font-medium">
                   Step {currentStep} of {steps.length}
                 </p>
                 <p className="mt-1 truncate text-xs text-white/65">{currentStepMeta.title}</p>
@@ -2339,7 +2339,7 @@ const ProviderOnboardingScreen = () => {
             <div className="flex-1 py-9 sm:py-12 lg:py-16">
               <div className="max-w-3xl">
                 <p className="text-sm font-semibold text-blue-600">Provider onboarding</p>
-                <h2 className="mt-3 text-3xl font-bold leading-tight text-gray-950 sm:text-4xl">
+                <h2 className="mt-3 text-3xl font-medium leading-tight text-gray-950 sm:text-4xl">
                   {currentStepMeta.title}
                 </h2>
                 <p className="mt-3 text-base leading-7 text-gray-600">

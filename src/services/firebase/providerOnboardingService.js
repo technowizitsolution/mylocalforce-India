@@ -13,7 +13,11 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
-import { submitMobileDocuments as submitSecureMobileDocuments } from './documentUploadService';
+import {
+  getProviderDocumentDownloadUrl,
+  getProviderDocumentsForProvider,
+  submitMobileDocuments as submitSecureMobileDocuments,
+} from './documentUploadService';
 
 // Toggle to skip attempting to disable services from the client (useful while developing)
 // Set to true to skip calling the server callable and avoid permission errors.
@@ -53,6 +57,43 @@ const SECURE_DOCUMENT_FIELD_KEYS = {
   verification_video: 'verificationVideo',
 };
 
+const SECURE_DOCUMENT_URL_KEYS = {
+  passport: 'passportUrl',
+  driving_licence: 'drivingLicenceUrl',
+  driving_license: 'drivingLicenceUrl',
+  drivingLicence: 'drivingLicenceUrl',
+  resume_cv: 'resumeUrl',
+  resume: 'resumeUrl',
+  certificates: 'certificatesUrl',
+  verification_video: 'verificationVideoUrl',
+};
+
+const normalizeSecureDocumentType = (value) => {
+  const normalized = String(value || '')
+    .trim()
+    .replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+    .replace(/[\s-]+/g, '_')
+    .toLowerCase()
+    .replace(/__+/g, '_');
+  const compact = normalized.replace(/_/g, '');
+
+  if (compact === 'drivinglicence' || compact === 'drivinglicense') return 'driving_licence';
+  if (compact === 'resumecv' || compact === 'cv') return 'resume_cv';
+  if (compact === 'verificationvideo') return 'verification_video';
+  if (compact === 'idproof') return 'passport';
+
+  return normalized;
+};
+
+const documentMillis = (value) => {
+  if (!value) return 0;
+  if (typeof value === 'number') return value;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.seconds === 'number') return value.seconds * 1000;
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
 const timestampToMillis = (value) => {
   if (!value) return null;
   if (typeof value === 'number') return value;
@@ -71,6 +112,8 @@ const toSecureDocumentSummary = (documentItem) => ({
   mimeType: documentItem.mimeType || '',
   sizeBytes: documentItem.sizeBytes || 0,
   storagePath: documentItem.storagePath || '',
+  signedUrl: documentItem.signedUrl || '',
+  signedUrlExpiresAt: documentItem.signedUrlExpiresAt || null,
   source: documentItem.source || 'mobile',
   uploadedAt: timestampToMillis(documentItem.uploadedAt),
   updatedAt: timestampToMillis(documentItem.updatedAt),
@@ -86,8 +129,8 @@ const buildSecureOnboardingDocuments = (documents = [], sessionId = '') => {
       return;
     }
 
-    const fieldKey =
-      SECURE_DOCUMENT_FIELD_KEYS[documentItem.documentType] || documentItem.documentType;
+    const normalizedType = normalizeSecureDocumentType(documentItem.documentType);
+    const fieldKey = SECURE_DOCUMENT_FIELD_KEYS[normalizedType] || documentItem.documentType;
     const summary = toSecureDocumentSummary(documentItem);
 
     if (!secureDocuments[fieldKey]) {
@@ -125,7 +168,72 @@ const buildSecureOnboardingDocuments = (documents = [], sessionId = '') => {
   };
 };
 
+const mergeSignedSecureDocuments = (providerDetails = {}, secureDocuments = []) => {
+  if (!secureDocuments.length) return providerDetails;
+
+  const latestByType = new Map();
+  secureDocuments
+    .filter((documentItem) =>
+      ['uploaded', 'submitted', 'approved', 'pending_review'].includes(
+        String(documentItem.status || documentItem.reviewStatus || '').toLowerCase()
+      )
+    )
+    .forEach((documentItem) => {
+      const type = normalizeSecureDocumentType(documentItem.documentType);
+      const existing = latestByType.get(type);
+      const documentTime =
+        documentMillis(documentItem.updatedAt) ||
+        documentMillis(documentItem.uploadedAt) ||
+        documentMillis(documentItem.reviewedAt);
+      const existingTime =
+        documentMillis(existing?.updatedAt) ||
+        documentMillis(existing?.uploadedAt) ||
+        documentMillis(existing?.reviewedAt);
+
+      if (!existing || documentTime >= existingTime) {
+        latestByType.set(type, documentItem);
+      }
+    });
+
+  if (!latestByType.size) return providerDetails;
+
+  const signedUrlDocuments = {};
+  latestByType.forEach((documentItem, type) => {
+    const urlKey = SECURE_DOCUMENT_URL_KEYS[type];
+    if (urlKey && documentItem.signedUrl) {
+      signedUrlDocuments[urlKey] = documentItem.signedUrl;
+    }
+  });
+
+  const secureReferences = buildSecureOnboardingDocuments(
+    Array.from(latestByType.values()),
+    providerDetails.latestDocumentUploadSessionId || providerDetails.secureUploadSessionId || ''
+  );
+
+  return {
+    ...providerDetails,
+    documents: {
+      ...(providerDetails.documents || {}),
+      ...signedUrlDocuments,
+      ...secureReferences,
+    },
+  };
+};
+
 const fetchSecureProviderDocuments = async (userId, sessionId) => {
+  try {
+    const result = await getProviderDocumentsForProvider({
+      providerId: userId,
+      ...(sessionId ? { uploadSessionId: sessionId } : {}),
+    });
+
+    if (Array.isArray(result.documents)) {
+      return result.documents;
+    }
+  } catch (error) {
+    console.warn('Could not load signed secure provider documents:', error?.message || error);
+  }
+
   const documentsSnapshot = await getDocs(
     query(
       collection(firestore, 'providerDocuments'),
@@ -488,7 +596,28 @@ export const fetchProviderDetails = async (userId) => {
     if (detailsSnap.exists()) {
       const data = detailsSnap.data();
       console.log('fetchProviderDetails - Document data:', JSON.stringify(data, null, 2));
-      return { id: detailsSnap.id, ...data };
+      const userSnap = await getDoc(doc(firestore, 'users', userId)).catch(() => null);
+      const topLevelData = userSnap?.exists?.() ? userSnap.data() || {} : {};
+      const topLevelOnboarding = topLevelData.provider_onboarding || {};
+      const mergedDetails = {
+        ...topLevelData,
+        ...topLevelOnboarding,
+        ...data,
+        documents: {
+          ...(topLevelData.documents || {}),
+          ...(topLevelOnboarding.documents || {}),
+          ...(data.documents || {}),
+        },
+        latestDocumentUploadSessionId:
+          data.latestDocumentUploadSessionId ||
+          topLevelOnboarding.latestDocumentUploadSessionId ||
+          topLevelData.latestDocumentUploadSessionId ||
+          '',
+        secureUploadSessionId:
+          data.secureUploadSessionId || topLevelOnboarding.secureUploadSessionId || '',
+      };
+      const secureDocuments = await fetchSecureProviderDocuments(userId, '');
+      return mergeSignedSecureDocuments({ id: detailsSnap.id, ...mergedDetails }, secureDocuments);
     }
 
     console.log('fetchProviderDetails - No document found, returning null');
@@ -705,6 +834,27 @@ export const deleteProviderDocument = async (documentUrl) => {
     }
     // Don't throw error for delete operations - continue with upload
   }
+};
+
+/**
+ * Resolve a secure provider document Storage path into a user-viewable URL.
+ * Storage rules restrict access to the owning provider.
+ *
+ * @param {string} storagePath
+ * @returns {Promise<string>}
+ */
+export const getProviderDocumentViewUrl = async (storagePath) => {
+  if (!storagePath) {
+    throw new Error('Document file path is missing.');
+  }
+
+  const result = await getProviderDocumentDownloadUrl(storagePath);
+
+  if (!result?.signedUrl) {
+    throw new Error('Could not create secure document view link.');
+  }
+
+  return result.signedUrl;
 };
 
 /**

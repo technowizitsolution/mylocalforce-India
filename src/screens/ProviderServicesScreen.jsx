@@ -233,7 +233,7 @@ const ProviderServicesScreen = () => {
         <button
           type="button"
           onClick={openCatalog}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#5A52E3] px-4 text-sm font-black text-white shadow-sm hover:bg-[#4b44c8]"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#5A52E3] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#4b44c8]"
         >
           <FiPlus className="h-4 w-4" />
           Add Service
@@ -253,7 +253,7 @@ const ProviderServicesScreen = () => {
         <select
           value={selectedSort}
           onChange={(event) => setSelectedSort(event.target.value)}
-          className="min-h-11 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700 outline-none"
+          className="min-h-11 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-700 outline-none"
         >
           {sortOptions.map((option) => (
             <option key={option.id} value={option.id}>
@@ -269,7 +269,7 @@ const ProviderServicesScreen = () => {
             key={status}
             type="button"
             onClick={() => setSelectedStatus(status)}
-            className={`min-h-10 whitespace-nowrap rounded-full px-4 text-sm font-black ${
+            className={`min-h-10 whitespace-nowrap rounded-full px-4 text-sm font-semibold ${
               selectedStatus === status
                 ? 'bg-[#5A52E3] text-white'
                 : 'border border-slate-200 bg-white text-slate-600'
@@ -375,15 +375,15 @@ const toNumber = (value) => Number.parseFloat(value) || 0;
 
 const ProviderPageTitle = ({ title, subtitle }) => (
   <div>
-    <h1 className="text-2xl font-black text-slate-950 sm:text-3xl">{title}</h1>
+    <h1 className="text-2xl font-semibold text-slate-950 sm:text-3xl">{title}</h1>
     <p className="mt-1 text-sm font-semibold text-slate-500">{subtitle}</p>
   </div>
 );
 
 const SummaryItem = ({ value, label }) => (
   <div className="p-4 text-center">
-    <p className="text-xl font-black text-[#5A52E3] sm:text-2xl">{value}</p>
-    <p className="mt-1 text-xs font-bold text-slate-500 sm:text-sm">{label}</p>
+    <p className="text-xl font-semibold text-[#5A52E3] sm:text-2xl">{value}</p>
+    <p className="mt-1 text-xs font-medium text-slate-500 sm:text-sm">{label}</p>
   </div>
 );
 
@@ -404,18 +404,18 @@ const ServiceCard = ({ service, processing, onRemove }) => (
       <div className="min-w-0 flex-1">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <span className="inline-flex w-fit items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">
+            <span className="inline-flex w-fit items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
               <FiCheck className="h-3 w-3" />
               {(service.status || 'active').toUpperCase()}
             </span>
-            <h2 className="mt-2 text-lg font-black text-slate-950">
+            <h2 className="mt-2 text-lg font-semibold text-slate-950">
               {service.name || service.title || 'Service'}
             </h2>
             <p className="mt-1 text-sm font-semibold text-slate-500">
               {service.description || service.category || 'No description available'}
             </p>
           </div>
-          <p className="text-xl font-black text-[#5A52E3]">${service.price || 0}</p>
+          <p className="text-xl font-semibold text-[#5A52E3]">${service.price || 0}</p>
         </div>
         <div className="mt-4 flex flex-wrap gap-4 text-sm font-semibold text-slate-500">
           <span className="inline-flex items-center gap-1.5">
@@ -436,7 +436,7 @@ const ServiceCard = ({ service, processing, onRemove }) => (
             type="button"
             onClick={onRemove}
             disabled={processing}
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 text-sm font-black text-rose-600 disabled:opacity-60"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-600 disabled:opacity-60"
           >
             <FiTrash2 className="h-4 w-4" />
             {processing ? 'Removing...' : 'Remove'}
@@ -461,7 +461,7 @@ const CatalogModal = ({
     <div className="flex max-h-[90vh] w-full flex-col rounded-t-2xl bg-white shadow-2xl sm:max-w-3xl sm:rounded-2xl">
       <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
         <div>
-          <h2 className="text-xl font-black text-slate-950">Catalog Services</h2>
+          <h2 className="text-xl font-semibold text-slate-950">Catalog Services</h2>
           <p className="mt-1 text-sm font-semibold text-slate-500">
             Add or remove services from the platform catalog.
           </p>
@@ -523,18 +523,18 @@ const CatalogCard = ({ service, processing, onAdd, onRemove }) => (
       </div>
     )}
     <div className="min-w-0 flex-1">
-      <p className="font-black text-slate-950">{service.name || service.title || 'Service'}</p>
+      <p className="font-semibold text-slate-950">{service.name || service.title || 'Service'}</p>
       <p className="mt-1 text-sm font-semibold text-slate-500">
         {service.category || 'General'} - {service.duration || service.estimatedDuration || 'TBD'}
       </p>
-      <p className="mt-1 font-black text-[#5A52E3]">${service.price || 0}</p>
+      <p className="mt-1 font-semibold text-[#5A52E3]">${service.price || 0}</p>
     </div>
     {service.added ? (
       <button
         type="button"
         onClick={onRemove}
         disabled={processing}
-        className="inline-flex min-h-10 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-black text-rose-600 disabled:opacity-60"
+        className="inline-flex min-h-10 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-600 disabled:opacity-60"
       >
         {processing ? 'Removing...' : 'Remove'}
       </button>
@@ -543,7 +543,7 @@ const CatalogCard = ({ service, processing, onAdd, onRemove }) => (
         type="button"
         onClick={onAdd}
         disabled={processing}
-        className="inline-flex min-h-10 items-center justify-center rounded-lg border border-indigo-200 bg-white px-4 text-sm font-black text-[#5A52E3] disabled:opacity-60"
+        className="inline-flex min-h-10 items-center justify-center rounded-lg border border-indigo-200 bg-white px-4 text-sm font-semibold text-[#5A52E3] disabled:opacity-60"
       >
         {processing ? 'Adding...' : 'Add'}
       </button>
@@ -553,13 +553,13 @@ const CatalogCard = ({ service, processing, onAdd, onRemove }) => (
 
 const EmptyState = ({ title, message, actionLabel, onAction }) => (
   <div className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
-    <p className="font-bold text-slate-800">{title}</p>
+    <p className="font-medium text-slate-800">{title}</p>
     <p className="mt-1 text-sm text-slate-500">{message}</p>
     {actionLabel ? (
       <button
         type="button"
         onClick={onAction}
-        className="mt-4 rounded-lg bg-[#5A52E3] px-4 py-2 text-sm font-black text-white"
+        className="mt-4 rounded-lg bg-[#5A52E3] px-4 py-2 text-sm font-semibold text-white"
       >
         {actionLabel}
       </button>

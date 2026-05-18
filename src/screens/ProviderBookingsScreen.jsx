@@ -84,14 +84,14 @@ const ProviderBookingsScreen = () => {
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-black text-slate-950">
+                  <h2 className="text-lg font-semibold text-slate-950">
                     {booking.customerName || 'Customer'}
                   </h2>
                   <p className="mt-1 text-sm font-semibold text-slate-500">
                     {booking.serviceName || 'Service'}
                   </p>
                 </div>
-                <span className="w-fit rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+                <span className="w-fit rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
                   {statusLabels[booking.status] || booking.status || 'Upcoming'}
                 </span>
               </div>
@@ -129,21 +129,21 @@ const ProviderBookingsScreen = () => {
 
 const ProviderPageTitle = ({ title, subtitle }) => (
   <header className="border-b border-slate-200 pb-6">
-    <h1 className="text-2xl font-black text-slate-950 sm:text-3xl">{title}</h1>
+    <h1 className="text-2xl font-semibold text-slate-950 sm:text-3xl">{title}</h1>
     <p className="mt-1 text-sm font-semibold text-slate-500">{subtitle}</p>
   </header>
 );
 
 const Stat = ({ value, label }) => (
   <div className="rounded-lg border border-slate-200 bg-white p-4 text-center shadow-sm">
-    <p className="text-2xl font-black text-[#5A52E3]">{value}</p>
+    <p className="text-2xl font-semibold text-[#5A52E3]">{value}</p>
     <p className="mt-1 text-sm font-semibold text-slate-500">{label}</p>
   </div>
 );
 
 const EmptyState = ({ title, message }) => (
   <div className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
-    <p className="font-bold text-slate-800">{title}</p>
+    <p className="font-medium text-slate-800">{title}</p>
     <p className="mt-1 text-sm text-slate-500">{message}</p>
   </div>
 );

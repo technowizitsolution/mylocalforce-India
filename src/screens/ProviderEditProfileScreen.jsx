@@ -208,7 +208,7 @@ const ProviderEditProfileScreen = () => {
   return (
     <ProviderAppLayout>
       <header className="border-b border-slate-200 pb-6">
-        <h1 className="text-2xl font-black text-slate-950 sm:text-3xl">Edit Profile</h1>
+        <h1 className="text-2xl font-semibold text-slate-950 sm:text-3xl">Edit Profile</h1>
         <p className="mt-1 text-sm font-semibold text-slate-500">
           Update your business profile information.
         </p>
@@ -267,7 +267,7 @@ const ProviderEditProfileScreen = () => {
             onSelect={handleSelectAddress}
           />
           <label className="grid gap-1.5 sm:col-span-2">
-            <span className="text-sm font-bold text-slate-700">About</span>
+            <span className="text-sm font-medium text-slate-700">About</span>
             <textarea
               value={form.about}
               onChange={(event) => updateField('about', event.target.value)}
@@ -280,7 +280,7 @@ const ProviderEditProfileScreen = () => {
           <button
             type="submit"
             disabled={saving}
-            className="rounded-lg bg-[#5A52E3] px-5 py-2.5 font-black text-white disabled:opacity-60"
+            className="rounded-lg bg-[#5A52E3] px-5 py-2.5 font-semibold text-white disabled:opacity-60"
           >
             {saving ? 'Saving...' : 'Save Profile'}
           </button>
@@ -301,7 +301,7 @@ const normalizeDateInput = (value) => {
 
 const Field = ({ label, value, onChange, type = 'text', placeholder = '' }) => (
   <label className="grid gap-1.5">
-    <span className="text-sm font-bold text-slate-700">{label}</span>
+    <span className="text-sm font-medium text-slate-700">{label}</span>
     <input
       type={type}
       value={value}
@@ -314,7 +314,7 @@ const Field = ({ label, value, onChange, type = 'text', placeholder = '' }) => (
 
 const AddressAutocompleteField = ({ value, loading, suggestions, onChange, onSelect }) => (
   <label className="relative grid gap-1.5 sm:col-span-2">
-    <span className="text-sm font-bold text-slate-700">Address</span>
+    <span className="text-sm font-medium text-slate-700">Address</span>
     <div className="relative">
       <FiMapPin className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
       <input
@@ -349,7 +349,7 @@ const AddressAutocompleteField = ({ value, loading, suggestions, onChange, onSel
 
 const SelectField = ({ label, value, onChange, options }) => (
   <label className="grid gap-1.5">
-    <span className="text-sm font-bold text-slate-700">{label}</span>
+    <span className="text-sm font-medium text-slate-700">{label}</span>
     <select
       value={value}
       onChange={(event) => onChange(event.target.value)}

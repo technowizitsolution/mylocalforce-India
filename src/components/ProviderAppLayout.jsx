@@ -45,8 +45,9 @@ const ProviderAppLayout = ({ children }) => {
   const { user, userRoles, activeRole } = useAuth();
 
   const isProviderHomeRoute = location.pathname === '/provider/home';
+  const isProviderPrimaryRoute = providerTabs.some((item) => item.path === location.pathname);
   const isProviderDetailRoute =
-    location.pathname.startsWith('/provider/') && !isProviderHomeRoute;
+    location.pathname.startsWith('/provider/') && !isProviderPrimaryRoute;
   const mobileDetailTitle = providerDetailTitles[location.pathname] || 'Provider';
   const roles = userRoles?.roles || user?.roles || {};
   const homePath =
@@ -96,7 +97,7 @@ const ProviderAppLayout = ({ children }) => {
     <div className="min-h-screen overflow-x-hidden bg-[#F8FAFC] text-slate-900">
       <ProviderNavbar onSwitchRole={handleSwitchRole} />
 
-      {isProviderHomeRoute ? (
+      {isProviderPrimaryRoute ? (
         <ProviderMobileHeader
           variant="home"
           onSwitchRole={handleSwitchRole}
@@ -115,13 +116,13 @@ const ProviderAppLayout = ({ children }) => {
 
       <main
         className={`mx-auto min-w-0 w-full max-w-6xl px-4 pt-4 sm:px-6 lg:px-8 lg:pt-8 ${
-          isProviderHomeRoute ? 'pb-24 lg:pb-10' : 'pb-10'
+          isProviderPrimaryRoute ? 'pb-24 lg:pb-10' : 'pb-10'
         }`}
       >
         {children}
       </main>
 
-      {isProviderHomeRoute ? <ProviderMobileTabBar homePath={homePath} /> : null}
+      {isProviderPrimaryRoute ? <ProviderMobileTabBar homePath={homePath} /> : null}
     </div>
   );
 };
@@ -138,7 +139,7 @@ const ProviderNavbar = ({ onSwitchRole }) => {
             alt="My Local Force"
             className="h-10 w-10 shrink-0 rounded object-cover lg:h-12 lg:w-12"
           />
-          <span className="truncate text-sm font-extrabold text-slate-950 sm:text-base lg:text-xl">
+          <span className="truncate text-sm font-semibold text-slate-950 sm:text-base lg:text-xl">
             MY LOCAL FORCE
           </span>
         </NavLink>
@@ -165,7 +166,7 @@ const ProviderNavbar = ({ onSwitchRole }) => {
           <button
             type="button"
             onClick={onSwitchRole}
-            className="hidden h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-[#5A52E3] shadow-sm transition-colors hover:border-[#6C63FF]/40 hover:bg-indigo-50 sm:inline-flex"
+            className="hidden h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-[#5A52E3] shadow-sm transition-colors hover:border-[#6C63FF]/40 hover:bg-indigo-50 sm:inline-flex"
           >
             <FiRefreshCw className="h-4 w-4" />
             Switch
@@ -201,7 +202,7 @@ const ProviderMobileHeader = ({ variant, title, onBack, onSwitchRole, onNotifica
           <button
             type="button"
             onClick={onSwitchRole}
-            className="inline-flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-sm font-bold text-[#5A52E3] shadow-sm transition-colors hover:border-[#6C63FF]/40 hover:bg-indigo-50"
+            className="inline-flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-sm font-medium text-[#5A52E3] shadow-sm transition-colors hover:border-[#6C63FF]/40 hover:bg-indigo-50"
           >
             <FiBriefcase className="h-4 w-4" />
             <span>Provider</span>
@@ -236,7 +237,7 @@ const ProviderMobileHeader = ({ variant, title, onBack, onSwitchRole, onNotifica
           <p className="truncate text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
             Provider
           </p>
-          <h1 className="truncate text-base font-black text-slate-950">{title}</h1>
+          <h1 className="truncate text-base font-semibold text-slate-950">{title}</h1>
         </div>
 
         <NotificationBell

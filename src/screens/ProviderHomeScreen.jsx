@@ -370,7 +370,7 @@ const ProviderHomeScreen = () => {
     <ProviderAppLayout>
       <header className="border-b border-slate-200 bg-[#F8FAFC] pb-6">
         <div>
-          <h1 className="text-2xl font-black text-slate-950 sm:text-3xl">
+          <h1 className="text-2xl font-semibold text-slate-950 sm:text-3xl">
             {providerName}
             {refreshing ? (
               <span className="text-base font-semibold text-slate-400"> Refreshing...</span>
@@ -385,7 +385,7 @@ const ProviderHomeScreen = () => {
           onClick={() => navigate('/provider/onboarding')}
           className="mt-5 w-full rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-left text-amber-900"
         >
-          <p className="font-bold">Important: VISA status requires your attention</p>
+          <p className="font-medium">Important: VISA status requires your attention</p>
           <p className="mt-1 text-sm">
             Tap to update your VISA details and submit for admin approval.
           </p>
@@ -393,7 +393,7 @@ const ProviderHomeScreen = () => {
       ) : null}
 
       <section className="mt-7">
-        <h2 className="text-lg font-black text-slate-900">Overview</h2>
+        <h2 className="text-lg font-semibold text-slate-900">Overview</h2>
         <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard value={stats.totalServices} label="Services" Icon={FiBriefcase} />
           <StatCard value={stats.activeBookings} label="Active Bookings" Icon={FiCalendar} />
@@ -413,11 +413,11 @@ const ProviderHomeScreen = () => {
 
       <section className="mt-8">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-lg font-black text-slate-900">Recent Bookings</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Recent Bookings</h2>
           <button
             type="button"
             onClick={() => notify.info('Provider bookings page is not available on web yet.')}
-            className="text-sm font-bold text-[#5A52E3] hover:text-[#4b44c8]"
+            className="text-sm font-medium text-[#5A52E3] hover:text-[#4b44c8]"
           >
             See All
           </button>
@@ -436,7 +436,7 @@ const ProviderHomeScreen = () => {
             ))
           ) : (
             <div className="rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm">
-              <p className="font-bold text-slate-800">No active bookings yet</p>
+              <p className="font-medium text-slate-800">No active bookings yet</p>
               <p className="mt-1 text-sm text-slate-500">
                 New customer bookings will appear here when they are assigned to you.
               </p>
@@ -446,7 +446,7 @@ const ProviderHomeScreen = () => {
       </section>
 
       <section className="mt-8">
-        <h2 className="text-lg font-black text-slate-900">This Week</h2>
+        <h2 className="text-lg font-semibold text-slate-900">This Week</h2>
         <div className="mt-3 grid grid-cols-1 divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white shadow-sm sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           <PerformanceItem value={weeklyStats.newBookings} label="New Bookings" />
           <PerformanceItem value={`${weeklyStats.completionRate}%`} label="Completion Rate" />
@@ -464,7 +464,7 @@ const ProviderHomeScreen = () => {
 const StatCard = ({ value, label, Icon, star = false }) => (
   <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
     <div className="flex items-center justify-between gap-3">
-      <p className="text-2xl font-black text-[#5A52E3] sm:text-3xl">
+      <p className="text-2xl font-semibold text-[#5A52E3] sm:text-3xl">
         {star ? (
           <span className="inline-flex items-center gap-1">
             <FiStar className="h-5 w-5 fill-amber-400 text-amber-400" />
@@ -491,13 +491,13 @@ const BookingCard = ({ booking, actionLoading, onStatusUpdate, onArrived }) => {
     <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 className="font-black text-slate-900">{booking.customer}</h3>
+          <h3 className="font-semibold text-slate-900">{booking.customer}</h3>
           <p className="mt-1 text-sm font-semibold text-slate-500">{booking.service}</p>
         </div>
         <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
-          <p className="text-lg font-black text-[#5A52E3]">{formatMoney(booking.amount)}</p>
+          <p className="text-lg font-semibold text-[#5A52E3]">{formatMoney(booking.amount)}</p>
           <span
-            className={`rounded-full px-3 py-1 text-xs font-bold ${
+            className={`rounded-full px-3 py-1 text-xs font-medium ${
               isCompleted ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
             }`}
           >
@@ -597,7 +597,7 @@ const ActionButton = ({ label, Icon, onClick, disabled = false, variant = 'prima
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition-colors ${styles}`}
+      className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${styles}`}
     >
       <Icon className="h-4 w-4" />
       {label}
@@ -607,7 +607,7 @@ const ActionButton = ({ label, Icon, onClick, disabled = false, variant = 'prima
 
 const PerformanceItem = ({ value, label }) => (
   <div className="p-5 text-center">
-    <p className="text-2xl font-black text-[#5A52E3]">{value}</p>
+    <p className="text-2xl font-semibold text-[#5A52E3]">{value}</p>
     <p className="mt-1 text-sm font-semibold text-slate-500">{label}</p>
   </div>
 );
