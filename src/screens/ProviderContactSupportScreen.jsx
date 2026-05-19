@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FiMessageSquare, FiPlus, FiSend, FiX } from 'react-icons/fi';
+import { useLocation } from 'react-router-dom';
 import ProviderAppLayout from '../components/ProviderAppLayout';
 import Footer from '../components/Footer';
 import { useAuth } from '../context/AuthContext';
@@ -37,6 +38,7 @@ const formatDate = (value) => {
 
 const ProviderContactSupportScreen = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [cases, setCases] = useState([]);
@@ -48,6 +50,13 @@ const ProviderContactSupportScreen = () => {
     () => user?.name || user?.displayName || user?.businessName || user?.fullName || '',
     [user]
   );
+
+  useEffect(() => {
+    const prefill = location.state?.prefillSupport;
+    if (!prefill) return;
+    setSubject((current) => current || prefill.subject || '');
+    setMessage((current) => current || prefill.message || '');
+  }, [location.state]);
 
   useEffect(() => {
     if (!user?.uid) {

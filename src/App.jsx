@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Welcome from './components/Welcome';
 import AboutUs from './components/AboutUs';
 import RoleProtectedRoute from './components/RoleProtectedRoute';
@@ -42,6 +42,7 @@ import UnknownRouteRedirect from './components/UnknownRouteRedirect';
 import CareersPage from './components/CareersPage';
 import ContactPage from './components/ContactPage';
 import PublicNavbar from './components/PublicNavbar';
+import { useAuth } from './context/AuthContext';
 
 const withPublicNavbar = (children, navbarProps) => (
   <>
@@ -49,6 +50,22 @@ const withPublicNavbar = (children, navbarProps) => (
     {children}
   </>
 );
+
+const PublicServiceRoute = ({ children, redirectTo }) => {
+  const location = useLocation();
+  const { isAuthenticated, isLoggedIn, isLoading } = useAuth();
+
+  if (isLoading) {
+    return null;
+  }
+
+  if (isAuthenticated || isLoggedIn) {
+    return <Navigate to={redirectTo} replace state={location.state} />;
+  }
+
+  return withPublicNavbar(children, { transparentAtTop: false });
+};
+
 /**
  * App component - Main routing configuration
  * Handles all route definitions and protects routes based on user roles
@@ -77,6 +94,22 @@ const App = () => {
       />
       <Route path="/careers" element={<CareersPage />} />
       <Route path="/contact" element={<ContactPage />} />
+      <Route
+        path="/services"
+        element={
+          <PublicServiceRoute redirectTo="/customer/services">
+            <Services />
+          </PublicServiceRoute>
+        }
+      />
+      <Route
+        path="/service-detail"
+        element={
+          <PublicServiceRoute redirectTo="/customer/service-detail">
+            <ServiceDetailsScreen />
+          </PublicServiceRoute>
+        }
+      />
 
       <Route path="/login" element={<LoginScreen />} />
 

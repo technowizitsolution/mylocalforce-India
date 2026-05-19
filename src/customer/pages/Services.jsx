@@ -21,8 +21,9 @@ import useCategories from '../../hooks/useCategories';
 const Services = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isLoggedIn } = useAuth();
+  const { isAuthenticated, isLoggedIn } = useAuth();
   const { categories } = useCategories();
+  const isSignedIn = isAuthenticated || isLoggedIn;
 
   // Initialise from navigation state (Home screen passes selectedCategory / searchQuery)
   const incomingCategory = location.state?.selectedCategory || 'All';
@@ -139,44 +140,47 @@ const Services = () => {
       imageUrl: service.imageUrl,
     };
 
-    navigate('/customer/service-detail', { state: { service: normalized } });
+    navigate(isSignedIn ? '/customer/service-detail' : '/service-detail', {
+      state: { service: normalized },
+    });
   };
 
   const handleBookNow = (item) => {
-    if (!isLoggedIn) {
-      navigate('/login', { state: { redirectTo: '/customer/address' } });
-      return;
-    }
-
     const numericPrice =
       typeof item.price === 'number'
         ? item.price
         : parseFloat(String(item.price).replace(/[^0-9.]/g, '')) || 0;
 
-    navigate('/customer/address', {
-      state: {
-        serviceData: {
-          id: item.id,
-          name: item.name,
-          description: item.description,
-          price: numericPrice,
-          duration: item.duration,
-          category: item.category,
-          ownerId: item.ownerId,
-          ownerName: item.ownerName,
-          ownerEmail: item.ownerEmail,
-          ownerPhone: item.ownerPhone,
-          imageUrl: item.imageUrl,
-          providers: item.providers || [],
-        },
-        packageData: {
-          name: item.name,
-          price: `$${numericPrice.toFixed(2)}`,
-          duration: item.duration,
-          services: [item.description || item.name],
-        },
+    const bookingState = {
+      backTo: '/customer/services',
+      serviceData: {
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        price: numericPrice,
+        duration: item.duration,
+        category: item.category,
+        ownerId: item.ownerId,
+        ownerName: item.ownerName,
+        ownerEmail: item.ownerEmail,
+        ownerPhone: item.ownerPhone,
+        imageUrl: item.imageUrl,
+        providers: item.providers || [],
       },
-    });
+      packageData: {
+        name: item.name,
+        price: `$${numericPrice.toFixed(2)}`,
+        duration: item.duration,
+        services: [item.description || item.name],
+      },
+    };
+
+    if (!isSignedIn) {
+      navigate('/login', { state: { redirectTo: '/customer/address', params: bookingState } });
+      return;
+    }
+
+    navigate('/customer/address', { state: bookingState });
   };
 
   const onRefresh = useCallback(async () => {

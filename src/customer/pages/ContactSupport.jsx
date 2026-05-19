@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FiMessageSquare, FiPlus, FiSend, FiX } from 'react-icons/fi';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   createSupportCase,
@@ -35,6 +36,7 @@ const formatDate = (value) => {
 
 const ContactSupport = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [cases, setCases] = useState([]);
@@ -47,6 +49,13 @@ const ContactSupport = () => {
       user?.name || user?.displayName || user?.fullName || user?.email?.split('@')[0] || 'Customer',
     [user]
   );
+
+  useEffect(() => {
+    const prefill = location.state?.prefillSupport;
+    if (!prefill) return;
+    setSubject((current) => current || prefill.subject || '');
+    setMessage((current) => current || prefill.message || '');
+  }, [location.state]);
 
   useEffect(() => {
     if (!user?.uid) {

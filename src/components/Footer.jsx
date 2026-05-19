@@ -45,7 +45,7 @@ const Footer = () => {
     : 'mb-6 sm:mb-8 md:mb-12 grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 md:gap-12';
 
   return (
-    <footer className="mt-16 hidden bg-gray-100 px-4 pb-0 pt-12 shadow-[0_0_0_100vmax_#f3f4f6] [clip-path:inset(0_-100vmax)] sm:mt-20 sm:px-6 sm:pt-14 md:px-8 md:pt-16 lg:block">
+    <footer className="hidden bg-gray-100 px-4 pb-6 pt-12 shadow-[0_0_0_100vmax_#f3f4f6] [clip-path:inset(0_-100vmax)] sm:px-6 sm:pt-14 md:px-8 md:pt-16 lg:block">
       <div className="mx-auto w-full max-w-7xl">
         {/* Logo Section */}
         <div className="mb-6 flex items-center gap-2 sm:mb-8 sm:gap-3">

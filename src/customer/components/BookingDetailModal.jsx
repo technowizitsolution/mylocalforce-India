@@ -1,18 +1,277 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import nacl from 'tweetnacl';
+import naclUtil from 'tweetnacl-util';
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+} from 'firebase/firestore';
 import {
   FiFileText, FiX, FiClock, FiCheckCircle, FiCheckSquare, FiXCircle,
   FiInfo, FiShield, FiActivity, FiMapPin, FiBriefcase, FiTag, FiUser,
   FiPhone, FiMail, FiStar, FiCalendar, FiCopy, FiMap, FiAlertCircle,
-  FiAlertTriangle, FiMessageCircle, FiCheck, FiSend
+  FiAlertTriangle, FiMessageCircle, FiCheck, FiSend, FiDollarSign
 } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
 import { getBookingById, updateBookingStatus } from '../../services/firebase/serviceService';
 import { fetchUserProfile } from '../../services/firebase';
+import { createSupportCase } from '../../services/firebase/supportService';
+import { firestore } from '../../services/firebase/firebaseConfig';
 import { useAuth } from '../../context/AuthContext';
 import { startCheckoutForBooking } from '../../utils/bookingPayments';
 import { notify, getUserFacingError } from '../../utils/toast';
 
+const PROVIDER_NOT_REACHED_ACTIVATION_MINUTES = 5;
+
+const LATENESS_POLICY_STEPS = [
+  {
+    key: 'late',
+    threshold: 5,
+    title: 'Recorded as Late',
+    description: 'After 5 minutes delay, this booking is officially marked as late.',
+  },
+  {
+    key: 'notify',
+    threshold: 10,
+    title: 'Customer Auto-Notified',
+    description:
+      'After 10 minutes delay, customer gets wait, reschedule, cancel, and support options.',
+  },
+  {
+    key: 'noshow',
+    threshold: 20,
+    title: 'No-show Risk',
+    description:
+      'After 20 minutes delay, it may be treated as no-show unless customer consent exists.',
+  },
+];
+
+const formatLateness = (minutesInput) => {
+  const minutes = Number.isFinite(minutesInput) ? Math.max(0, Math.floor(minutesInput)) : 0;
+  if (minutes === 0) return '0 minute(s) late';
+  if (minutes < 60) return minutes >= 45 ? '1 h late' : `${minutes} minute(s) late`;
+  if (minutes < 1440) {
+    const hours = Math.floor(minutes / 60);
+    const rem = minutes % 60;
+    if (hours >= 23) return '1 day late';
+    return rem === 0 ? `${hours} h late` : `${hours} h ${rem}m late`;
+  }
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const mins = minutes % 60;
+  return `${days} day${days > 1 ? 's' : ''}${hours ? ` ${hours} h` : ''}${
+    mins ? ` ${mins}m` : ''
+  } late`;
+};
+
+const toDateValue = (value) => {
+  if (!value) return null;
+  if (typeof value?.toDate === 'function') return value.toDate();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const applyTimeToDate = (date, timeValue) => {
+  if (!timeValue) return date;
+  const text = String(timeValue).trim();
+  if (!text) return date;
+
+  const amPmMatch = text.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (amPmMatch) {
+    let hours = Number(amPmMatch[1]);
+    const minutes = Number(amPmMatch[2]);
+    const isPm = amPmMatch[3].toUpperCase() === 'PM';
+    if (isPm && hours !== 12) hours += 12;
+    if (!isPm && hours === 12) hours = 0;
+    date.setHours(hours, minutes, 0, 0);
+    return date;
+  }
+
+  const twentyFourMatch = text.match(/^(\d{1,2}):(\d{2})$/);
+  if (twentyFourMatch) {
+    const hours = Number(twentyFourMatch[1]);
+    const minutes = Number(twentyFourMatch[2]);
+    if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+      date.setHours(hours, minutes, 0, 0);
+    }
+  }
+
+  return date;
+};
+
+const getScheduledDateTime = (booking) => {
+  if (!booking || typeof booking !== 'object') return null;
+  const dateCandidate =
+    booking.selectedDate || booking.requestedDate || booking.scheduledDate || booking.date || null;
+  const baseDate = toDateValue(dateCandidate);
+  if (!baseDate) return null;
+
+  const scheduled = new Date(baseDate);
+  const timeCandidate =
+    booking.selectedTime || booking.requestedTime || booking.scheduledTime || booking.time || null;
+  return applyTimeToDate(scheduled, timeCandidate);
+};
+
+const getLatenessState = (booking) => {
+  const scheduledDateTime = getScheduledDateTime(booking);
+  if (!scheduledDateTime) {
+    return { hasSchedule: false, isLate: false, minutesLate: 0, scheduledDateTime: null };
+  }
+
+  const diffMinutes = Math.floor((Date.now() - scheduledDateTime.getTime()) / (1000 * 60));
+  const minutesLate = Math.max(0, diffMinutes);
+  return { hasSchedule: true, isLate: minutesLate > 0, minutesLate, scheduledDateTime };
+};
+
+const getProviderNotReachedState = (booking, nowMs = Date.now()) => {
+  const scheduledDateTime = getScheduledDateTime(booking);
+  const minutesUntilService = scheduledDateTime
+    ? Math.ceil((scheduledDateTime.getTime() - nowMs) / (1000 * 60))
+    : null;
+
+  const withinActivationWindow =
+    Number.isFinite(minutesUntilService) &&
+    minutesUntilService <= PROVIDER_NOT_REACHED_ACTIVATION_MINUTES;
+
+  const reportedAtRaw =
+    booking?.providerNotReachedAlert?.reportedAt || booking?.providerNotReachedAt;
+  const normalizedAlertStatus = String(
+    booking?.providerNotReachedAlert?.status || booking?.providerNotReachedAlertStatus || ''
+  ).toLowerCase();
+
+  const alreadyReported =
+    Boolean(reportedAtRaw) ||
+    Boolean(booking?.providerNotReachedAlert) ||
+    ['open', 'reported', 'in_progress', 'pending'].includes(normalizedAlertStatus);
+
+  return {
+    hasSchedule: Boolean(scheduledDateTime),
+    scheduledDateTime,
+    minutesUntilService,
+    withinActivationWindow,
+    alreadyReported,
+    reportedAt: toDateValue(reportedAtRaw),
+    canReport:
+      booking?.status === 'accepted' &&
+      Boolean(scheduledDateTime) &&
+      withinActivationWindow &&
+      !alreadyReported,
+  };
+};
+
+const makeChatId = (leftUserId, rightUserId, bookingId) => {
+  const pair = [leftUserId, rightUserId].sort();
+  return `${pair[0]}_${pair[1]}_${bookingId}`;
+};
+
+const CHAT_KEY_PREFIX = 'chatKeys:';
+const encodeBase64 = (u8) => naclUtil.encodeBase64(u8);
+const decodeBase64 = (text) => naclUtil.decodeBase64(text);
+const encodeUTF8 = (u8) => naclUtil.encodeUTF8(u8);
+const decodeUTF8 = (text) => naclUtil.decodeUTF8(text);
+
+const ensureChatKeypair = async (userId) => {
+  const storageKey = `${CHAT_KEY_PREFIX}${userId}`;
+  const existing = window.localStorage.getItem(storageKey);
+  if (existing) return JSON.parse(existing);
+
+  const keypair = nacl.box.keyPair();
+  const keys = {
+    publicKey: encodeBase64(keypair.publicKey),
+    secretKey: encodeBase64(keypair.secretKey),
+  };
+
+  window.localStorage.setItem(storageKey, JSON.stringify(keys));
+  await setDoc(doc(firestore, 'users', userId), { publicKey: keys.publicKey }, { merge: true });
+  return keys;
+};
+
+const getPublicKeyForUser = async (userId) => {
+  const userSnapshot = await getDoc(doc(firestore, 'users', userId));
+  if (!userSnapshot.exists()) return null;
+  return userSnapshot.data()?.publicKey || null;
+};
+
+const getPublicKeyForUserWithRetry = async (userId) => {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const publicKey = await getPublicKeyForUser(userId);
+    if (publicKey) return publicKey;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  return null;
+};
+
+const decryptChatMessage = (messageData, myUserId) => {
+  if (typeof messageData.plaintext === 'string') return messageData.plaintext;
+
+  const keyJson = window.localStorage.getItem(`${CHAT_KEY_PREFIX}${myUserId}`);
+  const myKeys = keyJson ? JSON.parse(keyJson) : null;
+  if (
+    !myKeys?.secretKey ||
+    typeof messageData.cipher !== 'string' ||
+    typeof messageData.nonce !== 'string' ||
+    typeof messageData.senderPublicKey !== 'string' ||
+    typeof messageData.recipientPublicKey !== 'string'
+  ) {
+    return '[Encrypted]';
+  }
+
+  try {
+    const mySecret = decodeBase64(myKeys.secretKey);
+    const otherPublicEncoded =
+      messageData.fromId === myUserId ? messageData.recipientPublicKey : messageData.senderPublicKey;
+    const sharedKey = nacl.box.before(decodeBase64(otherPublicEncoded), mySecret);
+    const opened = nacl.box.open.after(
+      decodeBase64(messageData.cipher),
+      decodeBase64(messageData.nonce),
+      sharedKey
+    );
+    return opened ? encodeUTF8(opened) : '[Encrypted]';
+  } catch (error) {
+    console.warn('Failed to decrypt booking chat message:', error);
+    return '[Encrypted]';
+  }
+};
+
+const buildEncryptedChatPayload = async ({ fromId, toId, text }) => {
+  const keys = await ensureChatKeypair(fromId);
+  const recipientPublicKey = await getPublicKeyForUserWithRetry(toId);
+
+  if (!recipientPublicKey) {
+    return {
+      plaintext: String(text || ''),
+      fromId,
+      toId,
+      via: 'plain',
+      createdAt: serverTimestamp(),
+    };
+  }
+
+  const sharedKey = nacl.box.before(decodeBase64(recipientPublicKey), decodeBase64(keys.secretKey));
+  const nonce = nacl.randomBytes(nacl.box.nonceLength);
+  const cipher = nacl.box.after(decodeUTF8(text), nonce, sharedKey);
+
+  return {
+    cipher: encodeBase64(cipher),
+    nonce: encodeBase64(nonce),
+    senderPublicKey: keys.publicKey,
+    recipientPublicKey,
+    fromId,
+    toId,
+    createdAt: serverTimestamp(),
+  };
+};
+
 const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -26,6 +285,15 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
   const [ratingFeedback, setRatingFeedback] = useState('');
   const [submittingRating, setSubmittingRating] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [showLatenessPolicyModal, setShowLatenessPolicyModal] = useState(false);
+  const [latenessSnapshot, setLatenessSnapshot] = useState(null);
+  const [providerNotReachedNow, setProviderNotReachedNow] = useState(Date.now());
+  const [reportingNotReached, setReportingNotReached] = useState(false);
+  const [chatContext, setChatContext] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatSending, setChatSending] = useState(false);
 
   // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -105,6 +373,54 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
     if (visible && bookingId) loadBooking();
   }, [visible, bookingId, loadBooking]);
 
+  useEffect(() => {
+    if (!(visible && role === 'customer' && booking?.status === 'accepted')) {
+      return undefined;
+    }
+
+    setProviderNotReachedNow(Date.now());
+    const intervalId = setInterval(() => setProviderNotReachedNow(Date.now()), 30000);
+    return () => clearInterval(intervalId);
+  }, [visible, role, booking?.status]);
+
+  useEffect(() => {
+    if (!chatContext?.chatId || !user?.uid) return undefined;
+
+    setChatLoading(true);
+    ensureChatKeypair(user.uid).catch((error) => {
+      console.warn('Could not initialize booking chat keypair:', error);
+    });
+    const messagesQuery = query(
+      collection(firestore, 'chats', chatContext.chatId, 'messages'),
+      orderBy('createdAt', 'asc')
+    );
+
+    return onSnapshot(
+      messagesQuery,
+      (snapshot) => {
+        setChatMessages(
+          snapshot.docs.map((messageDoc) => {
+            const data = messageDoc.data() || {};
+            return {
+              id: messageDoc.id,
+              text: decryptChatMessage(data, user.uid),
+              fromId: data.fromId,
+              toId: data.toId,
+              createdAt: toDateValue(data.createdAt),
+            };
+          })
+        );
+        setChatLoading(false);
+      },
+      (error) => {
+        console.error('Booking chat load failed:', error);
+        setChatMessages([]);
+        setChatLoading(false);
+        notify.error('Could not load booking chat.', { id: 'booking-chat-load' });
+      }
+    );
+  }, [chatContext?.chatId, user?.uid]);
+
   // ── Action Handlers ─────────────────────────────────────────────────
 
   const handleAcceptBooking = () => {
@@ -169,9 +485,35 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
       try {
         setActionLoading(true);
         const providerId = booking?.providerId || user?.uid;
-        await updateBookingStatus(bookingId, 'cancelled', providerId);
+        if (role === 'customer' && booking?.paymentStatus === 'paid') {
+          const scheduled = getScheduledDateTime(booking);
+          const hoursUntilBooking = scheduled
+            ? (scheduled.getTime() - Date.now()) / (1000 * 60 * 60)
+            : null;
+
+          await updateDoc(doc(firestore, 'bookings', bookingId), {
+            status: 'cancelled',
+            cancelledAt: serverTimestamp(),
+            cancelledBy: 'customer',
+            refundRequested: true,
+            refundReason:
+              Number.isFinite(hoursUntilBooking) && hoursUntilBooking < 8
+                ? 'Customer cancelled within 8 hours of booking time - reduced refund applies'
+                : 'Customer cancelled booking - refund requested',
+            refundRequestedAt: serverTimestamp(),
+            refundStatus: 'pending_admin_review',
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          await updateBookingStatus(bookingId, 'cancelled', providerId);
+        }
         await loadBooking();
-        notify.success('Booking cancelled.', { id: 'booking-detail-cancel' });
+        notify.success(
+          role === 'customer' && booking?.paymentStatus === 'paid'
+            ? 'Booking cancelled and refund request submitted.'
+            : 'Booking cancelled.',
+          { id: 'booking-detail-cancel' }
+        );
       } catch (error) {
         console.error('Error cancelling booking:', error);
         notify.error(getUserFacingError(error, 'Could not cancel booking. Please try again.'), {
@@ -183,7 +525,7 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
     });
   };
 
-  const handleMarkAsArrived = () => {
+  const confirmAndSendArrivalOtp = () => {
     confirmAction(
       'Mark as Arrived',
       'This will send a verification code to the customer. Are you at the service location?',
@@ -221,6 +563,259 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
         }
       },
     );
+  };
+
+  const closeLatenessPolicyModal = () => {
+    setShowLatenessPolicyModal(false);
+    setLatenessSnapshot(null);
+  };
+
+  const handleOpenSupport = () => {
+    const scheduled = getScheduledDateTime(booking);
+    closeLatenessPolicyModal();
+    onClose?.();
+    navigate(role === 'provider' ? '/provider/contact-support' : '/customer/contact-support', {
+      state: {
+        prefillSupport: {
+          subject: `Booking support: ${booking?.serviceName || booking?.service || 'Service'}`,
+          message: [
+            `Booking ID: ${booking?.id || bookingId || ''}`,
+            `Service: ${booking?.serviceName || booking?.service || 'Service'}`,
+            `Scheduled: ${scheduled ? scheduled.toLocaleString() : 'Unavailable'}`,
+            `Status: ${
+              latenessSnapshot?.hasSchedule
+                ? formatLateness(latenessSnapshot.minutesLate)
+                : 'Scheduled time unavailable'
+            }`,
+            '',
+            'Please help with this booking.',
+          ].join('\n'),
+        },
+      },
+    });
+  };
+
+  const handleOpenBookingChat = () => {
+    if (!booking || !bookingId || !user?.uid) {
+      notify.error('Chat is unavailable for this booking.', { id: 'booking-chat-open' });
+      return;
+    }
+
+    const otherUserId =
+      role === 'customer'
+        ? booking.providerId || booking.providerUid || booking.provider || booking.selectedProviderId
+        : booking.customerId || booking.customerUid || booking.customer?.id || booking.customer;
+    const otherUserName =
+      role === 'customer'
+        ? providerProfile?.displayName ||
+          providerProfile?.name ||
+          providerProfile?.fullName ||
+          booking.providerName ||
+          'Provider'
+        : booking.customerName || booking.customer?.displayName || 'Customer';
+
+    if (!otherUserId) {
+      notify.error('User ID for chat is not available.', { id: 'booking-chat-open' });
+      return;
+    }
+
+    setChatContext({
+      chatId: makeChatId(user.uid, otherUserId, bookingId),
+      otherUserId,
+      otherUserName,
+    });
+    setChatInput('');
+  };
+
+  const handleCloseBookingChat = () => {
+    setChatContext(null);
+    setChatMessages([]);
+    setChatInput('');
+  };
+
+  const handleSendBookingChatMessage = async (event) => {
+    event?.preventDefault?.();
+    const text = chatInput.trim();
+    if (!text || !chatContext || !user?.uid) return;
+
+    try {
+      setChatSending(true);
+      setChatInput('');
+      const payload = await buildEncryptedChatPayload({
+        fromId: user.uid,
+        toId: chatContext.otherUserId,
+        text,
+      });
+      await addDoc(collection(firestore, 'chats', chatContext.chatId, 'messages'), payload);
+    } catch (error) {
+      console.error('Booking chat send failed:', error);
+      setChatInput(text);
+      notify.error('Could not send message. Please try again.', { id: 'booking-chat-send' });
+    } finally {
+      setChatSending(false);
+    }
+  };
+
+  const providerNotReachedState = getProviderNotReachedState(booking, providerNotReachedNow);
+
+  const getProviderNotReachedHint = () => {
+    if (providerNotReachedState.alreadyReported) {
+      if (providerNotReachedState.reportedAt) {
+        return `Alert sent at ${providerNotReachedState.reportedAt.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}. Our backend team is handling this booking.`;
+      }
+      return 'This issue has already been reported. Open support for updates.';
+    }
+
+    if (!providerNotReachedState.hasSchedule) {
+      return 'This option activates 5 minutes before the scheduled service time.';
+    }
+
+    if (providerNotReachedState.canReport) {
+      return 'If the provider has not arrived, send an immediate alert to our backend team.';
+    }
+
+    if (
+      Number.isFinite(providerNotReachedState.minutesUntilService) &&
+      providerNotReachedState.minutesUntilService > PROVIDER_NOT_REACHED_ACTIVATION_MINUTES
+    ) {
+      const minutesUntilActivation =
+        providerNotReachedState.minutesUntilService - PROVIDER_NOT_REACHED_ACTIVATION_MINUTES;
+      return `Available in ${minutesUntilActivation} minute(s), starting 5 minutes before service time.`;
+    }
+
+    return 'This option is available after your booking is accepted.';
+  };
+
+  const isNotReachedButtonDisabled =
+    reportingNotReached ||
+    (!providerNotReachedState.alreadyReported && !providerNotReachedState.canReport);
+
+  const handleProviderNotReachedAction = () => {
+    if (providerNotReachedState.alreadyReported) {
+      handleOpenSupport();
+      return;
+    }
+
+    if (!providerNotReachedState.canReport) {
+      notify.info('This option becomes active 5 minutes before your scheduled service time.', {
+        id: 'booking-detail-not-reached',
+      });
+      return;
+    }
+
+    confirmAction(
+      'Service Provider Not Reached',
+      'Send an immediate alert to our backend team so they can intervene and ensure service delivery?',
+      async () => {
+        try {
+          setReportingNotReached(true);
+
+          const scheduledDateText = booking?.selectedDate || booking?.requestedDate || 'TBD';
+          const scheduledTimeText =
+            booking?.selectedTime || booking?.scheduledTime || booking?.requestedTime || 'TBD';
+          const customerName =
+            booking?.customerName ||
+            user?.name ||
+            user?.displayName ||
+            user?.email ||
+            'Customer';
+          const minutesLateAtReport =
+            Number.isFinite(providerNotReachedState.minutesUntilService) &&
+            providerNotReachedState.minutesUntilService < 0
+              ? Math.abs(providerNotReachedState.minutesUntilService)
+              : 0;
+
+          const bookingRef = doc(firestore, 'bookings', bookingId);
+          await updateDoc(bookingRef, {
+            providerNotReachedAlert: {
+              status: 'open',
+              reportedAt: serverTimestamp(),
+              reportedByUid: user?.uid || booking?.customerId || null,
+              reportedByRole: 'customer',
+              reportedByName: customerName,
+              reportedByEmail: user?.email || booking?.customerEmail || null,
+              selectedDate: scheduledDateText,
+              selectedTime: scheduledTimeText,
+              serviceName: booking?.serviceName || booking?.serviceTitle || null,
+              providerName: booking?.providerName || null,
+              minutesUntilServiceAtReport: providerNotReachedState.minutesUntilService,
+              minutesLateAtReport,
+              supportCaseId: null,
+              supportCaseCode: null,
+              source: 'web_booking_detail_modal',
+            },
+            providerNotReachedAlertStatus: 'open',
+            providerNotReachedAlertUpdatedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+
+          let supportCase = null;
+          try {
+            supportCase = await createSupportCase({
+              requesterUid: user?.uid || booking?.customerId,
+              requesterRole: 'customer',
+              requesterName: customerName,
+              requesterEmail: user?.email || booking?.customerEmail || '',
+              requesterPhone: booking?.customerPhone || booking?.phoneNumber || user?.phoneNumber || '',
+              subject: `Provider not reached - Booking #${booking?.orderNumber || bookingId}`,
+              message:
+                `Customer reported that the provider has not reached the location.\n\n` +
+                `Booking: #${booking?.orderNumber || bookingId}\n` +
+                `Service: ${booking?.serviceName || booking?.serviceTitle || 'Service'}\n` +
+                `Scheduled: ${scheduledDateText} ${scheduledTimeText}\n` +
+                `Address: ${booking?.address || booking?.customerAddress || 'Not provided'}\n` +
+                `Provider: ${booking?.providerName || 'Assigned provider'}\n` +
+                `Minutes late at report: ${minutesLateAtReport}`,
+            });
+
+            if (supportCase) {
+              await updateDoc(bookingRef, {
+                'providerNotReachedAlert.supportCaseId': supportCase.id,
+                'providerNotReachedAlert.supportCaseCode': supportCase.caseId,
+                providerNotReachedAlertUpdatedAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              });
+            }
+          } catch (supportError) {
+            console.warn(
+              'Provider-not-reached support case creation failed:',
+              supportError?.message || supportError
+            );
+          }
+
+          await loadBooking();
+          notify.success(
+            supportCase?.caseId
+              ? `Our backend team has been alerted. Reference: ${supportCase.caseId}`
+              : 'Our backend team has been alerted and will take immediate action.',
+            { id: 'booking-detail-not-reached' }
+          );
+        } catch (error) {
+          console.error('Error reporting provider not reached:', error);
+          notify.error(getUserFacingError(error, 'Could not send alert. Please try again.'), {
+            id: 'booking-detail-not-reached',
+          });
+        } finally {
+          setReportingNotReached(false);
+        }
+      }
+    );
+  };
+
+  const handleMarkAsArrived = () => {
+    const shouldCheckLateness = booking?.status === 'accepted';
+    const latenessState = shouldCheckLateness ? getLatenessState(booking) : null;
+
+    if (shouldCheckLateness && latenessState?.isLate) {
+      setLatenessSnapshot(latenessState);
+      setShowLatenessPolicyModal(true);
+      return;
+    }
+
+    confirmAndSendArrivalOtp();
   };
 
   const handleVerifyOtp = async () => {
@@ -308,6 +903,36 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
           setActionLoading(false);
         }
       },
+    );
+  };
+
+  const handleRequestRefund = () => {
+    confirmAction(
+      'Request Refund',
+      'Submit this booking for admin refund review?',
+      async () => {
+        try {
+          setActionLoading(true);
+          await updateDoc(doc(firestore, 'bookings', bookingId), {
+            refundRequested: true,
+            refundReason: 'Customer requested refund from booking details',
+            refundRequestedAt: serverTimestamp(),
+            refundStatus: 'pending_admin_review',
+            updatedAt: serverTimestamp(),
+          });
+          await loadBooking();
+          notify.success('Refund request submitted for admin review.', {
+            id: 'booking-detail-refund',
+          });
+        } catch (error) {
+          console.error('Error requesting refund:', error);
+          notify.error(getUserFacingError(error, 'Could not request refund. Please try again.'), {
+            id: 'booking-detail-refund',
+          });
+        } finally {
+          setActionLoading(false);
+        }
+      }
     );
   };
 
@@ -728,6 +1353,71 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
                 </Section>
               )}
 
+              {(booking.refundRequested || booking.refund) && (
+                <Section label="Refund Status">
+                  <div
+                    className={`mb-3 flex items-center gap-2 rounded-xl px-4 py-3 ${
+                      booking.refund ? 'bg-emerald-50' : 'bg-sky-50'
+                    }`}
+                  >
+                    {booking.refund ? (
+                      <FiCheckCircle size={18} className="text-emerald-500" />
+                    ) : (
+                      <FiClock size={18} className="text-sky-500" />
+                    )}
+                    <span
+                      className={`text-[15px] font-semibold ${
+                        booking.refund ? 'text-emerald-600' : 'text-sky-600'
+                      }`}
+                    >
+                      {booking.refund ? 'Refund Processed' : 'Refund Request Pending'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 rounded-xl bg-slate-50 p-3">
+                    {booking.refund?.amount && (
+                      <PaymentRow
+                        label="Refund Amount"
+                        value={`${booking.currency || 'AUD'} $${booking.refund.amount.toFixed(2)}`}
+                      />
+                    )}
+                    {booking.refund?.id && <PaymentRow label="Refund ID" value={booking.refund.id} />}
+                    {booking.refundedAt && (
+                      <PaymentRow
+                        label="Refunded On"
+                        value={toDate(booking.refundedAt)?.toLocaleDateString('en-AU', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      />
+                    )}
+                    {booking.refundReason && (
+                      <PaymentRow label="Reason" value={booking.refundReason} />
+                    )}
+                    {booking.refundRequestedAt && !booking.refund && (
+                      <PaymentRow
+                        label="Requested On"
+                        value={toDate(booking.refundRequestedAt)?.toLocaleDateString('en-AU', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      />
+                    )}
+                    {booking.refundRequested && !booking.refund && (
+                      <div className="mt-3 flex items-start gap-2 rounded-lg bg-white p-3 text-sm font-semibold text-slate-600">
+                        <FiInfo className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
+                        <p>
+                          Your refund request is being reviewed by our admin team. You will receive
+                          an email once processed.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </Section>
+              )}
+
               {/* Special Instructions */}
               {booking.specialInstructions && (
                 <Section label="Special Instructions">
@@ -837,6 +1527,7 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
                   onArrived={handleMarkAsArrived}
                   onVerifyOtp={handleVerifyOtp}
                   onCustomerUnavailable={handleCustomerUnavailable}
+                  onOpenChat={handleOpenBookingChat}
                   onClose={onClose}
                 />
               ) : (
@@ -845,6 +1536,14 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
                 actionLoading={actionLoading}
                 onCancel={handleCancelBooking}
                 onRetryPayment={handleRetryPayment}
+                onProviderNotReached={handleProviderNotReachedAction}
+                providerNotReachedHint={getProviderNotReachedHint()}
+                providerNotReachedState={providerNotReachedState}
+                isNotReachedButtonDisabled={isNotReachedButtonDisabled}
+                reportingNotReached={reportingNotReached}
+                onOpenChat={handleOpenBookingChat}
+                onOpenSupport={handleOpenSupport}
+                onRequestRefund={handleRequestRefund}
                 onClose={onClose}
               />
               )}
@@ -854,6 +1553,215 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
       </div>
 
       {/* ─── Rating Modal ─── */}
+      {chatContext && (
+        <div
+          className="fixed inset-0 z-[75] flex items-end bg-black/50 p-0 sm:items-center sm:justify-center sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="booking-chat-title"
+          onClick={handleCloseBookingChat}
+        >
+          <div
+            className="flex h-[82vh] w-full flex-col rounded-t-2xl bg-white shadow-2xl sm:max-w-md sm:rounded-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <div className="min-w-0">
+                <h3 id="booking-chat-title" className="text-lg font-bold text-slate-900">
+                  {chatContext.otherUserName}
+                </h3>
+                <p className="mt-1 text-xs font-semibold text-slate-500">
+                  Booking #{String(bookingId || '').slice(0, 10).toUpperCase()}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseBookingChat}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200"
+                aria-label="Close chat"
+              >
+                <FiX className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 px-4 py-4">
+              {chatLoading ? (
+                <div className="flex h-full items-center justify-center text-sm font-semibold text-slate-500">
+                  Loading chat...
+                </div>
+              ) : chatMessages.length ? (
+                chatMessages.map((message) => {
+                  const mine = message.fromId === user?.uid;
+                  return (
+                    <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                      <div
+                        className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm font-semibold leading-5 shadow-sm ${
+                          mine
+                            ? 'rounded-br-md bg-indigo-500 text-white'
+                            : 'rounded-bl-md bg-white text-slate-800'
+                        }`}
+                      >
+                        <p>{message.text}</p>
+                        {message.createdAt && (
+                          <p className={`mt-1 text-[10px] ${mine ? 'text-indigo-100' : 'text-slate-400'}`}>
+                            {message.createdAt.toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="flex h-full items-center justify-center px-8 text-center text-sm font-semibold leading-6 text-slate-500">
+                  No messages yet. Start the booking conversation here.
+                </div>
+              )}
+            </div>
+
+            <form
+              onSubmit={handleSendBookingChatMessage}
+              className="flex items-end gap-2 border-t border-slate-100 bg-white p-4"
+            >
+              <textarea
+                value={chatInput}
+                onChange={(event) => setChatInput(event.target.value)}
+                placeholder="Type a message..."
+                rows={1}
+                className="max-h-28 min-h-11 flex-1 resize-none rounded-xl border border-slate-200 px-3 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-400"
+              />
+              <button
+                type="submit"
+                disabled={chatSending || !chatInput.trim()}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500 text-white transition hover:bg-indigo-600 disabled:bg-slate-300"
+                aria-label="Send message"
+              >
+                <FiSend className="h-5 w-5" />
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showLatenessPolicyModal && (
+        <div
+          className="fixed inset-0 z-[65] flex items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="lateness-policy-title"
+          onClick={closeLatenessPolicyModal}
+        >
+          <div
+            className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-50">
+                <FiAlertTriangle className="h-5 w-5 text-amber-500" />
+              </div>
+              <div className="min-w-0">
+                <h3 id="lateness-policy-title" className="text-lg font-bold text-slate-900">
+                  Lateness Policy
+                </h3>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  Review policy steps before marking arrival
+                </p>
+              </div>
+            </div>
+
+            <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
+              <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-amber-700">
+                  Current Status
+                </p>
+                <p className="mt-1 text-lg font-bold text-amber-900">
+                  {latenessSnapshot?.hasSchedule
+                    ? formatLateness(latenessSnapshot?.minutesLate || 0)
+                    : 'Scheduled time unavailable'}
+                </p>
+              </div>
+
+              <section>
+                <h4 className="text-sm font-bold text-slate-900">Policy Timeline</h4>
+                <div className="mt-3 space-y-3">
+                  {LATENESS_POLICY_STEPS.map((step) => {
+                    const reached =
+                      Number.isFinite(latenessSnapshot?.minutesLate) &&
+                      latenessSnapshot.minutesLate >= step.threshold;
+                    return (
+                      <div key={step.key} className="flex items-start gap-3">
+                        <div
+                          className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                            reached
+                              ? 'bg-emerald-50 text-emerald-600'
+                              : 'bg-slate-100 text-slate-400'
+                          }`}
+                        >
+                          {reached ? (
+                            <FiCheckCircle className="h-4 w-4" />
+                          ) : (
+                            <FiClock className="h-4 w-4" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">
+                            {step.title} ({step.threshold}+ min)
+                          </p>
+                          <p className="mt-1 text-sm leading-5 text-slate-500">
+                            {step.description}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section>
+                <h4 className="text-sm font-bold text-slate-900">Provider Instructions</h4>
+                <div className="mt-3 rounded-xl bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-600">
+                  <p>1. Update ETA to customer using message or email.</p>
+                  <p>2. Keep communication clear when delayed.</p>
+                  <p>3. Continue with OTP only after arrival at location.</p>
+                  <p>4. Repeated lateness can lead to account action.</p>
+                </div>
+              </section>
+            </div>
+
+            <div className="grid gap-2 border-t border-slate-100 p-4 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={closeLatenessPolicyModal}
+                className="min-h-11 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenSupport}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+              >
+                <FiMail className="h-4 w-4" />
+                Support
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  closeLatenessPolicyModal();
+                  confirmAndSendArrivalOtp();
+                }}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-indigo-500 px-3 text-sm font-bold text-white transition hover:bg-indigo-600"
+              >
+                <FiCheck className="h-4 w-4" />
+                Proceed & Send Code
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showRatingModal && (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 p-5" onClick={() => setShowRatingModal(false)}>
           <div className="bg-white rounded-3xl w-full max-w-100 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -1011,7 +1919,8 @@ const RatingDisplayCard = ({ title, icon, ratingData, onRate, rateLabel, complet
 const ProviderActions = ({
   booking, actionLoading, otpSending, otpInput, setOtpInput,
   showUnavailableInput, setShowUnavailableInput, unavailableNote, setUnavailableNote,
-  onAccept, onReject, onCancel, onComplete, onArrived, onVerifyOtp, onCustomerUnavailable, onClose,
+  onAccept, onReject, onCancel, onComplete, onArrived, onVerifyOtp, onCustomerUnavailable,
+  onOpenChat, onClose,
 }) => {
   const btnBase = 'flex-1 py-4 rounded-xl flex items-center justify-center gap-2 font-semibold transition-colors disabled:opacity-60';
 
@@ -1031,13 +1940,18 @@ const ProviderActions = ({
 
       {/* Accepted */}
       {booking.status === 'accepted' && (
-        <div className="flex gap-3">
-          <button onClick={onCancel} disabled={actionLoading} className={`${btnBase} bg-white border-2 border-red-500 text-red-500 hover:bg-red-50`}>
-            <FiXCircle size={18} /> {actionLoading ? 'Processing...' : 'Cancel'}
+        <div className="space-y-3">
+          <button onClick={onOpenChat} className={`${btnBase} w-full bg-sky-50 text-sky-700 hover:bg-sky-100`}>
+            <FiMessageCircle size={18} /> Message
           </button>
-          <button onClick={onArrived} disabled={otpSending} className={`${btnBase} bg-sky-500 text-white hover:bg-sky-600 shadow-md shadow-sky-500/30`}>
-            <FiMapPin size={18} /> {otpSending ? 'Sending...' : 'Mark as Arrived'}
-          </button>
+          <div className="flex gap-3">
+            <button onClick={onCancel} disabled={actionLoading} className={`${btnBase} bg-white border-2 border-red-500 text-red-500 hover:bg-red-50`}>
+              <FiXCircle size={18} /> {actionLoading ? 'Processing...' : 'Cancel'}
+            </button>
+            <button onClick={onArrived} disabled={otpSending} className={`${btnBase} bg-sky-500 text-white hover:bg-sky-600 shadow-md shadow-sky-500/30`}>
+              <FiMapPin size={18} /> {otpSending ? 'Sending...' : 'Mark as Arrived'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -1131,7 +2045,21 @@ const ProviderActions = ({
 
 /* ═══ Customer Action Buttons ══════════════════════════════════════════ */
 
-const CustomerActions = ({ booking, actionLoading, onCancel, onRetryPayment, onClose }) => {
+const CustomerActions = ({
+  booking,
+  actionLoading,
+  onCancel,
+  onRetryPayment,
+  onProviderNotReached,
+  providerNotReachedHint,
+  providerNotReachedState,
+  isNotReachedButtonDisabled,
+  reportingNotReached,
+  onOpenChat,
+  onOpenSupport,
+  onRequestRefund,
+  onClose,
+}) => {
   const btnBase = 'flex-1 py-4 rounded-xl flex items-center justify-center gap-2 font-semibold transition-colors disabled:opacity-60';
   const needsPayment = booking.paymentStatus === 'pending' && booking.status !== 'cancelled';
 
@@ -1159,9 +2087,81 @@ const CustomerActions = ({ booking, actionLoading, onCancel, onRetryPayment, onC
 
   if (booking.status === 'pending' || booking.status === 'upcoming' || booking.status === 'accepted') {
     return (
+      <div className="space-y-3">
+        {booking.status === 'accepted' && (
+          <button
+            type="button"
+            onClick={onOpenChat}
+            className={`${btnBase} w-full bg-sky-50 text-sky-700 hover:bg-sky-100`}
+          >
+            <FiMessageCircle size={18} /> Message
+          </button>
+        )}
+
+        {booking.status === 'accepted' && (
+          <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
+            <div className="flex items-center gap-2">
+              <FiAlertTriangle className="h-4 w-4 text-amber-600" />
+              <p className="text-sm font-bold text-amber-900">Service Provider Not Reached</p>
+            </div>
+            <p className="mt-2 text-sm font-semibold leading-5 text-amber-800">
+              {providerNotReachedHint}
+            </p>
+            {booking.providerNotReachedAlert?.supportCaseCode && (
+              <button
+                type="button"
+                onClick={onOpenSupport}
+                className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-sky-700 hover:underline"
+              >
+                Reference: {booking.providerNotReachedAlert.supportCaseCode}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onProviderNotReached}
+              disabled={isNotReachedButtonDisabled}
+              className={`mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold transition disabled:cursor-not-allowed ${
+                providerNotReachedState?.alreadyReported
+                  ? 'bg-sky-500 text-white hover:bg-sky-600'
+                  : 'bg-amber-500 text-white hover:bg-amber-600'
+              } disabled:bg-slate-200 disabled:text-slate-400`}
+            >
+              {providerNotReachedState?.alreadyReported ? (
+                <FiMessageCircle className="h-4 w-4" />
+              ) : (
+                <FiAlertCircle className="h-4 w-4" />
+              )}
+              {reportingNotReached
+                ? 'Sending Alert...'
+                : providerNotReachedState?.alreadyReported
+                  ? 'Open Support Chat'
+                  : 'Service Provider Not Reached'}
+            </button>
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <button onClick={onCancel} disabled={actionLoading} className={`${btnBase} bg-white border-2 border-red-500 text-red-500 hover:bg-red-50`}>
+            <FiXCircle size={18} /> {actionLoading ? 'Processing...' : 'Cancel Booking'}
+          </button>
+          <button onClick={onClose} className="flex-[0.5] py-4 rounded-xl bg-slate-50 border-[1.5px] border-slate-200 font-semibold text-slate-700 hover:bg-slate-100 transition-colors">
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (
+    (booking.status === 'cancelled' || booking.status === 'rejected') &&
+    booking.paymentStatus === 'paid' &&
+    !booking.refundRequested &&
+    !booking.refund
+  ) {
+    return (
       <div className="flex gap-3">
-        <button onClick={onCancel} disabled={actionLoading} className={`${btnBase} bg-white border-2 border-red-500 text-red-500 hover:bg-red-50`}>
-          <FiXCircle size={18} /> {actionLoading ? 'Processing...' : 'Cancel Booking'}
+        <button onClick={onRequestRefund} disabled={actionLoading} className={`${btnBase} bg-amber-500 text-white hover:bg-amber-600 shadow-md shadow-amber-500/30`}>
+          <FiDollarSign size={18} /> {actionLoading ? 'Submitting...' : 'Request Refund'}
         </button>
         <button onClick={onClose} className="flex-[0.5] py-4 rounded-xl bg-slate-50 border-[1.5px] border-slate-200 font-semibold text-slate-700 hover:bg-slate-100 transition-colors">
           Close

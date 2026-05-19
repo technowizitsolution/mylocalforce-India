@@ -18,6 +18,7 @@ const AddressScreen = () => {
     defaultAddress: defaultAddressParam = null,
     nextScreen = 'ProviderSelector',
     params: nestedParams = {},
+    backTo: flatBackTo,
     // Also extract flattened keys from callers like ServiceDetailsScreen
     serviceData: flatServiceData,
     providers: flatProviders,
@@ -32,7 +33,9 @@ const AddressScreen = () => {
     ...(flatProviders ? { providers: flatProviders } : {}),
     ...(flatCategory ? { category: flatCategory } : {}),
     ...(flatPackageData ? { packageData: flatPackageData } : {}),
+    ...(flatBackTo ? { backTo: flatBackTo } : {}),
   };
+  const backTo = params.backTo;
 
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -160,6 +163,15 @@ const AddressScreen = () => {
     navigate(resolveNextRoute(nextScreen), { state: safeState });
   };
 
+  const handleBack = () => {
+    if (backTo) {
+      navigate(backTo, { replace: true });
+      return;
+    }
+
+    navigate(-1);
+  };
+
   const handleSelectSuggestion = async suggestion => {
     selectingRef.current = true;
 
@@ -230,7 +242,7 @@ const AddressScreen = () => {
         <div className="mb-6 rounded-2xl bg-white shadow-sm border border-slate-200 p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <button
-              onClick={() => navigate(-1)}
+              onClick={handleBack}
               className="h-10 w-10 rounded-full border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-100 transition-colors"
             >
               <FiArrowLeft className="h-5 w-5 text-slate-700" />

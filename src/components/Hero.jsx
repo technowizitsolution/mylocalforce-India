@@ -1,3 +1,6 @@
+import { Link } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
+
 export default function Hero() {
   return (
     <section className="relative h-screen w-full overflow-hidden">
@@ -58,12 +61,14 @@ export default function Hero() {
                 </a>
               </div>
 
-              <a
-                href="#"
+              <Link
+                to="/services"
+                state={{ selectedCategory: 'All' }}
                 className="text-white text-sm sm:text-base font-semibold hover:text-[#2969E7] transition flex items-center gap-2"
               >
-                Check All Services →
-              </a>
+                Check All Services
+                <ChevronRight className="h-4 w-4" />
+              </Link>
             </div>
           </div>
         </div>

@@ -279,6 +279,19 @@ const ProviderProfileScreen = () => {
     }
   };
 
+  const handleLogout = async () => {
+    const result = await logout();
+    if (result.success) {
+      notify.success('Signed out.', { id: 'provider-profile-logout' });
+      navigate('/', { replace: true });
+      return;
+    }
+
+    notify.error(result?.error || 'Could not sign out. Please try again.', {
+      id: 'provider-profile-logout',
+    });
+  };
+
   const handleDeactivateAccount = async () => {
     if (!window.confirm('This will deactivate your provider profile. Continue?')) return;
 
@@ -482,8 +495,8 @@ const ProviderProfileScreen = () => {
 
       <button
         type="button"
-        onClick={logout}
-        className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white text-sm font-semibold text-rose-600 shadow-sm hover:bg-rose-50"
+        onClick={handleLogout}
+        className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-red-300 bg-white text-sm font-semibold text-red-500 shadow-sm transition-all hover:border-red-400 hover:bg-red-50 active:bg-red-100"
       >
         <FiLogOut className="h-5 w-5" />
         Logout
@@ -694,6 +707,14 @@ const ProviderProfileScreen = () => {
                   className="w-full rounded-xl border border-rose-200 px-4 py-3 text-left text-sm font-semibold text-rose-600 transition-colors hover:bg-rose-50 disabled:opacity-60"
                 >
                   Delete Account
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-300 bg-white px-4 py-3 text-sm font-semibold text-red-500 transition-all hover:border-red-400 hover:bg-red-50 active:bg-red-100"
+                >
+                  <FiLogOut size={18} />
+                  Logout
                 </button>
               </div>
             </section>

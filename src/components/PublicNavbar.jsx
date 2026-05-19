@@ -4,6 +4,7 @@ import { FiDownload, FiLogIn, FiMenu, FiRefreshCw, FiX } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 
 const baseNavItems = [
+  { label: 'Services', to: '/services' },
   { label: 'About us', to: '/about' },
   { label: 'Careers', to: '/careers' },
   { label: 'Contact us', to: '/contact' },
@@ -82,8 +83,11 @@ const PublicNavbar = ({
     const visibleBaseNavItems = isSignedIn
       ? baseNavItems.filter((item) => item.to !== '/careers')
       : baseNavItems;
+    const resolvedBaseNavItems = visibleBaseNavItems.map((item) =>
+      item.to === '/services' && isSignedIn ? { ...item, to: '/customer/services' } : item
+    );
 
-    return [{ label: 'Home', to: homePath }, ...visibleBaseNavItems];
+    return [{ label: 'Home', to: homePath }, ...resolvedBaseNavItems];
   }, [homePath, isSignedIn]);
 
   useEffect(() => {

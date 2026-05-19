@@ -14,7 +14,8 @@ import { allServices } from '../../data/services';
 const ServiceDetailsScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isLoggedIn } = useAuth();
+  const { isAuthenticated, isLoggedIn } = useAuth();
+  const isSignedIn = isAuthenticated || isLoggedIn;
 
   const service = location.state?.service;
   const fromHome = location.state?.fromHome;
@@ -101,6 +102,7 @@ const ServiceDetailsScreen = () => {
     });
 
     const params = {
+      backTo: '/customer/services',
       category: service.category,
       subcategory: service.title,
       serviceData: {
@@ -131,7 +133,7 @@ const ServiceDetailsScreen = () => {
       },
     };
 
-    if (!isLoggedIn) {
+    if (!isSignedIn) {
       navigate('/login', { state: { redirectTo: '/customer/address', params } });
       return;
     }
@@ -168,165 +170,130 @@ const ServiceDetailsScreen = () => {
   }
 
   const serviceTitle = service.title || service.name || 'Service';
-  const priceDisplay = typeof service.price === 'number' ? `$${service.price.toFixed(2)}` : service.price;
+  const serviceImage = service.imageUrl || service.image || service.thumbnail || null;
+  const serviceDescription = service.description || 'Book this service with a trusted local provider.';
+  const priceValue =
+    typeof service.price === 'number'
+      ? service.price
+      : parseFloat(String(service.price || '').replace(/[^0-9.]/g, '')) || 0;
+  const priceDisplay = priceValue > 0 ? `$${priceValue.toFixed(2)}` : 'Quote on request';
+  const featureItems =
+    service.features && Array.isArray(service.features) && service.features.length > 0
+      ? service.features
+      : [
+          service.duration ? `${service.duration} estimated duration` : null,
+          'Verified local service provider',
+          'Secure booking flow',
+        ].filter(Boolean);
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-50 to-white pb-28 sm:pb-32">
-      <div className="max-w-5xl mx-auto">
-        {/* Service Image Section */}
-        <div className="relative h-52 sm:h-72 md:h-80 lg:h-105 bg-indigo-100 overflow-hidden">
-          {service.imageUrl ? (
-            <img
-              src={service.imageUrl}
-              alt={serviceTitle}
-              className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-indigo-100 via-indigo-50 to-purple-100">
-              <div className="text-5xl sm:text-6xl lg:text-7xl">ðŸ“¦</div>
-            </div>
-          )}
+    <div className="min-h-screen bg-slate-50 pb-28">
+      <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+        <button
+          onClick={handleBackPress}
+          className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50"
+          aria-label="Go back"
+        >
+          <FiArrowLeft className="h-5 w-5" />
+        </button>
 
-          {/* Gradient overlays for depth */}
-          <div className="absolute inset-0 bg-linear-to-t from-black/50 via-black/10 to-transparent" />
-          <div className="absolute inset-0 bg-linear-to-r from-black/10 to-transparent" />
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)] lg:items-start">
+          <div className="overflow-hidden rounded-3xl bg-slate-200 shadow-sm">
+            {serviceImage ? (
+              <img src={serviceImage} alt={serviceTitle} className="h-72 w-full object-cover sm:h-96 lg:h-[34rem]" />
+            ) : (
+              <div className="flex h-72 w-full items-center justify-center bg-indigo-50 sm:h-96 lg:h-[34rem]">
+                <FiFileText className="h-16 w-16 text-indigo-300" />
+              </div>
+            )}
+          </div>
 
-          {/* Back Button */}
-          <button
-            onClick={handleBackPress}
-            className="absolute top-3 left-3 sm:top-5 sm:left-5 z-20 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-white/90 backdrop-blur-md shadow-lg shadow-black/10 flex items-center justify-center hover:bg-white hover:scale-105 active:scale-95 transition-all duration-200"
-          >
-            <FiArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 text-slate-800" />
-          </button>
-
-          {/* Floating category badge on hero */}
-          <div className="absolute bottom-4 left-4 sm:bottom-6 sm:left-6 z-10">
-            <span className="inline-flex items-center px-3 py-1 sm:px-4 sm:py-1.5 bg-white/90 backdrop-blur-md rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider text-indigo-700 shadow-lg shadow-black/10">
-              {service.category}
+          <aside className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:sticky lg:top-24">
+            <span className="inline-flex rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-indigo-700">
+              {service.category || 'Service'}
             </span>
-          </div>
-        </div>
 
-        {/* Content Card */}
-        <div className="relative -mt-5 sm:-mt-8 mx-2.5 sm:mx-5 lg:mx-6 rounded-2xl sm:rounded-3xl bg-white shadow-xl shadow-slate-200/60 p-4 sm:p-6 lg:p-8 xl:p-10 mb-4 sm:mb-6 border border-slate-100/80">
+            <h1 className="mt-5 text-3xl font-black leading-tight text-slate-950 sm:text-4xl">
+              {serviceTitle}
+            </h1>
 
-          {/* Title & Price Header */}
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-6 mb-5 sm:mb-7">
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-extrabold text-slate-900 leading-tight tracking-tight">
-                {serviceTitle}
-              </h1>
-              {service.ownerName && (
-                <p className="mt-1.5 sm:mt-2 text-xs sm:text-sm text-slate-500 flex items-center gap-1.5">
-                  <span className="inline-flex items-center justify-center w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-indigo-100">
-                    <FiUser className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-indigo-600" />
-                  </span>
-                  by <span className="font-medium text-slate-700">{service.ownerName}</span>
-                </p>
-              )}
-            </div>
-            <div className="shrink-0 sm:text-right">
-              <p className="text-[10px] sm:text-xs uppercase tracking-widest font-semibold text-slate-400 mb-0.5">Starting at</p>
-              <p className="text-2xl sm:text-3xl lg:text-4xl font-extrabold bg-linear-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-                {priceDisplay}
+            {service.ownerName ? (
+              <p className="mt-3 flex items-center gap-2 text-sm text-slate-500">
+                <FiUser className="h-4 w-4 text-indigo-600" />
+                Provided by <span className="font-semibold text-slate-700">{service.ownerName}</span>
               </p>
-            </div>
-          </div>
+            ) : null}
 
-          {/* Meta Pills */}
-          {(service.rating || service.duration) && (
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-5 sm:mb-7">
-              {service.rating && (
-                <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-amber-50 rounded-full border border-amber-100">
-                  <FiStar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 fill-amber-400" />
-                  <span className="text-xs sm:text-sm font-bold text-amber-700">{service.rating}</span>
-                  {service.reviews && <span className="text-[10px] sm:text-xs text-amber-500/80">({service.reviews})</span>}
-                </div>
-              )}
-              {service.duration && (
-                <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-slate-50 rounded-full border border-slate-200">
-                  <FiClock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-500" />
-                  <span className="text-xs sm:text-sm font-semibold text-slate-700">{service.duration}</span>
-                </div>
-              )}
+            <div className="mt-6 flex flex-wrap gap-3">
+              {service.duration ? (
+                <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
+                  <FiClock className="h-4 w-4 text-indigo-600" />
+                  {service.duration}
+                </span>
+              ) : null}
+              {service.rating ? (
+                <span className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700">
+                  <FiStar className="h-4 w-4 fill-amber-400 text-amber-500" />
+                  {service.rating}
+                  {service.reviews ? ` (${service.reviews})` : ''}
+                </span>
+              ) : null}
             </div>
-          )}
 
-          {/* Divider */}
-          <div className="h-px bg-linear-to-r from-transparent via-slate-200 to-transparent mb-5 sm:mb-7" />
-
-          {/* Description Section */}
-          <div className="mb-6 sm:mb-8">
-            <div className="flex items-center gap-2 sm:gap-2.5 mb-3 sm:mb-4">
-              <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-50">
-                <FiFileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600" />
-              </div>
-              <h2 className="text-base sm:text-lg lg:text-xl font-bold text-slate-800">About this service</h2>
+            <div className="mt-8 rounded-2xl bg-slate-50 p-5">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Starting at</p>
+              <p className="mt-1 text-4xl font-black text-indigo-600">{priceDisplay}</p>
             </div>
-            <p className="text-xs sm:text-sm md:text-base text-slate-600 leading-relaxed sm:leading-7">
-              {service.description}
-            </p>
-          </div>
 
-          {/* Features Section */}
-          {service.features && Array.isArray(service.features) && service.features.length > 0 && (
-            <div className="mb-6 sm:mb-8">
-              <h3 className="text-base sm:text-lg font-bold text-slate-800 mb-3 sm:mb-4">What's included</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                {service.features.map((feature, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-start gap-2.5 sm:gap-3 bg-slate-50/80 rounded-xl p-3 sm:p-3.5 border border-slate-100 hover:border-indigo-100 hover:bg-indigo-50/40 transition-colors duration-200"
-                  >
-                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-linear-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0 mt-0.5 shadow-sm shadow-indigo-200">
-                      <span className="text-white text-[10px] sm:text-xs font-bold">âœ“</span>
-                    </div>
-                    <span className="text-xs sm:text-sm text-slate-700 leading-snug">{feature}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Price Summary Card */}
-          <div className="bg-linear-to-br from-indigo-50 via-indigo-50/80 to-violet-50/60 border border-indigo-100 rounded-xl sm:rounded-2xl p-4 sm:p-5 lg:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <p className="text-xs sm:text-sm font-medium text-indigo-600/80 mb-0.5">Service Price</p>
-                <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold bg-linear-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-                  {priceDisplay}
-                </p>
-                {service.duration && (
-                  <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">Duration: {service.duration}</p>
-                )}
-              </div>
-              <button
-                onClick={handleBookNowPress}
-                className="hidden sm:inline-flex items-center gap-2 px-6 lg:px-8 py-2.5 lg:py-3 bg-linear-to-r from-indigo-600 to-violet-600 text-white rounded-xl hover:from-indigo-700 hover:to-violet-700 transition-all duration-200 font-semibold shadow-lg shadow-indigo-200/50 text-sm lg:text-base hover:shadow-xl hover:shadow-indigo-200/60"
-              >
-                Book Now
-                <FiArrowRight className="w-4 h-4 lg:w-5 lg:h-5" />
-              </button>
-            </div>
-          </div>
+            <button
+              onClick={handleBookNowPress}
+              className="mt-6 inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-6 text-base font-bold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700 active:scale-[0.99]"
+            >
+              Book Now
+              <FiArrowRight className="h-5 w-5" />
+            </button>
+          </aside>
         </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)]">
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                <FiFileText className="h-5 w-5" />
+              </div>
+              <h2 className="text-xl font-black text-slate-950">About This Service</h2>
+            </div>
+            <p className="mt-5 text-base leading-8 text-slate-600">{serviceDescription}</p>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+            <h2 className="text-xl font-black text-slate-950">What&apos;s Included</h2>
+            <div className="mt-5 grid gap-3">
+              {featureItems.map((feature, idx) => (
+                <div key={idx} className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4">
+                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">
+                    ✓
+                  </span>
+                  <span className="text-sm leading-6 text-slate-700">{feature}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+      </div>
       </div>
 
-      {/* Sticky Footer - Book Now Button */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-slate-200/60 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] z-30">
-        <div className="max-w-5xl mx-auto px-3 sm:px-5 lg:px-6 py-2.5 sm:py-3.5 lg:py-4 flex items-center justify-between gap-3 sm:gap-4">
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-slate-200 bg-white/95 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
           <div className="min-w-0">
-            <p className="text-[10px] sm:text-xs font-medium text-slate-400 uppercase tracking-wider">Total</p>
-            <p className="text-lg sm:text-xl lg:text-2xl font-extrabold bg-linear-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent truncate">
-              {priceDisplay}
-            </p>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Total</p>
+            <p className="truncate text-xl font-black text-indigo-600 sm:text-2xl">{priceDisplay}</p>
           </div>
           <button
             onClick={handleBookNowPress}
-            className="shrink-0 flex items-center justify-center gap-1.5 sm:gap-2 px-5 sm:px-7 lg:px-8 py-2.5 sm:py-3 bg-linear-to-r from-indigo-600 to-violet-600 text-white rounded-xl sm:rounded-2xl hover:from-indigo-700 hover:to-violet-700 active:scale-[0.98] transition-all duration-200 font-bold shadow-lg shadow-indigo-300/40 text-xs sm:text-sm lg:text-base"
+            className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-6 text-sm font-bold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700 active:scale-[0.99] sm:px-8 sm:text-base"
           >
             Book Now
-            <FiArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
+            <FiArrowRight className="h-5 w-5" />
           </button>
         </div>
       </div>
