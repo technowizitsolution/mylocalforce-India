@@ -6,6 +6,7 @@ import { fetchUserProfile } from '../../services/firebase';
 import { fetchServicesByProvider } from '../../services/firebase/serviceService';
 import app, { auth as firebaseAuth } from '../../services/firebase/firebaseConfig';
 import { geocodeAddress } from '../../utils/googleMaps';
+import { saveCartDraft } from '../../utils/cartDraft';
 
 const ProviderSelectorScreen = () => {
   const navigate = useNavigate();
@@ -455,17 +456,17 @@ const ProviderSelectorScreen = () => {
   }, [user?.uid]);
 
   const handleSelect = provider => {
-    navigate('/customer/booking', {
-      state: {
-        serviceData,
-        category,
-        packageData,
-        providers: [provider],
-        selectedProvider: provider,
-        selectedAddress,
-        fromProviderSelector: true,
-      },
-    });
+    const bookingState = {
+      serviceData,
+      category,
+      packageData,
+      providers: [provider],
+      selectedProvider: provider,
+      selectedAddress,
+      fromProviderSelector: true,
+    };
+    saveCartDraft(bookingState);
+    navigate('/customer/booking', { state: bookingState });
   };
 
   const handleViewProfile = async provider => {

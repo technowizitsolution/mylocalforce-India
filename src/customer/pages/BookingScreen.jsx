@@ -32,6 +32,7 @@ import {
 } from '../../services/firebase/notificationService';
 import { notify, getUserFacingError } from '../../utils/toast';
 import { calculateCartQuote, formatAUD, normalizeServiceItems } from '../../utils/cartPricing';
+import { saveCartDraft } from '../../utils/cartDraft';
 
 // NOTE: geocoding fallback uses the Google Geocoding API. Ensure this key has Geocoding enabled.
 const GOOGLE_GEOCODING_API_KEY = 'AIzaSyBfeBvLPaPSEyHpwuqcUXCa-YJnZ3iJu1Q';
@@ -144,6 +145,36 @@ const BookingScreen = () => {
     lng: incomingAddr?.lng ?? null,
   });
 
+  useEffect(() => {
+    if (!serviceData) return;
+
+    saveCartDraft({
+      category,
+      subcategory,
+      packageData,
+      serviceData,
+      isLead,
+      selectedAddress: incomingSelectedAddress,
+      address: incomingAddress,
+      providers: incomingProviders,
+      selectedProvider: routeSelectedProvider,
+      fromProviderSelector,
+      serviceItems: incomingServiceItems,
+    });
+  }, [
+    category,
+    fromProviderSelector,
+    incomingAddress,
+    incomingSelectedAddress,
+    incomingProviders,
+    incomingServiceItems,
+    isLead,
+    packageData,
+    routeSelectedProvider,
+    serviceData,
+    subcategory,
+  ]);
+
   // If location state changes with a new address, apply it
   useEffect(() => {
     const incoming = incomingSelectedAddress || incomingAddress || null;
@@ -182,6 +213,35 @@ const BookingScreen = () => {
         : serviceData?.ownerName || 'Service Provider',
     [selectedProvider, serviceData?.ownerName]
   );
+
+  useEffect(() => {
+    if (!serviceData) return;
+    saveCartDraft({
+      category,
+      subcategory,
+      packageData,
+      serviceData,
+      isLead,
+      selectedAddress: incomingSelectedAddress,
+      address: incomingAddress,
+      providers: selectedProvider ? [selectedProvider] : incomingProviders,
+      selectedProvider,
+      fromProviderSelector,
+      serviceItems: incomingServiceItems,
+    });
+  }, [
+    category,
+    fromProviderSelector,
+    incomingAddress,
+    incomingSelectedAddress,
+    incomingProviders,
+    incomingServiceItems,
+    isLead,
+    packageData,
+    selectedProvider,
+    serviceData,
+    subcategory,
+  ]);
 
   // Confirmation modal state (replaces Alert)
   const [confirmModal, setConfirmModal] = useState(null);
@@ -1513,7 +1573,11 @@ const BookingScreen = () => {
                 <img
                   src={serviceData.imageUrl}
                   alt="Service"
-                  className="w-full h-32 sm:h-40 md:h-48 object-cover rounded-xl mb-3 sm:mb-4"
+                  className="w-full h-32 sm:h-40 md:h-48 rounded-xl mb-3 sm:mb-4"
+                  style={{
+                    objectFit: serviceData.imageFit || 'cover',
+                    objectPosition: `${serviceData.imagePositionX ?? 50}% ${serviceData.imagePositionY ?? 50}%`,
+                  }}
                 />
               )}
 

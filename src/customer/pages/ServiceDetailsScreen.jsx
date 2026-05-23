@@ -11,6 +11,52 @@ import {
 } from 'react-icons/fi';
 import { allServices } from '../../data/services';
 
+const normalizeIncludedItems = (value) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    return value
+      .split(/\r?\n|,/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+const getIncludedItems = (service) => {
+  const dashboardItems = normalizeIncludedItems(
+    service?.whatsIncluded ||
+      service?.whatIncluded ||
+      service?.included ||
+      service?.includes
+  );
+
+  if (dashboardItems.length > 0) {
+    return dashboardItems;
+  }
+
+  const featureItems = normalizeIncludedItems(service?.features);
+  if (featureItems.length > 0) {
+    return featureItems;
+  }
+
+  return [
+    service?.duration ? `${service.duration} estimated duration` : null,
+    'Verified local service provider',
+    'Secure booking flow',
+  ].filter(Boolean);
+};
+
+const getServiceImageStyle = (service) => ({
+  objectFit: service?.imageFit || 'cover',
+  objectPosition: `${service?.imagePositionX ?? 50}% ${service?.imagePositionY ?? 50}%`,
+});
+
 const ServiceDetailsScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -109,6 +155,16 @@ const ServiceDetailsScreen = () => {
         id: service.id,
         name: service.title,
         description: service.description,
+        whatsIncluded: normalizeIncludedItems(
+          service.whatsIncluded ||
+            service.whatIncluded ||
+            service.included ||
+            service.includes ||
+            service.features
+        ),
+        imageFit: service.imageFit || 'cover',
+        imagePositionX: service.imagePositionX ?? 50,
+        imagePositionY: service.imagePositionY ?? 50,
         price: typeof service.price === 'number' ? service.price : parseFloat(String(service.price).replace(/[^0-9.]/g, '')) || 0,
         duration: service.duration,
         category: service.category,
@@ -129,7 +185,7 @@ const ServiceDetailsScreen = () => {
         name: service.title,
         price: typeof service.price === 'number' ? `$${service.price}` : service.price,
         duration: service.duration,
-        services: service.features || [service.description],
+        services: getIncludedItems(service),
       },
     };
 
@@ -177,14 +233,7 @@ const ServiceDetailsScreen = () => {
       ? service.price
       : parseFloat(String(service.price || '').replace(/[^0-9.]/g, '')) || 0;
   const priceDisplay = priceValue > 0 ? `$${priceValue.toFixed(2)}` : 'Quote on request';
-  const featureItems =
-    service.features && Array.isArray(service.features) && service.features.length > 0
-      ? service.features
-      : [
-          service.duration ? `${service.duration} estimated duration` : null,
-          'Verified local service provider',
-          'Secure booking flow',
-        ].filter(Boolean);
+  const featureItems = getIncludedItems(service);
 
   return (
     <div className="min-h-screen bg-slate-50 pb-28">
@@ -200,7 +249,12 @@ const ServiceDetailsScreen = () => {
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)] lg:items-start">
           <div className="overflow-hidden rounded-3xl bg-slate-200 shadow-sm">
             {serviceImage ? (
-              <img src={serviceImage} alt={serviceTitle} className="h-72 w-full object-cover sm:h-96 lg:h-[34rem]" />
+              <img
+                src={serviceImage}
+                alt={serviceTitle}
+                className="h-72 w-full sm:h-96 lg:h-[34rem]"
+                style={getServiceImageStyle(service)}
+              />
             ) : (
               <div className="flex h-72 w-full items-center justify-center bg-indigo-50 sm:h-96 lg:h-[34rem]">
                 <FiFileText className="h-16 w-16 text-indigo-300" />
@@ -261,21 +315,21 @@ const ServiceDetailsScreen = () => {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
                 <FiFileText className="h-5 w-5" />
               </div>
-              <h2 className="text-xl font-black text-slate-950">About This Service</h2>
+              <h2 className="text-xl font-black text-slate-950">About Us</h2>
             </div>
             <p className="mt-5 text-base leading-8 text-slate-600">{serviceDescription}</p>
           </section>
 
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
             <h2 className="text-xl font-black text-slate-950">What&apos;s Included</h2>
-            <div className="mt-5 grid gap-3">
+            <div className="mt-5 flex flex-wrap gap-2">
               {featureItems.map((feature, idx) => (
-                <div key={idx} className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4">
-                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">
-                    ✓
-                  </span>
-                  <span className="text-sm leading-6 text-slate-700">{feature}</span>
-                </div>
+                <span
+                  key={`${feature}-${idx}`}
+                  className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-medium leading-5 text-slate-700"
+                >
+                  {feature}
+                </span>
               ))}
             </div>
           </section>

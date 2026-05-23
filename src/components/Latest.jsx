@@ -43,9 +43,19 @@ const normalizeService = (service, index = 0) => ({
   description: service.description || 'Book this local service with My Local Force.',
   image: service.imageUrl || service.image || service.thumbnail || fallbackServices[index % fallbackServices.length].image,
   imageUrl: service.imageUrl || service.image || service.thumbnail || fallbackServices[index % fallbackServices.length].image,
+  imageFit: service.imageFit || 'cover',
+  imagePositionX: service.imagePositionX ?? 50,
+  imagePositionY: service.imagePositionY ?? 50,
   price: service.price,
   duration: service.duration,
-  features: service.features,
+  whatsIncluded:
+    service.whatsIncluded ||
+    service.whatIncluded ||
+    service.included ||
+    service.includes ||
+    service.features ||
+    [],
+  features: service.features || service.whatsIncluded,
   ownerId: service.ownerId,
   ownerName: service.ownerName,
   ownerEmail: service.ownerEmail,
@@ -70,7 +80,11 @@ const ServiceCard = ({ service, large, onOpen }) => (
       <img
         src={service.image}
         alt={service.title}
-        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+        className="w-full h-full group-hover:scale-110 transition-transform duration-700"
+        style={{
+          objectFit: service.imageFit,
+          objectPosition: `${service.imagePositionX}% ${service.imagePositionY}%`,
+        }}
       />
 
       <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/20 to-transparent" />
@@ -170,7 +184,11 @@ const Latest = ({ services = [], loading = false }) => {
                   <img
                     src={service.image}
                     alt={service.title}
-                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                    className="w-full h-full hover:scale-105 transition-transform duration-500"
+                    style={{
+                      objectFit: service.imageFit,
+                      objectPosition: `${service.imagePositionX}% ${service.imagePositionY}%`,
+                    }}
                   />
                 </button>
 

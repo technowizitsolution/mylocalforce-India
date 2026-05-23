@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiUser } from 'react-icons/fi';
+import { FiShoppingCart, FiTrash2, FiUser } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { fetchAllServices, fetchUserRoles } from '../../services/firebase';
 import useCategories from '../../hooks/useCategories';
@@ -19,6 +19,7 @@ import {
   salonSubCategoriesMen,
 } from '../../data/services';
 import { notify, getUserFacingError } from '../../utils/toast';
+import { clearCartDraft, getCartDraft } from '../../utils/cartDraft';
 
 const HomeScreen = () => {
   const navigate = useNavigate();
@@ -27,6 +28,7 @@ const HomeScreen = () => {
   const [searchText, setSearchText] = useState('');
   const [isSearchSticky, setIsSearchSticky] = useState(false);
   const [mostBookedServices, setMostBookedServices] = useState([]);
+  const [cartDraft, setCartDraft] = useState(null);
 
   // Use database categories if loaded, otherwise use local fallback for instant display
   const categories = dbCategories.length > 0 ? dbCategories : localCategories;
@@ -43,6 +45,9 @@ const HomeScreen = () => {
           rating: service.rating || '4.5',
           reviews: service.reviews || '0',
           image: service.imageUrl || '/images/womenSalon.png',
+          imageFit: service.imageFit || 'cover',
+          imagePositionX: service.imagePositionX ?? 50,
+          imagePositionY: service.imagePositionY ?? 50,
           serviceData: service,
         }));
         setMostBookedServices(formattedServices);
@@ -53,6 +58,24 @@ const HomeScreen = () => {
 
     loadServices();
   }, []);
+
+  useEffect(() => {
+    const refreshCartDraft = () => setCartDraft(getCartDraft());
+    refreshCartDraft();
+    window.addEventListener('focus', refreshCartDraft);
+    return () => window.removeEventListener('focus', refreshCartDraft);
+  }, []);
+
+  const handleResumeCart = () => {
+    const draft = getCartDraft();
+    if (!draft?.serviceData) return;
+    navigate('/customer/booking', { state: draft });
+  };
+
+  const handleRemoveCart = () => {
+    clearCartDraft();
+    setCartDraft(null);
+  };
 
   // Notification press handler
   const handleNotificationPress = () => {
@@ -106,6 +129,13 @@ const HomeScreen = () => {
           id: serviceData.id,
           title: serviceData.name,
           description: serviceData.description,
+          whatsIncluded:
+            serviceData.whatsIncluded ||
+            serviceData.whatIncluded ||
+            serviceData.included ||
+            serviceData.includes ||
+            serviceData.features ||
+            [],
           price: `$${
             typeof serviceData.price === 'number' ? serviceData.price.toFixed(2) : serviceData.price
           }`,
@@ -116,7 +146,10 @@ const HomeScreen = () => {
           image: serviceData.imageUrl || '🏪',
           rating: serviceData.rating || '4.5',
           reviews: serviceData.reviews || '0',
-          features: serviceData.features || [serviceData.description],
+          imageFit: serviceData.imageFit || 'cover',
+          imagePositionX: serviceData.imagePositionX ?? 50,
+          imagePositionY: serviceData.imagePositionY ?? 50,
+          features: serviceData.features || serviceData.whatsIncluded || [serviceData.description],
           ownerName: serviceData.ownerName,
           ownerEmail: serviceData.ownerEmail,
           ownerPhone: serviceData.ownerPhone,
@@ -344,6 +377,26 @@ const HomeScreen = () => {
 
         <Footer />
       </div>
+      {cartDraft?.serviceData ? (
+        <div className="fixed bottom-5 right-5 z-40 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleResumeCart}
+            className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-xl shadow-indigo-200 transition hover:bg-indigo-700"
+            aria-label="Go to cart"
+          >
+            <FiShoppingCart className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={handleRemoveCart}
+            className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-red-100 bg-white text-red-600 shadow-lg transition hover:bg-red-50"
+            aria-label="Remove cart"
+          >
+            <FiTrash2 className="h-5 w-5" />
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 };

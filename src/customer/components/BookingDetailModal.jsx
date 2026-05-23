@@ -3,6 +3,7 @@ import nacl from 'tweetnacl';
 import naclUtil from 'tweetnacl-util';
 import {
   addDoc,
+  arrayUnion,
   collection,
   doc,
   getDoc,
@@ -172,15 +173,38 @@ const makeChatId = (leftUserId, rightUserId, bookingId) => {
 };
 
 const CHAT_KEY_PREFIX = 'chatKeys:';
+const CHAT_DEVICE_PREFIX = 'chatDeviceId:';
 const encodeBase64 = (u8) => naclUtil.encodeBase64(u8);
 const decodeBase64 = (text) => naclUtil.decodeBase64(text);
 const encodeUTF8 = (u8) => naclUtil.encodeUTF8(u8);
 const decodeUTF8 = (text) => naclUtil.decodeUTF8(text);
 
+const getChatDeviceId = (userId) => {
+  const storageKey = `${CHAT_DEVICE_PREFIX}${userId}`;
+  const existing = window.localStorage.getItem(storageKey);
+  if (existing) return existing;
+  const generated =
+    window.crypto?.randomUUID?.() || `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  window.localStorage.setItem(storageKey, generated);
+  return generated;
+};
+
 const ensureChatKeypair = async (userId) => {
   const storageKey = `${CHAT_KEY_PREFIX}${userId}`;
+  const deviceId = getChatDeviceId(userId);
   const existing = window.localStorage.getItem(storageKey);
-  if (existing) return JSON.parse(existing);
+  if (existing) {
+    const keys = JSON.parse(existing);
+    await setDoc(
+      doc(firestore, 'users', userId),
+      {
+        publicKey: keys.publicKey,
+        chatPublicKeys: arrayUnion({ deviceId, publicKey: keys.publicKey, platform: 'web' }),
+      },
+      { merge: true }
+    );
+    return { ...keys, deviceId };
+  }
 
   const keypair = nacl.box.keyPair();
   const keys = {
@@ -189,23 +213,38 @@ const ensureChatKeypair = async (userId) => {
   };
 
   window.localStorage.setItem(storageKey, JSON.stringify(keys));
-  await setDoc(doc(firestore, 'users', userId), { publicKey: keys.publicKey }, { merge: true });
-  return keys;
+  await setDoc(
+    doc(firestore, 'users', userId),
+    {
+      publicKey: keys.publicKey,
+      chatPublicKeys: arrayUnion({ deviceId, publicKey: keys.publicKey, platform: 'web' }),
+    },
+    { merge: true }
+  );
+  return { ...keys, deviceId };
 };
 
-const getPublicKeyForUser = async (userId) => {
+const getPublicKeysForUser = async (userId) => {
   const userSnapshot = await getDoc(doc(firestore, 'users', userId));
-  if (!userSnapshot.exists()) return null;
-  return userSnapshot.data()?.publicKey || null;
+  if (!userSnapshot.exists()) return [];
+  const data = userSnapshot.data() || {};
+  const keys = [];
+  if (data.publicKey) keys.push(data.publicKey);
+  if (Array.isArray(data.chatPublicKeys)) {
+    data.chatPublicKeys.forEach((entry) => {
+      if (entry?.publicKey) keys.push(entry.publicKey);
+    });
+  }
+  return [...new Set(keys)];
 };
 
-const getPublicKeyForUserWithRetry = async (userId) => {
+const getPublicKeysForUserWithRetry = async (userId) => {
   for (let attempt = 0; attempt < 4; attempt += 1) {
-    const publicKey = await getPublicKeyForUser(userId);
-    if (publicKey) return publicKey;
+    const publicKeys = await getPublicKeysForUser(userId);
+    if (publicKeys.length) return publicKeys;
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  return null;
+  return [];
 };
 
 const decryptChatMessage = (messageData, myUserId) => {
@@ -213,27 +252,40 @@ const decryptChatMessage = (messageData, myUserId) => {
 
   const keyJson = window.localStorage.getItem(`${CHAT_KEY_PREFIX}${myUserId}`);
   const myKeys = keyJson ? JSON.parse(keyJson) : null;
-  if (
-    !myKeys?.secretKey ||
-    typeof messageData.cipher !== 'string' ||
-    typeof messageData.nonce !== 'string' ||
-    typeof messageData.senderPublicKey !== 'string' ||
-    typeof messageData.recipientPublicKey !== 'string'
-  ) {
+  if (!myKeys?.secretKey) {
     return '[Encrypted]';
   }
 
+  const tryOpen = (boxPublicKey, cipherText, nonceText) => {
+    if (!boxPublicKey || !cipherText || !nonceText) return null;
+    const sharedKey = nacl.box.before(decodeBase64(boxPublicKey), decodeBase64(myKeys.secretKey));
+    const opened = nacl.box.open.after(decodeBase64(cipherText), decodeBase64(nonceText), sharedKey);
+    return opened ? encodeUTF8(opened) : null;
+  };
+
   try {
-    const mySecret = decodeBase64(myKeys.secretKey);
-    const otherPublicEncoded =
-      messageData.fromId === myUserId ? messageData.recipientPublicKey : messageData.senderPublicKey;
-    const sharedKey = nacl.box.before(decodeBase64(otherPublicEncoded), mySecret);
-    const opened = nacl.box.open.after(
-      decodeBase64(messageData.cipher),
-      decodeBase64(messageData.nonce),
-      sharedKey
-    );
-    return opened ? encodeUTF8(opened) : '[Encrypted]';
+    if (Array.isArray(messageData.boxes)) {
+      for (const box of messageData.boxes) {
+        const text = tryOpen(box.senderPublicKey, box.cipher, box.nonce);
+        if (text) return text;
+      }
+    }
+
+    if (
+      typeof messageData.cipher === 'string' &&
+      typeof messageData.nonce === 'string' &&
+      typeof messageData.senderPublicKey === 'string' &&
+      typeof messageData.recipientPublicKey === 'string'
+    ) {
+      const otherPublicEncoded =
+        messageData.fromId === myUserId
+          ? messageData.recipientPublicKey
+          : messageData.senderPublicKey;
+      const text = tryOpen(otherPublicEncoded, messageData.cipher, messageData.nonce);
+      if (text) return text;
+    }
+
+    return '[Encrypted]';
   } catch (error) {
     console.warn('Failed to decrypt booking chat message:', error);
     return '[Encrypted]';
@@ -242,9 +294,11 @@ const decryptChatMessage = (messageData, myUserId) => {
 
 const buildEncryptedChatPayload = async ({ fromId, toId, text }) => {
   const keys = await ensureChatKeypair(fromId);
-  const recipientPublicKey = await getPublicKeyForUserWithRetry(toId);
+  const recipientPublicKeys = await getPublicKeysForUserWithRetry(toId);
+  const senderPublicKeys = await getPublicKeysForUserWithRetry(fromId);
+  const allPublicKeys = [...new Set([...recipientPublicKeys, ...senderPublicKeys])];
 
-  if (!recipientPublicKey) {
+  if (!recipientPublicKeys.length) {
     return {
       plaintext: String(text || ''),
       fromId,
@@ -254,15 +308,27 @@ const buildEncryptedChatPayload = async ({ fromId, toId, text }) => {
     };
   }
 
-  const sharedKey = nacl.box.before(decodeBase64(recipientPublicKey), decodeBase64(keys.secretKey));
-  const nonce = nacl.randomBytes(nacl.box.nonceLength);
-  const cipher = nacl.box.after(decodeUTF8(text), nonce, sharedKey);
+  const encryptForPublicKey = (publicKey) => {
+    const sharedKey = nacl.box.before(decodeBase64(publicKey), decodeBase64(keys.secretKey));
+    const nonce = nacl.randomBytes(nacl.box.nonceLength);
+    const cipher = nacl.box.after(decodeUTF8(text), nonce, sharedKey);
+    return {
+      publicKey,
+      cipher: encodeBase64(cipher),
+      nonce: encodeBase64(nonce),
+      senderPublicKey: keys.publicKey,
+    };
+  };
+
+  const legacyRecipientKey = recipientPublicKeys[0];
+  const legacyBox = encryptForPublicKey(legacyRecipientKey);
 
   return {
-    cipher: encodeBase64(cipher),
-    nonce: encodeBase64(nonce),
+    cipher: legacyBox.cipher,
+    nonce: legacyBox.nonce,
     senderPublicKey: keys.publicKey,
-    recipientPublicKey,
+    recipientPublicKey: legacyRecipientKey,
+    boxes: allPublicKeys.map(encryptForPublicKey),
     fromId,
     toId,
     createdAt: serverTimestamp(),

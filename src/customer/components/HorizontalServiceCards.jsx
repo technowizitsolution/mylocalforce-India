@@ -19,7 +19,11 @@ const ServiceCard = ({ service, onPress, showDiscount = false }) => {
         <img
           src={imgSrc}
           alt={service.name}
-          className="w-full aspect-square object-cover rounded-2xl"
+          className="w-full aspect-square rounded-2xl"
+          style={{
+            objectFit: service.imageFit || 'cover',
+            objectPosition: `${service.imagePositionX ?? 50}% ${service.imagePositionY ?? 50}%`,
+          }}
           loading="lazy"
         />
         {showDiscount && service.discount && (

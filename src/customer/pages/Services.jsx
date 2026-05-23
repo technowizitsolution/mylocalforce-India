@@ -4,6 +4,8 @@ import {
   FiSearch,
   FiFilter,
   FiClock,
+  FiShoppingCart,
+  FiTrash2,
   FiChevronRight,
   FiScissors,
   FiHome,
@@ -17,6 +19,7 @@ import {
 import { fetchAllServices, subscribeToAllServices } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import useCategories from '../../hooks/useCategories';
+import { clearCartDraft, getCartDraft } from '../../utils/cartDraft';
 
 const Services = () => {
   const navigate = useNavigate();
@@ -34,6 +37,7 @@ const Services = () => {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [cartDraft, setCartDraft] = useState(null);
 
   // Respond to new navigation state (e.g. user navigates from Home again)
   useEffect(() => {
@@ -89,6 +93,24 @@ const Services = () => {
     };
   }, [loadServicesOnce]);
 
+  useEffect(() => {
+    const refreshCartDraft = () => setCartDraft(getCartDraft());
+    refreshCartDraft();
+    window.addEventListener('focus', refreshCartDraft);
+    return () => window.removeEventListener('focus', refreshCartDraft);
+  }, []);
+
+  const handleResumeCart = () => {
+    const draft = getCartDraft();
+    if (!draft?.serviceData) return;
+    navigate('/customer/booking', { state: draft });
+  };
+
+  const handleRemoveCart = () => {
+    clearCartDraft();
+    setCartDraft(null);
+  };
+
   const getServiceIcon = (category) => {
     const iconMap = {
       'woman salon': <FiScissors className="w-6 h-6" />,
@@ -101,6 +123,11 @@ const Services = () => {
     };
     return iconMap[category?.toLowerCase()] || <FiSettings className="w-6 h-6" />;
   };
+
+  const getServiceImageStyle = (service) => ({
+    objectFit: service?.imageFit || 'cover',
+    objectPosition: `${service?.imagePositionX ?? 50}% ${service?.imagePositionY ?? 50}%`,
+  });
 
   const filteredServices = services.filter((service) => {
     const matchesSearch =
@@ -120,6 +147,13 @@ const Services = () => {
       id: service.id,
       title: service.name || service.title,
       description: service.description,
+      whatsIncluded:
+        service.whatsIncluded ||
+        service.whatIncluded ||
+        service.included ||
+        service.includes ||
+        service.features ||
+        [],
       price:
         typeof service.price === 'number'
           ? service.price
@@ -131,7 +165,10 @@ const Services = () => {
       image: service.imageUrl || service.image || '🏪',
       rating: service.rating || null,
       reviews: service.reviews || null,
-      features: service.features || [service.description],
+      imageFit: service.imageFit || 'cover',
+      imagePositionX: service.imagePositionX ?? 50,
+      imagePositionY: service.imagePositionY ?? 50,
+      features: service.features || service.whatsIncluded || [service.description],
       ownerName: service.ownerName || null,
       ownerEmail: service.ownerEmail || null,
       ownerPhone: service.ownerPhone || null,
@@ -157,6 +194,13 @@ const Services = () => {
         id: item.id,
         name: item.name,
         description: item.description,
+        whatsIncluded:
+          item.whatsIncluded ||
+          item.whatIncluded ||
+          item.included ||
+          item.includes ||
+          item.features ||
+          [],
         price: numericPrice,
         duration: item.duration,
         category: item.category,
@@ -165,13 +209,16 @@ const Services = () => {
         ownerEmail: item.ownerEmail,
         ownerPhone: item.ownerPhone,
         imageUrl: item.imageUrl,
+        imageFit: item.imageFit || 'cover',
+        imagePositionX: item.imagePositionX ?? 50,
+        imagePositionY: item.imagePositionY ?? 50,
         providers: item.providers || [],
       },
       packageData: {
         name: item.name,
         price: `$${numericPrice.toFixed(2)}`,
         duration: item.duration,
-        services: [item.description || item.name],
+        services: item.whatsIncluded || item.features || [item.description || item.name],
       },
     };
 
@@ -260,7 +307,8 @@ const Services = () => {
                           <img
                             src={service.imageUrl}
                             alt={service.name}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full"
+                            style={getServiceImageStyle(service)}
                           />
                         ) : (
                           <div className="text-indigo-600">{getServiceIcon(service.category)}</div>
@@ -403,7 +451,8 @@ const Services = () => {
                         <img
                           src={service.imageUrl}
                           alt={service.name}
-                          className="w-12 h-12 rounded-lg object-cover"
+                          className="w-12 h-12 rounded-lg"
+                          style={getServiceImageStyle(service)}
                         />
                       ) : (
                         <div className="w-12 h-12 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600">
@@ -469,6 +518,26 @@ const Services = () => {
           )}
         </div>
       </div>
+      {cartDraft?.serviceData ? (
+        <div className="fixed bottom-5 right-5 z-40 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleResumeCart}
+            className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-xl shadow-indigo-200 transition hover:bg-indigo-700"
+            aria-label="Go to cart"
+          >
+            <FiShoppingCart className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={handleRemoveCart}
+            className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-red-100 bg-white text-red-600 shadow-lg transition hover:bg-red-50"
+            aria-label="Remove cart"
+          >
+            <FiTrash2 className="h-5 w-5" />
+          </button>
+        </div>
+      ) : null}
     </>
   );
 };
