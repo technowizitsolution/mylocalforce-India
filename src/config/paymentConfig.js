@@ -7,6 +7,9 @@ export const PaymentConfig = {
   // Platform fees (as decimal, e.g., 0.10 = 10%)
   PLATFORM_FEE_RATE: 0.10, // 10% platform fee
   PLATFORM_FEE_FIXED: 5,
+
+  // Company commission deducted from provider earnings
+  COMPANY_COMMISSION_RATE: 0.20, // 20% company commission
   
   // Payment gateway charges (Stripe rates for Australia)
   GATEWAY: {
@@ -196,6 +199,81 @@ export const getSettlementStatus = (bookingStatus) => {
 };
 
 /**
+ * Calculate payment breakdown V2 - Platform fee added on top, commission deducted from service price.
+ * Matches the provider booking pricing display used in the mobile app.
+ */
+export function calculatePaymentBreakdownV2(servicePrice, options = {}) {
+  const basePriceNum = parseFloat(servicePrice) || 0;
+  const companyCommissionRatePercent = options.companyCommissionRatePercent ?? null;
+  const companyCommissionRateDecimal =
+    companyCommissionRatePercent != null
+      ? parseFloat(companyCommissionRatePercent) / 100
+      : PaymentConfig.COMPANY_COMMISSION_RATE;
+
+  const platformFeeAmount = basePriceNum * PaymentConfig.PLATFORM_FEE_RATE;
+  const companyCommissionAmount = basePriceNum * companyCommissionRateDecimal;
+
+  let platformFeeTax = 0;
+  let platformFeeNet = platformFeeAmount;
+
+  if (PaymentConfig.TAX.INCLUDE_IN_PLATFORM_FEE) {
+    platformFeeTax = platformFeeAmount * (PaymentConfig.TAX.GST_RATE / (1 + PaymentConfig.TAX.GST_RATE));
+    platformFeeNet = platformFeeAmount - platformFeeTax;
+  }
+
+  const totalCustomerPays = basePriceNum + platformFeeAmount;
+  const gatewayFeePercentage = totalCustomerPays * PaymentConfig.GATEWAY.PERCENTAGE_FEE;
+  const gatewayFeeFixed = PaymentConfig.GATEWAY.FIXED_FEE;
+  const totalGatewayFee = gatewayFeePercentage + gatewayFeeFixed;
+  const totalCompanyRevenue = platformFeeAmount + companyCommissionAmount - totalGatewayFee;
+  const providerPayout = totalCustomerPays - platformFeeAmount - companyCommissionAmount;
+
+  const companyCommissionRateDisplay =
+    companyCommissionRatePercent != null
+      ? `${parseFloat(companyCommissionRatePercent).toFixed(0)}%`
+      : `${(PaymentConfig.COMPANY_COMMISSION_RATE * 100).toFixed(0)}%`;
+
+  return {
+    servicePrice: basePriceNum,
+    currency: PaymentConfig.CURRENCY,
+    platformFee: {
+      amount: platformFeeAmount,
+      rate: `${(PaymentConfig.PLATFORM_FEE_RATE * 100).toFixed(0)}%`,
+      tax: platformFeeTax,
+      net: platformFeeNet,
+    },
+    companyCommission: {
+      amount: companyCommissionAmount,
+      rate: companyCommissionRateDisplay,
+    },
+    totalCustomerPays,
+    gatewayFees: {
+      percentageFee: gatewayFeePercentage,
+      fixedFee: gatewayFeeFixed,
+      total: totalGatewayFee,
+      rate: `${(PaymentConfig.GATEWAY.PERCENTAGE_FEE * 100).toFixed(2)}% + ${PaymentConfig.CURRENCY_SYMBOL}${PaymentConfig.GATEWAY.FIXED_FEE}`,
+    },
+    totalCompanyRevenue,
+    providerPayout: {
+      amount: providerPayout,
+      percentage: totalCustomerPays > 0 ? ((providerPayout / totalCustomerPays) * 100).toFixed(1) : 0,
+    },
+    summary: {
+      servicePriceLabel: 'Service Price',
+      servicePriceValue: `${PaymentConfig.CURRENCY_SYMBOL}${basePriceNum.toFixed(2)}`,
+      platformFeeLabel: 'Platform Fee',
+      platformFeeValue: `${PaymentConfig.CURRENCY_SYMBOL}${platformFeeAmount.toFixed(2)}`,
+      companyCommissionLabel: 'Company Commission',
+      companyCommissionValue: `${PaymentConfig.CURRENCY_SYMBOL}${companyCommissionAmount.toFixed(2)}`,
+      totalLabel: 'Total Amount',
+      totalValue: `${PaymentConfig.CURRENCY_SYMBOL}${totalCustomerPays.toFixed(2)}`,
+      providerEarnsLabel: 'Provider Receives',
+      providerEarnsValue: `${PaymentConfig.CURRENCY_SYMBOL}${providerPayout.toFixed(2)}`,
+    },
+  };
+}
+
+/**
  * Example settlement calculation
  * 
  * Customer pays: $100.00
@@ -217,6 +295,7 @@ export const getSettlementStatus = (bookingStatus) => {
 export default {
   PaymentConfig,
   calculatePaymentBreakdown,
+  calculatePaymentBreakdownV2,
   calculateSettlement,
   formatCurrency,
   getSettlementStatus,

@@ -21,13 +21,18 @@ import {
   FiAlertTriangle, FiMessageCircle, FiCheck, FiSend, FiDollarSign
 } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
-import { getBookingById, updateBookingStatus } from '../../services/firebase/serviceService';
+import {
+  fetchProviderCommissionRate,
+  getBookingById,
+  updateBookingStatus,
+} from '../../services/firebase/serviceService';
 import { fetchUserProfile } from '../../services/firebase';
 import { createSupportCase } from '../../services/firebase/supportService';
 import { firestore } from '../../services/firebase/firebaseConfig';
 import { useAuth } from '../../context/AuthContext';
 import { startCheckoutForBooking } from '../../utils/bookingPayments';
 import { notify, getUserFacingError } from '../../utils/toast';
+import { calculatePaymentBreakdownV2, formatCurrency } from '../../config/paymentConfig';
 
 const PROVIDER_NOT_REACHED_ACTIVATION_MINUTES = 5;
 
@@ -324,6 +329,7 @@ const buildEncryptedChatPayload = async ({ fromId, toId, text }) => {
   const legacyBox = encryptForPublicKey(legacyRecipientKey);
 
   return {
+    plaintext: String(text || ''),
     cipher: legacyBox.cipher,
     nonce: legacyBox.nonce,
     senderPublicKey: keys.publicKey,
@@ -342,6 +348,7 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [providerProfile, setProviderProfile] = useState(null);
+  const [providerCommissionRate, setProviderCommissionRate] = useState(null);
   const [otpInput, setOtpInput] = useState('');
   const [otpSending, setOtpSending] = useState(false);
   const [unavailableNote, setUnavailableNote] = useState('');
@@ -420,6 +427,15 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
       setLoading(true);
       const bookingData = await getBookingById(bookingId);
       setBooking(bookingData);
+      setProviderCommissionRate(null);
+      if (bookingData?.providerId) {
+        try {
+          const rate = await fetchProviderCommissionRate(bookingData.providerId);
+          setProviderCommissionRate(rate);
+        } catch (e) {
+          console.log('Could not fetch provider commission rate:', e);
+        }
+      }
       if (role === 'customer' && bookingData?.providerId) {
         try {
           const profile = await fetchUserProfile(bookingData.providerId);
@@ -1358,25 +1374,45 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
               {(booking.packageData?.price || booking.price) && (
                 <Section label="Pricing Details">
                   <div className="bg-slate-50 p-4 rounded-xl space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-slate-500 font-medium">Service Fee</span>
-                      <span className="text-sm text-slate-800 font-semibold">
-                        ${typeof booking.price === 'number' ? booking.price.toFixed(2) : booking.price || booking.packageData?.price || '0.00'}
-                      </span>
-                    </div>
-                    {booking.duration && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-slate-500 font-medium">Duration</span>
-                        <span className="text-sm text-slate-500">{booking.duration}</span>
-                      </div>
-                    )}
-                    <hr className="border-slate-200" />
-                    <div className="flex justify-between items-center">
-                      <span className="text-base font-bold text-slate-800">Total Amount</span>
-                      <span className="text-lg font-bold text-indigo-500">
-                        ${typeof booking.price === 'number' ? booking.price.toFixed(2) : booking.price || booking.packageData?.price || '0.00'}
-                      </span>
-                    </div>
+                    {(() => {
+                      const rawPrice = booking.packageData?.price || booking.price;
+                      const basePrice = parseFloat(String(rawPrice).replace(/[^0-9.]/g, '')) || 0;
+                      const breakdown = calculatePaymentBreakdownV2(basePrice, {
+                        companyCommissionRatePercent: providerCommissionRate ?? undefined,
+                      });
+
+                      return (
+                        <>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-slate-500 font-medium">Service Fee</span>
+                            <span className="text-sm text-slate-800 font-semibold">
+                              {formatCurrency(basePrice)}
+                            </span>
+                          </div>
+                          {booking.duration && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-slate-500 font-medium">Duration</span>
+                              <span className="text-sm text-slate-500">{booking.duration}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-slate-500 font-medium">
+                              Platform Fee ({breakdown.platformFee.rate})
+                            </span>
+                            <span className="text-sm text-slate-800 font-semibold">
+                              {formatCurrency(breakdown.platformFee.amount)}
+                            </span>
+                          </div>
+                          <hr className="border-slate-200" />
+                          <div className="flex justify-between items-center">
+                            <span className="text-base font-bold text-slate-800">Your Earning</span>
+                            <span className="text-lg font-bold text-emerald-600">
+                              {formatCurrency(breakdown.providerPayout.amount)}
+                            </span>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </Section>
               )}

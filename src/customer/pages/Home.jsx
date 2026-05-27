@@ -382,7 +382,7 @@ const HomeScreen = () => {
           <button
             type="button"
             onClick={handleResumeCart}
-            className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-xl shadow-indigo-200 transition hover:bg-indigo-700"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600 text-white shadow-xl shadow-indigo-200 transition hover:bg-indigo-700"
             aria-label="Go to cart"
           >
             <FiShoppingCart className="h-5 w-5" />
@@ -390,7 +390,7 @@ const HomeScreen = () => {
           <button
             type="button"
             onClick={handleRemoveCart}
-            className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-red-100 bg-white text-red-600 shadow-lg transition hover:bg-red-50"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white text-red-600 shadow-lg transition hover:bg-red-50"
             aria-label="Remove cart"
           >
             <FiTrash2 className="h-5 w-5" />
