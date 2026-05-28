@@ -510,6 +510,15 @@ export async function updateBookingStatus(bookingId, newStatus, providerId) {
       );
     }
 
+    if (newStatus === 'completed') {
+      updateData.providerInvoiceSent = false;
+      updateData.providerInvoiceStatus = 'pending_customer_review';
+      updateData.providerInvoiceHoldReason = 'customer_review_window';
+      updateData.providerPayoutStatus = 'pending_review';
+      updateData.payoutStatus = 'pending_review';
+      updateData.payoutHoldReason = 'awaiting_admin_approval';
+    }
+
     // Update the booking status
     await updateDoc(bookingDoc, updateData);
 
