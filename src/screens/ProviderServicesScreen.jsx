@@ -5,18 +5,22 @@ import {
   FiClock,
   FiDollarSign,
   FiFilter,
+  FiMessageSquare,
   FiPlus,
   FiSearch,
+  FiSend,
   FiTrash2,
   FiX,
 } from 'react-icons/fi';
 import {
   arrayRemove,
   arrayUnion,
+  addDoc,
   collection,
   doc,
   getDocs,
   query,
+  serverTimestamp,
   updateDoc,
   where,
 } from 'firebase/firestore';
@@ -53,6 +57,12 @@ const ProviderServicesScreen = () => {
   const [catalogSearchText, setCatalogSearchText] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedSort, setSelectedSort] = useState('price_low');
+  const [requestForm, setRequestForm] = useState({
+    serviceName: '',
+    category: '',
+    description: '',
+  });
+  const [requestSubmitting, setRequestSubmitting] = useState(false);
 
   const loadProviderServices = async () => {
     if (!user?.uid) return;
@@ -174,6 +184,61 @@ const ProviderServicesScreen = () => {
       notify.error(error?.message || 'Could not remove service');
     } finally {
       markProcessing(service.id, false);
+    }
+  };
+
+  const handleSubmitServiceRequest = async () => {
+    const serviceName = requestForm.serviceName.trim();
+    const category = requestForm.category.trim();
+    const description = requestForm.description.trim();
+
+    if (!serviceName || !description) {
+      notify.warning('Please enter the service name and details');
+      return;
+    }
+
+    if (!user?.uid) {
+      notify.warning('Please login to request a service');
+      return;
+    }
+
+    try {
+      setRequestSubmitting(true);
+      const profile = await fetchUserProfile(user.uid).catch(() => null);
+      const providerName =
+        profile?.name ||
+        profile?.displayName ||
+        profile?.businessName ||
+        user.displayName ||
+        'Provider';
+
+      await addDoc(collection(firestore, 'serviceRequests'), {
+        serviceName,
+        category: category || null,
+        description,
+        status: 'new',
+        source: 'web_provider_catalog',
+        providerId: user.uid,
+        providerName,
+        providerEmail: profile?.email || user.email || null,
+        providerPhone:
+          profile?.phone ||
+          profile?.phoneNumber ||
+          profile?.profile?.phone ||
+          user.phone ||
+          user.phoneNumber ||
+          null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      setRequestForm({ serviceName: '', category: '', description: '' });
+      notify.success('Request sent. Admin will contact you about this service.');
+    } catch (error) {
+      console.error('Error submitting service request:', error);
+      notify.error(error?.message || 'Could not submit service request');
+    } finally {
+      setRequestSubmitting(false);
     }
   };
 
@@ -312,6 +377,10 @@ const ProviderServicesScreen = () => {
           loading={catalogLoading}
           searchText={catalogSearchText}
           onSearchChange={setCatalogSearchText}
+          requestForm={requestForm}
+          onRequestFormChange={setRequestForm}
+          requestSubmitting={requestSubmitting}
+          onSubmitRequest={handleSubmitServiceRequest}
           processingIds={processingIds}
           onAdd={handleAdd}
           onRemove={handleRemove}
@@ -452,6 +521,10 @@ const CatalogModal = ({
   loading,
   searchText,
   onSearchChange,
+  requestForm,
+  onRequestFormChange,
+  requestSubmitting,
+  onSubmitRequest,
   processingIds,
   onAdd,
   onRemove,
@@ -483,6 +556,67 @@ const CatalogModal = ({
           className="h-10 flex-1 text-sm font-semibold outline-none"
         />
         <FiFilter className="h-4 w-4 text-[#5A52E3]" />
+      </div>
+      <div className="border-b border-slate-100 bg-slate-50 p-5">
+        <div className="rounded-lg border border-indigo-100 bg-white p-4 shadow-sm">
+          <div className="mb-4 flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-[#5A52E3]">
+              <FiMessageSquare className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-semibold text-slate-950">Service not listed?</p>
+              <p className="mt-1 max-w-2xl text-sm font-medium text-slate-500">
+                Send the service details to admin. They will contact you, discuss pricing and scope,
+                then add it to the platform catalog.
+              </p>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <input
+              value={requestForm.serviceName}
+              onChange={(event) =>
+                onRequestFormChange((current) => ({
+                  ...current,
+                  serviceName: event.target.value,
+                }))
+              }
+              placeholder="Service name"
+              className="min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold outline-none transition focus:border-[#5A52E3] focus:ring-2 focus:ring-indigo-100"
+            />
+            <input
+              value={requestForm.category}
+              onChange={(event) =>
+                onRequestFormChange((current) => ({
+                  ...current,
+                  category: event.target.value,
+                }))
+              }
+              placeholder="Category (optional)"
+              className="min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold outline-none transition focus:border-[#5A52E3] focus:ring-2 focus:ring-indigo-100"
+            />
+            <textarea
+              value={requestForm.description}
+              onChange={(event) =>
+                onRequestFormChange((current) => ({
+                  ...current,
+                  description: event.target.value,
+                }))
+              }
+              placeholder="Describe the service you offer"
+              rows={3}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none transition focus:border-[#5A52E3] focus:ring-2 focus:ring-indigo-100 md:col-span-2"
+            />
+            <button
+              type="button"
+              onClick={onSubmitRequest}
+              disabled={requestSubmitting}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#5A52E3] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#4b44c8] disabled:opacity-60 md:w-fit"
+            >
+              <FiSend className="h-4 w-4" />
+              {requestSubmitting ? 'Submitting...' : 'Submit Request'}
+            </button>
+          </div>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto p-5">
         {loading ? (

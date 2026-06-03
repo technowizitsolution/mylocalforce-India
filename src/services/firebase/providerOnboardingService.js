@@ -636,7 +636,7 @@ export const fetchProviderDetails = async (userId) => {
  * @param {object} updates - Updates object
  * @returns {Promise<void>}
  */
-export const updateProviderDetails = async (userId, updates) => {
+export const updateProviderDetails = async (userId, updates, options = {}) => {
   try {
     if (!userId || !updates) {
       throw new Error('User ID and updates are required');
@@ -661,6 +661,14 @@ export const updateProviderDetails = async (userId, updates) => {
       onboardingDocuments: true,
       onboardingSubmittedAt: serverTimestamp(),
     };
+
+    if (options.submitForReview) {
+      topLevelUpdates.approvalStatus = 'pending';
+      topLevelUpdates.status = 'pending';
+      topLevelUpdates.providerAccountDisabled = true;
+      topLevelUpdates.disabledReason = 'Provider details pending review';
+      topLevelUpdates.onboardingReviewRequestedAt = serverTimestamp();
+    }
 
     // If updates include a new visa expiry or visa-related documents, mark account pending
     try {

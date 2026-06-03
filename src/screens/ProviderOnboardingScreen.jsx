@@ -14,9 +14,11 @@ import {
   FiInfo,
   FiRefreshCw,
   FiShield,
+  FiSend,
   FiUpload,
   FiVideo,
 } from 'react-icons/fi';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { ErrorMessage, Loading } from '../components/StateComponents';
 import {
@@ -28,6 +30,7 @@ import {
   saveProviderOnboardingDraft,
   uploadProviderDocument,
 } from '../services/firebase';
+import { firestore } from '../services/firebase/firebaseConfig';
 import { switchActiveRole } from '../services/firebase/userService';
 import MobileUploadCard from '../components/providerUpload/desktop/MobileUploadCard';
 import { notify, getUserFacingError } from '../utils/toast';
@@ -510,6 +513,14 @@ const ProviderOnboardingScreen = () => {
   const [selectedMainCategoryIds, setSelectedMainCategoryIds] = useState([]);
   const [availableSubcategories, setAvailableSubcategories] = useState([]);
   const [selectedServices, setSelectedServices] = useState([]);
+  const [categoryRequestOpen, setCategoryRequestOpen] = useState(false);
+  const [categoryRequestSubmitting, setCategoryRequestSubmitting] = useState(false);
+  const [categoryRequestForm, setCategoryRequestForm] = useState({
+    categoryName: '',
+    subcategoryName: '',
+    description: '',
+  });
+  const [categoryRequestSubmitted, setCategoryRequestSubmitted] = useState(false);
 
   const [nationalityStatus, setNationalityStatus] = useState('');
   const [preferredGender, setPreferredGender] = useState('any');
@@ -885,6 +896,58 @@ const ProviderOnboardingScreen = () => {
     );
   };
 
+  const updateCategoryRequestForm = (field, value) => {
+    setCategoryRequestForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const submitCategoryRequest = async () => {
+    const categoryName = categoryRequestForm.categoryName.trim();
+    const subcategoryName = categoryRequestForm.subcategoryName.trim();
+    const description = categoryRequestForm.description.trim();
+
+    if (!categoryName && !subcategoryName) {
+      notify.error('Please enter the category or subcategory you want to offer.');
+      return;
+    }
+
+    if (!description) {
+      notify.error('Please add a short note for admin.');
+      return;
+    }
+
+    if (!user?.uid) {
+      notify.error('Please sign in again before submitting this request.');
+      return;
+    }
+
+    setCategoryRequestSubmitting(true);
+    try {
+      await addDoc(collection(firestore, 'categoryRequests'), {
+        providerId: user.uid,
+        providerName: user.name || user.displayName || accountName || 'Provider',
+        providerEmail: user.email || '',
+        providerPhone: user.phone || user.phoneNumber || user.mobile || '',
+        categoryName,
+        subcategoryName,
+        description,
+        status: 'new',
+        source: 'web_provider_onboarding',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      setCategoryRequestForm({ categoryName: '', subcategoryName: '', description: '' });
+      setCategoryRequestSubmitted(true);
+      setCategoryRequestOpen(false);
+      notify.success('Category request sent. Admin will contact you soon.');
+    } catch (error) {
+      console.error('Failed to submit category request:', error);
+      notify.error('Could not send category request. Please try again.');
+    } finally {
+      setCategoryRequestSubmitting(false);
+    }
+  };
+
   const hasSecureDocument = (documentTypes) => {
     const acceptedTypes = normalizeAcceptedTypes(documentTypes);
     const needsFreshUpload = requiresFreshDocument(acceptedTypes);
@@ -909,8 +972,8 @@ const ProviderOnboardingScreen = () => {
       if (!nationalityStatus) {
         return 'Please select your nationality status.';
       }
-      if (!selectedServices.length) {
-        return 'Please select at least one service you offer.';
+      if (!selectedServices.length && !categoryRequestSubmitted) {
+        return 'Please select at least one service you offer or submit a not-listed category request.';
       }
       if (!experience.trim()) {
         return 'Please enter your experience.';
@@ -1016,6 +1079,7 @@ const ProviderOnboardingScreen = () => {
     profile: {
       nationalityStatus: nationalityStatus || null,
       servicesOffered: selectedServices,
+      pendingCategoryRequest: categoryRequestSubmitted,
       preferredGender: preferredGender || 'any',
       experience: experience || null,
       ...(visaCategory ? { visaCategory } : {}),
@@ -1464,6 +1528,61 @@ const ProviderOnboardingScreen = () => {
           <p className="mt-4 text-xs font-semibold text-gray-500">
             {selectedServices.length} service(s) selected
           </p>
+
+          <div className="mt-5 rounded-xl border border-dashed border-blue-300 bg-white p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-gray-950">None of the above / not listed?</p>
+                <p className="mt-1 text-sm text-gray-600">
+                  Submit the category or subcategory you need. Admin will contact you before adding it.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCategoryRequestOpen((current) => !current)}
+                className="inline-flex items-center justify-center rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-50"
+              >
+                {categoryRequestOpen ? 'Close form' : 'Request category'}
+              </button>
+            </div>
+
+            {categoryRequestOpen && (
+              <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                <input
+                  type="text"
+                  value={categoryRequestForm.categoryName}
+                  onChange={(event) => updateCategoryRequestForm('categoryName', event.target.value)}
+                  placeholder="Category name"
+                  className={compactControlClass}
+                />
+                <input
+                  type="text"
+                  value={categoryRequestForm.subcategoryName}
+                  onChange={(event) => updateCategoryRequestForm('subcategoryName', event.target.value)}
+                  placeholder="Subcategory name"
+                  className={compactControlClass}
+                />
+                <textarea
+                  value={categoryRequestForm.description}
+                  onChange={(event) => updateCategoryRequestForm('description', event.target.value)}
+                  placeholder="Describe the work you want to provide"
+                  rows={4}
+                  className={`${compactControlClass} min-h-[7rem] resize-y lg:col-span-2`}
+                />
+                <div className="lg:col-span-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={submitCategoryRequest}
+                    disabled={categoryRequestSubmitting}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <FiSend className="h-4 w-4" />
+                    {categoryRequestSubmitting ? 'Submitting...' : 'Submit request'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 

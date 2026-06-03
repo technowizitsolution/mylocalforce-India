@@ -265,6 +265,7 @@ const ProviderEditDetailsScreen = () => {
       setSaving(true);
       await updateProviderDetails(user.uid, {
         ...buildProviderDetailsUpdates(),
+        status: 'under_review',
         ...(secureUploadSummary?.sessionId
           ? {
               secureUploadSessionId: secureUploadSummary.sessionId,
@@ -273,10 +274,10 @@ const ProviderEditDetailsScreen = () => {
               documentsMetadata: secureUploadSummary.documentsMetadata || {},
             }
           : {}),
-      });
+      }, { submitForReview: true });
       await refreshUserData?.();
-      notify.success('Provider details updated');
-      await loadDetails();
+      notify.success('Provider details submitted for review');
+      navigate('/provider/under-review', { replace: true });
     } catch (error) {
       notify.error(error?.message || 'Failed to update provider details');
     } finally {
@@ -302,8 +303,10 @@ const ProviderEditDetailsScreen = () => {
             ? { [secureDocumentFieldByKey[docConfig.key]]: deleteField() }
             : {}),
         },
-      });
-      notify.success(`${docConfig.label} uploaded`);
+        status: 'under_review',
+      }, { submitForReview: true });
+      await refreshUserData?.();
+      notify.success(`${docConfig.label} uploaded and submitted for review`);
       await loadDetails();
     } catch (error) {
       notify.error(error?.message || 'Document upload failed');
