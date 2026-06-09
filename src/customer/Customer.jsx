@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import CustomerNavbar from './components/CustomerNavbar';
 import TabBar from './components/TabBar';
+import FloatingAiSupport from '../components/FloatingAiSupport';
 import { useAuth } from '../context/AuthContext';
 
 const Customer = () => {
@@ -33,6 +34,7 @@ const Customer = () => {
           <TabBar />
         </nav>
       ) : null}
+      <FloatingAiSupport role="customer" />
     </div>
   );
 };

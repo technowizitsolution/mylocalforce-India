@@ -12,6 +12,7 @@ import {
   FiUser,
 } from 'react-icons/fi';
 import NotificationBell from '../customer/components/NotificationBell';
+import FloatingAiSupport from './FloatingAiSupport';
 import { useAuth } from '../context/AuthContext';
 import { fetchUserRoles } from '../services/firebase';
 import { notify } from '../utils/toast';
@@ -123,6 +124,7 @@ const ProviderAppLayout = ({ children }) => {
       </main>
 
       {isProviderPrimaryRoute ? <ProviderMobileTabBar homePath={homePath} /> : null}
+      <FloatingAiSupport role="provider" />
     </div>
   );
 };
