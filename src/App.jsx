@@ -43,6 +43,7 @@ import CareersPage from './components/CareersPage';
 import ContactPage from './components/ContactPage';
 import PublicNavbar from './components/PublicNavbar';
 import { useAuth } from './context/AuthContext';
+import FloatingAiSupport from './components/FloatingAiSupport';
 
 const withPublicNavbar = (children, navbarProps) => (
   <>
@@ -71,7 +72,13 @@ const PublicServiceRoute = ({ children, redirectTo }) => {
  * Handles all route definitions and protects routes based on user roles
  */
 const App = () => {
+  const location = useLocation();
+  const showPublicChatbot =
+    !location.pathname.startsWith('/customer') &&
+    !location.pathname.startsWith('/provider');
+
   return (
+    <>
     <Routes>
       {/* Public Routes */}
       <Route path="/" element={<Welcome />} />
@@ -292,6 +299,8 @@ const App = () => {
       {/* Catch-all for unknown routes */}
       <Route path="*" element={<UnknownRouteRedirect />} />
     </Routes>
+    {showPublicChatbot ? <FloatingAiSupport role="all" /> : null}
+    </>
   );
 };
 

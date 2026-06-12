@@ -6,10 +6,17 @@ const cleanText = (value, maxLength = 2000) =>
 
 const normalizeRole = (role) => {
   const normalized = String(role || '').trim().toLowerCase();
+  if (normalized === 'all' || normalized === 'public') return 'all';
   return normalized === 'provider' || normalized === 'client' ? 'provider' : 'customer';
 };
 
-export const sendAiSupportMessage = async ({ message, role, sessionId, source = 'web' }) => {
+export const sendAiSupportMessage = async ({
+  message,
+  role,
+  sessionId,
+  source = 'web',
+  contactInfo = {},
+}) => {
   const cleanedMessage = cleanText(message);
 
   if (!cleanedMessage) {
@@ -22,6 +29,11 @@ export const sendAiSupportMessage = async ({ message, role, sessionId, source = 
     role: normalizeRole(role),
     sessionId: cleanText(sessionId, 80) || null,
     source,
+    contactInfo: {
+      name: cleanText(contactInfo.name, 120),
+      email: cleanText(contactInfo.email, 160),
+      phone: cleanText(contactInfo.phone, 50),
+    },
   });
 
   const data = result.data || {};
@@ -30,5 +42,20 @@ export const sendAiSupportMessage = async ({ message, role, sessionId, source = 
     reply: data.reply || 'I could not generate a response right now.',
     model: data.model || '',
     provider: data.provider || '',
+    source: data.source || '',
+    queryId: data.queryId || null,
+    needsAdminAnswer: data.needsAdminAnswer === true,
+    needsAdminReview: data.needsAdminReview === true,
   };
+};
+
+export const checkAiSupportAnswer = async (queryId) => {
+  const cleanedQueryId = cleanText(queryId, 120);
+  if (!cleanedQueryId) {
+    return { answered: false, answer: '' };
+  }
+
+  const callable = httpsCallable(functions, 'checkAiSupportAnswer');
+  const result = await callable({ queryId: cleanedQueryId });
+  return result.data || { answered: false, answer: '' };
 };
