@@ -7,6 +7,8 @@ import { fetchServicesByProvider } from '../../services/firebase/serviceService'
 import app, { auth as firebaseAuth } from '../../services/firebase/firebaseConfig';
 import { geocodeAddress } from '../../utils/googleMaps';
 import { saveCartDraft } from '../../utils/cartDraft';
+import { formatExperience } from '../../utils/helpers';
+import { fetchServiceDistanceSetting, isWithinServiceDistance } from '../../utils/serviceDistanceSetting';
 
 const ProviderSelectorScreen = () => {
   const navigate = useNavigate();
@@ -335,6 +337,11 @@ const ProviderSelectorScreen = () => {
           return;
         }
 
+        const distanceSetting = await fetchServiceDistanceSetting(
+          serviceData?.id || serviceData?.serviceId,
+          'ProviderSelector',
+        );
+
         for (const p of src) {
           const pid =
             typeof p === 'string'
@@ -414,7 +421,7 @@ const ProviderSelectorScreen = () => {
           }
 
           if (distanceKm != null) {
-            if (distanceKm <= 20) {
+            if (isWithinServiceDistance(distanceKm, distanceSetting)) {
               results.push({ id: pid, profile, coords, distanceKm });
             }
           } else {
@@ -763,11 +770,17 @@ const ProviderSelectorScreen = () => {
                   )}
 
                   {/* Experience Section */}
-                  {selectedProviderProfile.profile?.experience && (
+                  {(selectedProviderProfile.profile?.experience ||
+                    selectedProviderProfile.experience ||
+                    selectedProviderProfile.profile?.profile?.experience) && (
                     <div className="mb-6">
                       <h4 className="text-base font-bold text-slate-800 mb-3">Experience</h4>
                       <p className="text-sm text-slate-700 leading-relaxed">
-                        {selectedProviderProfile.profile.experience}
+                        {formatExperience(
+                          selectedProviderProfile.profile?.experience ||
+                            selectedProviderProfile.experience ||
+                            selectedProviderProfile.profile?.profile?.experience
+                        )}
                       </p>
                     </div>
                   )}

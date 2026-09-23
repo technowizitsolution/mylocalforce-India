@@ -177,3 +177,54 @@ export const cloneDeep = (obj) => {
     return clonedObj;
   }
 };
+
+/**
+ * Standard experience options for provider profile and onboarding
+ */
+export const EXPERIENCE_OPTIONS = [
+  { value: '0', label: '0+ year' },
+  { value: '1', label: '1+ year' },
+  { value: '2', label: '2+ years' },
+  { value: '3', label: '3+ years' },
+  { value: '4', label: '4+ years' },
+  { value: '5', label: '5+ years' },
+  { value: '6', label: '6+ years' },
+  { value: '7', label: '7+ years' },
+  { value: '8', label: '8+ years' },
+  { value: '9', label: '9+ years' },
+  { value: '10', label: '10+ years' },
+  { value: '15', label: '15+ years' },
+  { value: '20', label: '20+ years' },
+];
+
+export const EXPERIENCE_TUPLES = EXPERIENCE_OPTIONS.map((option) => [option.value, option.label]);
+
+/**
+ * Format provider years of experience consistently across the platform
+ * @param {string|number|null} value - Raw experience value (e.g. 5, "5", "5+", "5+ years", "5+ Years of Experience")
+ * @param {string} fallback - Fallback string if value is missing (default: 'Not specified')
+ * @returns {string} - Formatted experience string (e.g. "5+ Years")
+ */
+export const formatExperience = (value, fallback = 'Not specified') => {
+  if (value == null) return fallback;
+  const str = String(value).trim();
+  if (!str) return fallback;
+
+  // Pure numeric string (e.g. "0", "1", "5", "10")
+  if (/^\d+$/.test(str)) {
+    const num = parseInt(str, 10);
+    if (num === 1) return '1+ Year';
+    return `${num}+ Years`;
+  }
+
+  // Regex for "5+", "5+ years", "5+ Years of Experience", "5 years", "1 year", "5 yr", "5 yrs"
+  const match = str.match(/^(\d+)\s*\+?\s*(?:years?|yrs?)?(?:\s*of\s*experience)?$/i);
+  if (match) {
+    const num = parseInt(match[1], 10);
+    if (num === 1) return '1+ Year';
+    return `${num}+ Years`;
+  }
+
+  return str;
+};
+

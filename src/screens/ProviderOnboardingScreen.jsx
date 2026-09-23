@@ -617,7 +617,19 @@ const ProviderOnboardingScreen = () => {
 
     setNationalityStatus(profileDetails.nationalityStatus || '');
     setPreferredGender(profileDetails.preferredGender || 'any');
-    setExperience(profileDetails.experience != null ? String(profileDetails.experience) : '');
+    const existingExperience =
+      profileDetails.experience ??
+      providerDetails.experience ??
+      profile?.experience ??
+      profile?.profile?.experience ??
+      null;
+    const resolvedExp =
+      existingExperience != null
+        ? String(existingExperience).trim()
+        : '';
+    const numericMatch = resolvedExp.match(/^(\d+)/);
+    const matchedOption = numericMatch && EXPERIENCE_OPTIONS.find((opt) => opt.value === numericMatch[1]);
+    setExperience(matchedOption ? matchedOption.value : resolvedExp);
     setVisaCategory(profileDetails.visaCategory || '');
     setVisaNumber(profileDetails.visaNumber || '');
     setVisaExpiry(parseStoredDate(profileDetails.visaExpiry));
@@ -1076,6 +1088,7 @@ const ProviderOnboardingScreen = () => {
   };
 
   const buildProviderDetails = (documents = {}, status = 'under_review') => ({
+    experience: experience || null,
     profile: {
       nationalityStatus: nationalityStatus || null,
       servicesOffered: selectedServices,
@@ -1616,6 +1629,9 @@ const ProviderOnboardingScreen = () => {
             className={controlClass}
           >
             <option value="">Select Experience</option>
+            {experience && !EXPERIENCE_OPTIONS.some((option) => option.value === experience) && (
+              <option value={experience}>{experience}</option>
+            )}
             {EXPERIENCE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}

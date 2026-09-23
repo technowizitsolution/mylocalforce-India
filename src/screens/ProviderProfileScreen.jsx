@@ -37,6 +37,7 @@ import {
   subscribeToBusinessProfile,
   updatePushNotificationPreference,
 } from '../services/firebase';
+import { formatExperience } from '../utils/helpers';
 import { notify } from '../utils/toast';
 
 const isToggleExplicitlyDisabled = (value) => {
@@ -189,6 +190,17 @@ const ProviderProfileScreen = () => {
       'Tell customers about your experience, services, and what makes your work reliable.',
     [profile, providerDetails]
   );
+  const providerExperience = useMemo(() => {
+    const rawExperience =
+      profile?.experience ??
+      profile?.profile?.experience ??
+      providerDetails?.profile?.experience ??
+      providerDetails?.experience ??
+      user?.experience ??
+      user?.profile?.experience ??
+      null;
+    return formatExperience(rawExperience);
+  }, [profile, providerDetails, user]);
   const initials = name
     .split(' ')
     .filter(Boolean)
@@ -365,7 +377,7 @@ const ProviderProfileScreen = () => {
       <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-base font-semibold text-slate-900">Business Information</h2>
         <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
-          <InfoRow Icon={FiClock} label="Experience" value={`${profile?.experience || 0} years`} />
+          <InfoRow Icon={FiClock} label="Experience" value={providerExperience} />
           <InfoRow
             Icon={FiMail}
             label="Email"
@@ -605,7 +617,7 @@ const ProviderProfileScreen = () => {
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-base font-semibold text-slate-800">Business Information</h2>
               <div className="mt-5 grid grid-cols-2 gap-4">
-                <DesktopInfo label="Experience" value={`${profile?.experience || 0} years`} />
+                <DesktopInfo label="Experience" value={providerExperience} />
                 <DesktopInfo label="Phone" value={profile?.phone || profile?.phoneNumber || user?.phoneNumber || 'Not specified'} />
                 <DesktopInfo label="Location" value={profile?.address || profile?.profile?.address || 'Not specified'} wide />
                 <DesktopInfo label="Nationality" value={formatNationalityStatus(profile?.nationalityStatus || profile?.profile?.nationalityStatus)} />

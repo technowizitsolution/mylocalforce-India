@@ -15,6 +15,7 @@ import {
 } from '../services/firebase/providerOnboardingService';
 import MobileUploadCard from '../components/providerUpload/desktop/MobileUploadCard';
 import useCategories from '../hooks/useCategories';
+import { EXPERIENCE_TUPLES } from '../utils/helpers';
 import { notify } from '../utils/toast';
 
 const documentTypes = [
@@ -121,6 +122,14 @@ const ProviderEditDetailsScreen = () => {
   const [selectedCategoryIds, setSelectedCategoryIds] = useState([]);
   const [selectedServices, setSelectedServices] = useState([]);
 
+  const experienceSelectOptions = useMemo(() => {
+    const customOption =
+      form.experience && !EXPERIENCE_TUPLES.some((opt) => opt[0] === form.experience)
+        ? [[form.experience, form.experience]]
+        : [];
+    return [['', 'Select experience'], ...customOption, ...EXPERIENCE_TUPLES];
+  }, [form.experience]);
+
   const loadDetails = async () => {
     if (!user?.uid) return;
 
@@ -203,6 +212,7 @@ const ProviderEditDetailsScreen = () => {
       visaCategory: isAustralianCitizen ? null : form.visaCategory || null,
       visaNumber: isAustralianCitizen ? null : form.visaNumber || null,
       visaExpiry: isAustralianCitizen ? null : visaExpiry,
+      experience: form.experience || null,
       servicesOffered: selectedServices,
       notificationPreferences: {
         ...(details?.notificationPreferences || {}),
@@ -402,7 +412,7 @@ const ProviderEditDetailsScreen = () => {
               label="Experience"
               value={form.experience}
               onChange={(value) => updateField('experience', value)}
-              options={[['', 'Select experience'], ...experienceOptions]}
+              options={experienceSelectOptions}
             />
           </div>
 
@@ -707,7 +717,18 @@ const toForm = (details) => {
     notificationPreference:
       details?.notificationPreferences?.preference || details?.notificationPreference || 'both',
     preferredGender: details?.profile?.preferredGender || 'any',
-    experience: details?.profile?.experience || '',
+    experience: (() => {
+      const rawExperience =
+        details?.profile?.experience ??
+        details?.experience ??
+        details?.userProfile?.experience ??
+        details?.userProfile?.profile?.experience ??
+        '';
+      const resolvedExp = rawExperience != null ? String(rawExperience).trim() : '';
+      const numericMatch = resolvedExp.match(/^(\d+)/);
+      const matchedOption = numericMatch && EXPERIENCE_TUPLES.find((opt) => opt[0] === numericMatch[1]);
+      return matchedOption ? matchedOption[0] : resolvedExp;
+    })(),
     providerIntroduction:
       details?.profile?.providerIntroduction ||
       details?.profile?.bio ||

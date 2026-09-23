@@ -359,6 +359,15 @@ export const saveProviderDetails = async (userId, providerDetails) => {
       rejectionMeta: null,
     };
 
+    const exp = providerDetails?.profile?.experience ?? providerDetails?.experience ?? null;
+    if (exp != null) {
+      topLevelUpdates.experience = exp;
+      topLevelUpdates.profile = {
+        ...(topLevelUpdates.profile || {}),
+        experience: exp,
+      };
+    }
+
     // If provider supplied visa details in the saved payload, mark account as pending approval
     try {
       const visaExpiry =
@@ -446,6 +455,19 @@ export const saveProviderOnboardingDraft = async (userId, providerDetails) => {
     },
     { merge: true }
   );
+
+  const exp = providerDetails?.profile?.experience ?? providerDetails?.experience ?? null;
+  if (exp != null) {
+    const userRef = doc(firestore, 'users', userId);
+    await setDoc(
+      userRef,
+      {
+        experience: exp,
+        profile: { experience: exp },
+      },
+      { merge: true }
+    );
+  }
 };
 
 /**
@@ -553,6 +575,15 @@ export const saveProviderDetailsWithSecureDocuments = async (
     documentsMetadata,
   };
 
+  const exp = providerDetails?.profile?.experience ?? providerDetails?.experience ?? null;
+  if (exp != null) {
+    topLevelUpdates.experience = exp;
+    topLevelUpdates.profile = {
+      ...(topLevelUpdates.profile || {}),
+      experience: exp,
+    };
+  }
+
   try {
     const visaExpiry = providerDetails?.profile?.visaExpiry || providerDetails?.visaExpiry || null;
     const visaDate = parseVisaExpiryToDate(visaExpiry);
@@ -599,10 +630,26 @@ export const fetchProviderDetails = async (userId) => {
       const userSnap = await getDoc(doc(firestore, 'users', userId)).catch(() => null);
       const topLevelData = userSnap?.exists?.() ? userSnap.data() || {} : {};
       const topLevelOnboarding = topLevelData.provider_onboarding || {};
+      const resolvedExperience =
+        data?.profile?.experience ??
+        data?.experience ??
+        topLevelData?.profile?.experience ??
+        topLevelData?.experience ??
+        topLevelOnboarding?.profile?.experience ??
+        topLevelOnboarding?.experience ??
+        null;
+
       const mergedDetails = {
         ...topLevelData,
         ...topLevelOnboarding,
         ...data,
+        experience: resolvedExperience,
+        profile: {
+          ...(topLevelData.profile || {}),
+          ...(topLevelOnboarding.profile || {}),
+          ...(data.profile || {}),
+          ...(resolvedExperience != null ? { experience: resolvedExperience } : {}),
+        },
         documents: {
           ...(topLevelData.documents || {}),
           ...(topLevelOnboarding.documents || {}),
@@ -661,6 +708,15 @@ export const updateProviderDetails = async (userId, updates, options = {}) => {
       onboardingDocuments: true,
       onboardingSubmittedAt: serverTimestamp(),
     };
+
+    const exp = updates?.profile?.experience ?? updates?.experience ?? null;
+    if (exp != null) {
+      topLevelUpdates.experience = exp;
+      topLevelUpdates.profile = {
+        ...(topLevelUpdates.profile || {}),
+        experience: exp,
+      };
+    }
 
     if (options.submitForReview) {
       topLevelUpdates.approvalStatus = 'pending';

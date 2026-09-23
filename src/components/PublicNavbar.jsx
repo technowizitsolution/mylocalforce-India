@@ -23,9 +23,12 @@ const PublicNavbar = ({
   const { isAuthenticated, isLoggedIn, user, userRoles, activeRole } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [hasScrolled, setHasScrolled] = useState(false);
-  const isSignedIn = isAuthenticated || isLoggedIn;
-  const showLogin = !isSignedIn;
   const roles = userRoles?.roles || user?.roles || {};
+  const hasAnyRole = Object.values(roles).some(Boolean);
+  // A persisted Firebase session without any role (e.g. an unfinished signup) has no
+  // home to go to, so treat it as signed out here and keep the Login button visible.
+  const isSignedIn = (isAuthenticated || isLoggedIn) && hasAnyRole;
+  const showLogin = !isSignedIn;
   const canSwitchRole = Boolean(roles.customer && roles.client);
 
   const homePath = useMemo(() => {

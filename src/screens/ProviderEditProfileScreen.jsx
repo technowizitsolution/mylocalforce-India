@@ -1,14 +1,15 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FiLoader, FiMapPin } from 'react-icons/fi';
 import { doc, setDoc } from 'firebase/firestore';
 import ProviderAppLayout from '../components/ProviderAppLayout';
 import Footer from '../components/Footer';
 import { Loading } from '../components/StateComponents';
 import { useAuth } from '../context/AuthContext';
-import { fetchUserProfile } from '../services/firebase';
+import { fetchProviderDetails, fetchUserProfile } from '../services/firebase';
 import { firestore } from '../services/firebase/firebaseConfig';
 import { updateProviderDetails } from '../services/firebase/providerOnboardingService';
 import { fetchAutocompleteSuggestions, geocodeAddress } from '../utils/googleMaps';
+import { EXPERIENCE_TUPLES } from '../utils/helpers';
 import { notify } from '../utils/toast';
 
 const ProviderEditProfileScreen = () => {
@@ -36,17 +37,31 @@ const ProviderEditProfileScreen = () => {
 
     const loadProfile = async () => {
       try {
-        const profile = await fetchUserProfile(user.uid);
+        const [profile, details] = await Promise.all([
+          fetchUserProfile(user.uid).catch(() => null),
+          fetchProviderDetails(user.uid).catch(() => null),
+        ]);
         if (mounted) {
+          const rawExperience =
+            profile?.experience ??
+            profile?.profile?.experience ??
+            details?.profile?.experience ??
+            details?.experience ??
+            '';
+          const resolvedExp = rawExperience != null ? String(rawExperience).trim() : '';
+          const numericMatch = resolvedExp.match(/^(\d+)/);
+          const matchedOption = numericMatch && EXPERIENCE_TUPLES.find((opt) => opt[0] === numericMatch[1]);
+          const finalExpValue = matchedOption ? matchedOption[0] : resolvedExp;
+
           setForm({
             name: profile?.name || profile?.fullName || '',
             phone: profile?.phone || profile?.phoneNumber || '',
-            address: profile?.address || profile?.profile?.address || '',
-            gender: profile?.gender || '',
-            experience: profile?.experience || '',
-            about: profile?.about || profile?.bio || '',
+            address: profile?.address || profile?.profile?.address || details?.profile?.address || '',
+            gender: profile?.gender || details?.profile?.preferredGender || '',
+            experience: finalExpValue,
+            about: profile?.about || profile?.bio || details?.profile?.about || '',
             nationalityStatus:
-              profile?.nationalityStatus || profile?.profile?.nationalityStatus || '',
+              profile?.nationalityStatus || profile?.profile?.nationalityStatus || details?.profile?.nationalityStatus || '',
             dob: normalizeDateInput(profile?.dob || profile?.profile?.dob),
           });
           setAddressMeta({
@@ -79,6 +94,14 @@ const ProviderEditProfileScreen = () => {
   }, [user?.uid]);
 
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+
+  const experienceSelectOptions = useMemo(() => {
+    const customOption =
+      form.experience && !EXPERIENCE_TUPLES.some((opt) => opt[0] === form.experience)
+        ? [[form.experience, form.experience]]
+        : [];
+    return [['', 'Select experience'], ...customOption, ...EXPERIENCE_TUPLES];
+  }, [form.experience]);
 
   useEffect(() => {
     if (selectingAddressRef.current) return undefined;
@@ -161,7 +184,7 @@ const ProviderEditProfileScreen = () => {
           phone: form.phone,
           address: resolvedAddress,
           gender: form.gender,
-          experience: form.experience,
+          experience: form.experience || null,
           about: form.about,
           nationalityStatus: form.nationalityStatus,
           dob: form.dob || null,
@@ -179,11 +202,14 @@ const ProviderEditProfileScreen = () => {
             formattedAddress: resolvedAddress,
             nationalityStatus: form.nationalityStatus,
             dob: form.dob || null,
+            experience: form.experience || null,
+            about: form.about,
           },
         },
         { merge: true }
       );
       await updateProviderDetails(user.uid, {
+        experience: form.experience || null,
         profile: {
           about: form.about,
           address: resolvedAddress,
@@ -192,6 +218,7 @@ const ProviderEditProfileScreen = () => {
           longitude: resolvedAddressMeta.lng,
           nationalityStatus: form.nationalityStatus,
           dob: form.dob || null,
+          experience: form.experience || null,
         },
       });
       await refreshUserData?.();
@@ -225,11 +252,11 @@ const ProviderEditProfileScreen = () => {
             value={form.phone}
             onChange={(value) => updateField('phone', value)}
           />
-          <Field
+          <SelectField
             label="Experience"
             value={form.experience}
             onChange={(value) => updateField('experience', value)}
-            placeholder="Years"
+            options={experienceSelectOptions}
           />
           <Field
             label="Date of Birth"

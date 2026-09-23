@@ -33,6 +33,7 @@ import {
 import { notify, getUserFacingError } from '../../utils/toast';
 import { calculateCartQuote, formatAUD, normalizeServiceItems } from '../../utils/cartPricing';
 import { saveCartDraft } from '../../utils/cartDraft';
+import { fetchServiceDistanceSetting, isWithinServiceDistance } from '../../utils/serviceDistanceSetting';
 
 // NOTE: geocoding fallback uses the Google Geocoding API. Ensure this key has Geocoding enabled.
 const GOOGLE_GEOCODING_API_KEY = 'AIzaSyBfeBvLPaPSEyHpwuqcUXCa-YJnZ3iJu1Q';
@@ -711,6 +712,11 @@ const BookingScreen = () => {
 
       const nearby = [];
 
+      const distanceSetting = await fetchServiceDistanceSetting(
+        serviceData?.id || serviceData?.serviceId,
+        'Booking provider list',
+      );
+
       for (const p of initial) {
         const pid = typeof p === 'string' ? p : p.id || p.providerId || p.ownerId || p.uid;
         if (!pid) continue;
@@ -769,9 +775,12 @@ const BookingScreen = () => {
           distanceKm = getDistanceKm(custCoords.lat, custCoords.lng, coords.lat, coords.lng);
         }
 
-        if (distanceKm == null) continue;
+        // When the service's distance limit is ON, include only providers within it; a provider
+        // whose distance can't be computed is skipped to strictly satisfy the limit.
+        // When the admin turned the limit OFF for this service, include every provider.
+        if (distanceSetting.enabled && distanceKm == null) continue;
 
-        if (distanceKm <= 20) {
+        if (isWithinServiceDistance(distanceKm, distanceSetting)) {
           nearby.push({
             id: pid,
             name:
@@ -962,12 +971,20 @@ const BookingScreen = () => {
         : serviceData?.ownerName || 'Service Provider';
 
       if (!isLead) {
-        const providerCoords = await resolveProviderCoords(chosenProviderId);
+        // A cart can hold several services; the strictest ON setting among them applies.
+        const distanceSetting = await fetchServiceDistanceSetting(
+          [serviceData?.id, ...cartServiceItems.map((item) => item?.id || item?.serviceId)],
+          'Booking submit',
+        );
 
-        let skipDistanceCheck = false;
-        if (!providerCoords) {
+        const providerCoords = distanceSetting.enabled
+          ? await resolveProviderCoords(chosenProviderId)
+          : null;
+
+        let skipDistanceCheck = !distanceSetting.enabled;
+        if (distanceSetting.enabled && !providerCoords) {
           const proceed = await confirmProceedWithoutLocation(
-            'Unable to verify provider location. Do you want to proceed without verifying the 20 km distance?'
+            `Unable to verify provider location. Do you want to proceed without verifying the ${distanceSetting.limitKm} km distance?`
           );
           if (!proceed) {
             setIsLoading(false);
@@ -1013,7 +1030,7 @@ const BookingScreen = () => {
             providerCoords.lat,
             providerCoords.lng
           );
-          if (distanceKm > 20) {
+          if (!isWithinServiceDistance(distanceKm, distanceSetting)) {
             notify.warning('This provider is outside the service range. Choose another provider.', {
               id: 'booking-provider-distance',
             });
