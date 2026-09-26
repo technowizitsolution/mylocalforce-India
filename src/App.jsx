@@ -10,6 +10,8 @@ import Profile from './customer/pages/Profile';
 import EditProfile from './customer/pages/EditProfile';
 import Notifications from './customer/pages/Notifications';
 import AcceptedOffers from './customer/pages/AcceptedOffers';
+import MyLeads from './customer/pages/MyLeads';
+import LeadDetail from './customer/pages/LeadDetail';
 import ContactSupport from './customer/pages/ContactSupport';
 import ServiceDetailsScreen from './customer/pages/ServiceDetailsScreen';
 import AddressScreen from './customer/pages/AddressScreen';
@@ -175,6 +177,8 @@ const App = () => {
         <Route path="profile" element={<Profile />} />
         <Route path="edit-profile" element={<EditProfile />} />
         <Route path="notifications" element={<Notifications />} />
+        <Route path="leads" element={<MyLeads />} />
+        <Route path="leads/:leadId" element={<LeadDetail />} />
         <Route path="accepted-leads" element={<AcceptedOffers />} />
         <Route path="contact-support" element={<ContactSupport />} />
 

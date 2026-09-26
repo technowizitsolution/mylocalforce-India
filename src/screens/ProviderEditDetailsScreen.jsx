@@ -17,6 +17,7 @@ import MobileUploadCard from '../components/providerUpload/desktop/MobileUploadC
 import useCategories from '../hooks/useCategories';
 import { EXPERIENCE_TUPLES } from '../utils/helpers';
 import { notify } from '../utils/toast';
+import { formatLocalDateYMD } from '../utils/helpers';
 
 const documentTypes = [
   { key: 'passportUrl', uploadType: 'passport', label: 'Passport / ID Proof' },
@@ -813,9 +814,7 @@ const normalizeDateInput = (value) => {
     const day = String(value.day || '').padStart(2, '0');
     return year && month && day ? `${year}-${month}-${day}` : '';
   }
-  const date = typeof value?.toDate === 'function' ? value.toDate() : new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toISOString().slice(0, 10);
+  return formatLocalDateYMD(value);
 };
 
 const Field = ({ label, value, onChange, type = 'text', placeholder = '' }) => (

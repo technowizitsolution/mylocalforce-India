@@ -13,6 +13,7 @@ import {
   setDoc,
 } from 'firebase/firestore';
 import { notifyProviderNewBooking } from './notificationService';
+import { formatLocalDateYMD } from '../../utils/helpers';
 
 function formatOrderDate(date = new Date()) {
   const day = String(date.getDate()).padStart(2, '0');
@@ -803,7 +804,7 @@ export async function subscribeToProviderDashboard(providerId, callback) {
                   booking.selectedDate ||
                   booking.requestedDate ||
                   (booking.createdAt
-                    ? booking.createdAt.toDate().toISOString().split('T')[0]
+                    ? formatLocalDateYMD(booking.createdAt)
                     : 'TBD'),
                 time:
                   booking.selectedTime || booking.requestedTime || booking.scheduledTime || 'TBD',
@@ -1034,7 +1035,7 @@ export async function subscribeToProviderEarnings(providerId, callback) {
 
         earningsTransactions.push({
           id: booking.id,
-          date: bookingDate.toISOString().split('T')[0],
+          date: formatLocalDateYMD(bookingDate),
           description: booking.serviceName || 'Service',
           customer: booking.customerName || 'Customer',
           amount: providerEarnings, // Provider earnings after commission

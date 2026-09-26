@@ -24,10 +24,12 @@ const PublicNavbar = ({
   const [isOpen, setIsOpen] = useState(false);
   const [hasScrolled, setHasScrolled] = useState(false);
   const roles = userRoles?.roles || user?.roles || {};
-  const hasAnyRole = Object.values(roles).some(Boolean);
-  // A persisted Firebase session without any role (e.g. an unfinished signup) has no
-  // home to go to, so treat it as signed out here and keep the Login button visible.
-  const isSignedIn = (isAuthenticated || isLoggedIn) && hasAnyRole;
+  // Only customer/client roles have a portal home (see roleHomePathMap).
+  const hasPortalRole = Boolean(roles.customer || roles.client);
+  // A persisted Firebase session without a portal role (e.g. an unfinished signup or an
+  // admin-only account) has no home to go to, so treat it as signed out here and keep
+  // the Login button visible.
+  const isSignedIn = (isAuthenticated || isLoggedIn) && hasPortalRole;
   const showLogin = !isSignedIn;
   const canSwitchRole = Boolean(roles.customer && roles.client);
 

@@ -476,6 +476,22 @@ const ProviderSelectorScreen = () => {
     navigate('/customer/booking', { state: bookingState });
   };
 
+  // Lets the customer request a lead instead of booking one of the listed providers
+  // (or when none are available). BookingScreen saves + broadcasts the lead when
+  // isLead is true; `providers` is deliberately omitted so no provider is attached.
+  const handleCreateLead = () => {
+    navigate('/customer/booking', {
+      state: {
+        serviceData,
+        category,
+        packageData,
+        selectedAddress,
+        address: selectedAddress,
+        isLead: true,
+      },
+    });
+  };
+
   const handleViewProfile = async provider => {
     setSelectedProviderProfile(provider);
     setShowAllProviderServices(false);
@@ -594,6 +610,19 @@ const ProviderSelectorScreen = () => {
                 </button>
               );
             })}
+
+            <div className="mt-2 flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center">
+              <p className="text-sm text-slate-600">
+                Don't want to book any of these providers?
+              </p>
+              <button
+                type="button"
+                onClick={handleCreateLead}
+                className="px-6 py-2.5 bg-white border border-indigo-600 rounded-xl text-indigo-600 font-semibold hover:bg-indigo-50 transition-colors"
+              >
+                Create a Lead
+              </button>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-64 gap-6 px-4 text-center">
@@ -601,19 +630,11 @@ const ProviderSelectorScreen = () => {
               Currently, no service provider is available in your area. We will notify you as soon as a provider becomes available for this service.
             </p>
             <button
-              onClick={() => navigate('/customer/booking', {
-                state: {
-                  serviceData,
-                  category,
-                  packageData,
-                  selectedAddress,
-                  address: selectedAddress,
-                  isLead: true,
-                },
-              })}
+              type="button"
+              onClick={handleCreateLead}
               className="px-6 py-3 bg-white border border-slate-200 rounded-xl text-slate-700 font-semibold hover:bg-slate-50 transition-colors"
             >
-              Notify me when available
+              Create a Lead
             </button>
           </div>
         )}

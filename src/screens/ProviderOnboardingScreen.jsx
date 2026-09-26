@@ -34,6 +34,7 @@ import { firestore } from '../services/firebase/firebaseConfig';
 import { switchActiveRole } from '../services/firebase/userService';
 import MobileUploadCard from '../components/providerUpload/desktop/MobileUploadCard';
 import { notify, getUserFacingError } from '../utils/toast';
+import { formatLocalDateYMD } from '../utils/helpers';
 
 const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024;
@@ -143,7 +144,7 @@ const parseStoredDate = (value) => {
     typeof value === 'string'
       ? value
       : typeof value?.toDate === 'function'
-        ? value.toDate().toISOString().slice(0, 10)
+        ? formatLocalDateYMD(value)
         : '';
 
   const match = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(stringValue);

@@ -6,6 +6,7 @@ import {
   FiChevronLeft,
   FiEdit3,
   FiGift,
+  FiInbox,
   FiLogOut,
   FiUser,
 } from 'react-icons/fi';
@@ -35,6 +36,7 @@ const AccountLayout = ({ title, subtitle, children }) => {
   const accountNavItems = [
     { icon: FiUser, label: 'My Profile', path: '/customer/profile' },
     { icon: FiCalendar, label: 'My Bookings', path: '/customer/bookings' },
+    { icon: FiInbox, label: 'My Leads', path: '/customer/leads' },
     { icon: FiGift, label: 'Accepted Offers', path: '/customer/accepted-leads' },
   ];
 
@@ -52,7 +54,7 @@ const AccountLayout = ({ title, subtitle, children }) => {
   };
 
   const renderNavItem = ({ icon: Icon, label, path }) => {
-    const isActive = pathname === path;
+    const isActive = pathname === path || pathname.startsWith(`${path}/`);
 
     return (
       <button

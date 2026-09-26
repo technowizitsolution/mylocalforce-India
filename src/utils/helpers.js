@@ -228,3 +228,21 @@ export const formatExperience = (value, fallback = 'Not specified') => {
   return str;
 };
 
+
+/**
+ * Format a date as YYYY-MM-DD using the user's local calendar day.
+ * Avoid `toISOString()` for this: it converts to UTC first, so in timezones
+ * ahead of UTC (Australia, India) a local-midnight date becomes the previous day.
+ * @param {Date|string|number|{toDate: Function}} value - Date, parseable value, or Firestore Timestamp
+ * @returns {string} - YYYY-MM-DD, or '' when the value is not a valid date
+ */
+export const formatLocalDateYMD = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const date = typeof value?.toDate === 'function' ? value.toDate() : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};

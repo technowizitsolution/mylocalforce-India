@@ -34,6 +34,7 @@ import { notify, getUserFacingError } from '../../utils/toast';
 import { calculateCartQuote, formatAUD, normalizeServiceItems } from '../../utils/cartPricing';
 import { saveCartDraft } from '../../utils/cartDraft';
 import { fetchServiceDistanceSetting, isWithinServiceDistance } from '../../utils/serviceDistanceSetting';
+import { formatLocalDateYMD } from '../../utils/helpers';
 
 // NOTE: geocoding fallback uses the Google Geocoding API. Ensure this key has Geocoding enabled.
 const GOOGLE_GEOCODING_API_KEY = 'AIzaSyBfeBvLPaPSEyHpwuqcUXCa-YJnZ3iJu1Q';
@@ -58,6 +59,29 @@ const isPermissionDeniedError = (error) =>
   String(error?.message || error || '')
     .toLowerCase()
     .includes('missing or insufficient permissions');
+
+// Lead offers pass the customer's originally requested date (YYYY-MM-DD) back in.
+const parsePrefillDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+
+  if (typeof value === 'string') {
+    const strictDateMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (strictDateMatch) {
+      const parsed = new Date(
+        Number(strictDateMatch[1]),
+        Number(strictDateMatch[2]) - 1,
+        Number(strictDateMatch[3])
+      );
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    const fallback = new Date(value);
+    if (!Number.isNaN(fallback.getTime())) return fallback;
+  }
+
+  return null;
+};
 
 const parsePrice = (value, fallback = 0) => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : fallback;
@@ -126,12 +150,22 @@ const BookingScreen = () => {
     leadId = null,
     leadExpectedProviderId = null,
     serviceItems: incomingServiceItems = EMPTY_SERVICE_ITEMS,
+    prefillDate = null,
+    prefillTime = '',
+    prefillPhone = '',
+    prefillEmail = '',
   } = location.state || {};
 
+  const initialPrefillDate = parsePrefillDate(prefillDate);
+  const initialPrefillPhone = typeof prefillPhone === 'string' ? prefillPhone.trim() : '';
+  const initialPrefillEmail = typeof prefillEmail === 'string' ? prefillEmail.trim() : '';
+
   // Date and Time states
-  const [selectedDate, setSelectedDate] = useState(null);
-  const [selectedTime, setSelectedTime] = useState('');
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(initialPrefillDate);
+  const [selectedTime, setSelectedTime] = useState(
+    typeof prefillTime === 'string' ? prefillTime.trim() : ''
+  );
+  const [currentMonth, setCurrentMonth] = useState(initialPrefillDate || new Date());
   const [showTimeModal, setShowTimeModal] = useState(false);
 
   // Address states
@@ -188,8 +222,8 @@ const BookingScreen = () => {
     setCustomerCoords({ lat: incoming.lat ?? null, lng: incoming.lng ?? null });
   }, [incomingSelectedAddress, incomingAddress]);
 
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [customerEmail, setCustomerEmail] = useState(user?.email || '');
+  const [phoneNumber, setPhoneNumber] = useState(initialPrefillPhone);
+  const [customerEmail, setCustomerEmail] = useState(initialPrefillEmail || user?.email || '');
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -820,8 +854,11 @@ const BookingScreen = () => {
           if (!incoming && profile?.address) {
             setDefaultAddress(profile.address);
           }
-          if (profile?.phone) setPhoneNumber(profile.phone);
-          if (profile?.email) {
+          // Details carried over from a lead offer take priority over the profile.
+          if (profile?.phone && !initialPrefillPhone) setPhoneNumber(profile.phone);
+          if (initialPrefillEmail) {
+            setCustomerEmail(initialPrefillEmail);
+          } else if (profile?.email) {
             setCustomerEmail(profile.email);
           } else if (user?.email) {
             setCustomerEmail(user.email);
@@ -1060,7 +1097,7 @@ const BookingScreen = () => {
         subcategory: serviceData?.subcategory || subcategory,
         providerId: chosenProviderId,
         providerName: chosenProviderName,
-        selectedDate: selectedDate.toISOString().split('T')[0],
+        selectedDate: formatLocalDateYMD(selectedDate),
         selectedTime,
         duration: serviceData?.duration || packageData?.duration || 'TBD',
         price: serviceBasePrice,
@@ -1571,7 +1608,9 @@ const BookingScreen = () => {
         >
           <FiArrowLeft className="w-5 h-5 sm:w-6 sm:h-6 text-slate-800" />
         </button>
-        <h1 className="text-base sm:text-lg font-bold text-slate-800">Book Service</h1>
+        <h1 className="text-base sm:text-lg font-bold text-slate-800">
+          {isLead ? 'Request a Lead' : 'Book Service'}
+        </h1>
         <div className="w-9 sm:w-10" />
       </div>
 

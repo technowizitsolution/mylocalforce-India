@@ -7,6 +7,7 @@ import {
   FiRefreshCw,
   FiCalendar,
   FiGift,
+  FiInbox,
   FiBell,
   FiBellOff,
   FiHelpCircle,
@@ -335,6 +336,7 @@ const Profile = () => {
   const menuItems = [
     { icon: FiCalendar, label: 'My Bookings', path: '/customer/bookings' },
     { icon: FiEdit3, label: 'Edit Profile', path: '/customer/edit-profile' },
+    { icon: FiInbox, label: 'My Leads', path: '/customer/leads' },
     { icon: FiGift, label: 'Accepted Offers', path: '/customer/accepted-leads' },
     { icon: FiBell, label: 'Notifications', path: '/customer/notifications' },
   ];
@@ -381,6 +383,7 @@ const Profile = () => {
       path: '/customer/bookings',
       badge: bookingsBadge,
     },
+    { icon: FiInbox, label: 'My Leads', path: '/customer/leads' },
     { icon: FiGift, label: 'Accepted Offers', path: '/customer/accepted-leads' },
   ];
 
@@ -409,6 +412,16 @@ const Profile = () => {
       badgeClass: 'bg-[#4ECDC4]/10 text-[#1E9E94]',
       iconBg: 'bg-[#4ECDC4]/10',
       iconColor: 'text-[#1E9E94]',
+    },
+    {
+      icon: FiInbox,
+      label: 'My Leads',
+      description: 'Track your service requests and provider offers.',
+      path: '/customer/leads',
+      badge: 'View leads',
+      badgeClass: 'bg-amber-50 text-amber-700',
+      iconBg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
     },
     {
       icon: FiGift,

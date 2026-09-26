@@ -29,7 +29,8 @@ const TabBar = () => {
         '/customer/edit-profile',
         '/customer/notifications',
         '/customer/accepted-leads',
-      ].includes(location.pathname);
+        '/customer/leads',
+      ].includes(location.pathname) || location.pathname.startsWith('/customer/leads/');
     }
 
     return location.pathname === path;

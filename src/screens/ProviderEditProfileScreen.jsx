@@ -11,6 +11,7 @@ import { updateProviderDetails } from '../services/firebase/providerOnboardingSe
 import { fetchAutocompleteSuggestions, geocodeAddress } from '../utils/googleMaps';
 import { EXPERIENCE_TUPLES } from '../utils/helpers';
 import { notify } from '../utils/toast';
+import { formatLocalDateYMD } from '../utils/helpers';
 
 const ProviderEditProfileScreen = () => {
   const { user, refreshUserData } = useAuth();
@@ -321,9 +322,7 @@ const ProviderEditProfileScreen = () => {
 
 const normalizeDateInput = (value) => {
   if (!value) return '';
-  const date = typeof value?.toDate === 'function' ? value.toDate() : new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toISOString().slice(0, 10);
+  return formatLocalDateYMD(value);
 };
 
 const Field = ({ label, value, onChange, type = 'text', placeholder = '' }) => (
