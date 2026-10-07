@@ -13,6 +13,7 @@ import {
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { fetchUserProfile } from '../../services/firebase';
+import { toPublicProviderEntry } from '../../utils/providerPrivacy';
 import { fetchServicesByProvider } from '../../services/firebase/serviceService';
 import app, { auth as firebaseAuth, firestore } from '../../services/firebase/firebaseConfig';
 import {
@@ -815,19 +816,20 @@ const BookingScreen = () => {
         if (distanceSetting.enabled && distanceKm == null) continue;
 
         if (isWithinServiceDistance(distanceKm, distanceSetting)) {
-          nearby.push({
-            id: pid,
-            name:
-              profile?.name ||
-              profile?.fullName ||
-              profile?.displayName ||
-              (typeof p === 'object' && (p.name || p.fullName)) ||
-              'Provider',
-            profile,
-            coords,
-            distanceKm,
-            ...(typeof p === 'object' ? p : {}),
-          });
+          nearby.push(
+            toPublicProviderEntry({
+              id: pid,
+              name:
+                profile?.name ||
+                profile?.fullName ||
+                profile?.displayName ||
+                (typeof p === 'object' && (p.name || p.fullName)) ||
+                'Provider',
+              ...(typeof p === 'object' ? p : {}),
+              profile,
+              distanceKm,
+            }),
+          );
         }
       }
 
@@ -1493,15 +1495,9 @@ const BookingScreen = () => {
               providerObject?.profile?.displayName ||
               'Provider';
             const subtitle =
-              providerObject?.formattedAddress ||
-              providerObject?.address ||
               providerObject?.city ||
               providerObject?.profile?.city ||
               '';
-            const distText =
-              providerObject?.distanceKm != null
-                ? `${providerObject.distanceKm.toFixed(1)} km`
-                : null;
             const avatar =
               providerObject?.profile?.photoURL ||
               providerObject?.profile?.avatar ||
@@ -1556,9 +1552,6 @@ const BookingScreen = () => {
                         <span className="text-[10px] sm:text-xs text-slate-400">
                           ★ {Number(rating).toFixed(1)}
                         </span>
-                      )}
-                      {distText && (
-                        <span className="text-[10px] sm:text-xs text-slate-400">{distText}</span>
                       )}
                     </div>
                   </div>

@@ -27,6 +27,7 @@ import {
   updateBookingStatus,
 } from '../../services/firebase/serviceService';
 import { fetchUserProfile } from '../../services/firebase';
+import { toPublicProviderProfile } from '../../utils/providerPrivacy';
 import { createSupportCase } from '../../services/firebase/supportService';
 import { firestore } from '../../services/firebase/firebaseConfig';
 import { useAuth } from '../../context/AuthContext';
@@ -439,7 +440,7 @@ const BookingDetailModal = ({ visible, bookingId, onClose, role = 'customer' }) 
       if (role === 'customer' && bookingData?.providerId) {
         try {
           const profile = await fetchUserProfile(bookingData.providerId);
-          setProviderProfile(profile);
+          setProviderProfile(toPublicProviderProfile(profile));
         } catch (e) {
           console.log('Could not fetch provider profile:', e);
         }

@@ -177,8 +177,6 @@ const ServiceDetailsScreen = () => {
         // Use computed providers
         providers: computedProviders,
         ownerName: service.ownerName || null,
-        ownerEmail: service.ownerEmail || null,
-        ownerPhone: service.ownerPhone || null,
         imageUrl: service.imageUrl,
       },
       packageData: {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FiArrowLeft, FiStar, FiMapPin, FiMail, FiUser, FiAward, FiThumbsUp, FiUserPlus, FiMessageCircle, FiX, FiChevronRight, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { FiArrowLeft, FiStar, FiUser, FiAward, FiThumbsUp, FiUserPlus, FiMessageCircle, FiX, FiChevronRight, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { fetchUserProfile } from '../../services/firebase';
 import { fetchServicesByProvider } from '../../services/firebase/serviceService';
@@ -8,6 +8,7 @@ import app, { auth as firebaseAuth } from '../../services/firebase/firebaseConfi
 import { geocodeAddress } from '../../utils/googleMaps';
 import { saveCartDraft } from '../../utils/cartDraft';
 import { formatExperience } from '../../utils/helpers';
+import { toPublicProviderEntry } from '../../utils/providerPrivacy';
 import { fetchServiceDistanceSetting, isWithinServiceDistance } from '../../utils/serviceDistanceSetting';
 
 const ProviderSelectorScreen = () => {
@@ -115,9 +116,6 @@ const ProviderSelectorScreen = () => {
       profile.full_name ||
       profile.displayName ||
       profile.display_name ||
-      profile.formattedAddress ||
-      profile.formatted_address ||
-      profile.address ||
       (profile.firstName || profile.first_name
         ? `${profile.firstName || profile.first_name || ''} ${
             profile.lastName || profile.last_name || ''
@@ -422,16 +420,17 @@ const ProviderSelectorScreen = () => {
 
           if (distanceKm != null) {
             if (isWithinServiceDistance(distanceKm, distanceSetting)) {
-              results.push({ id: pid, profile, coords, distanceKm });
+              results.push(toPublicProviderEntry({ id: pid, profile, distanceKm }));
             }
           } else {
-            results.push({
-              id: pid,
-              profile,
-              coords: coords || null,
-              distanceKm: null,
-              unknownDistance: true,
-            });
+            results.push(
+              toPublicProviderEntry({
+                id: pid,
+                profile,
+                distanceKm: null,
+                unknownDistance: true,
+              }),
+            );
           }
         }
 
@@ -597,11 +596,6 @@ const ProviderSelectorScreen = () => {
                       {serviceLabel && (
                         <span className="text-xs text-slate-500">{serviceLabel}</span>
                       )}
-                      {item.distanceKm != null ? (
-                        <span className="text-xs text-slate-500">{item.distanceKm.toFixed(1)} km</span>
-                      ) : (
-                        <span className="text-xs text-slate-500">Distance unknown</span>
-                      )}
                     </div>
                   </div>
 
@@ -613,7 +607,7 @@ const ProviderSelectorScreen = () => {
 
             <div className="mt-2 flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center">
               <p className="text-sm text-slate-600">
-                Don't want to book any of these providers?
+                Prefer to explore other providers?
               </p>
               <button
                 type="button"
@@ -687,17 +681,10 @@ const ProviderSelectorScreen = () => {
                         </span>
                       </div>
                     )}
-                    {selectedProviderProfile.distanceKm != null && (
-                      <div className="flex items-center justify-center gap-2">
-                        <FiMapPin size={16} className="text-slate-500" />
-                        <span className="text-sm text-slate-500">
-                          {selectedProviderProfile.distanceKm.toFixed(1)} km away
-                        </span>
-                      </div>
-                    )}
                   </div>
 
                   {/* Details Section */}
+                  {selectedProviderProfile.profile?.gender && (
                   <div className="mb-6">
                     <h4 className="text-base font-bold text-slate-800 mb-4">Details</h4>
                     <div className="space-y-3">
@@ -713,26 +700,9 @@ const ProviderSelectorScreen = () => {
                           </div>
                         </div>
                       )}
-                      {selectedProviderProfile.profile?.email && (
-                        <div className="flex items-start gap-3">
-                          <FiMail size={18} className="text-indigo-600 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="text-sm text-slate-500 font-semibold">Email:</p>
-                            <p className="text-sm text-slate-800">{selectedProviderProfile.profile.email}</p>
-                          </div>
-                        </div>
-                      )}
-                      {selectedProviderProfile.profile?.address && (
-                        <div className="flex items-start gap-3">
-                          <FiMapPin size={18} className="text-indigo-600 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="text-sm text-slate-500 font-semibold">Location:</p>
-                            <p className="text-sm text-slate-800">{selectedProviderProfile.profile.address}</p>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
+                  )}
 
                   {/* Services Offered */}
                   {(providerServicesLoading || profileServices.length > 0) && (

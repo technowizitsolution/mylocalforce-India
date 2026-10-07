@@ -151,8 +151,6 @@ const HomeScreen = () => {
           imagePositionY: serviceData.imagePositionY ?? 50,
           features: serviceData.features || serviceData.whatsIncluded || [serviceData.description],
           ownerName: serviceData.ownerName,
-          ownerEmail: serviceData.ownerEmail,
-          ownerPhone: serviceData.ownerPhone,
           ownerId: serviceData.ownerId,
           providers: serviceData.providers || [],
           imageUrl: serviceData.imageUrl,

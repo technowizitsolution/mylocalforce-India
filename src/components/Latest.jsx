@@ -58,8 +58,6 @@ const normalizeService = (service, index = 0) => ({
   features: service.features || service.whatsIncluded,
   ownerId: service.ownerId,
   ownerName: service.ownerName,
-  ownerEmail: service.ownerEmail,
-  ownerPhone: service.ownerPhone,
   providers: service.providers || (service.ownerId ? [service.ownerId] : []),
   featured: service.featured,
 });
